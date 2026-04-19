@@ -92,10 +92,27 @@ public sealed partial class MovieDetailDialog : Window
             ChipsPanel.Children.Add(border);
         }
 
+        if (m.Rating.HasValue)
+        {
+            // Prominent bright-yellow IMDB rating chip (first, before year/runtime)
+            var ratingBorder = new Border
+            {
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xFA, 0xCC, 0x15)),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 3, 10, 3),
+            };
+            ratingBorder.Child = new TextBlock
+            {
+                Text = $"★ {m.Rating:F1}",
+                FontSize = 13,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x1F, 0x14, 0x00))
+            };
+            ChipsPanel.Children.Add(ratingBorder);
+        }
         if (m.Year.HasValue) AddChip(m.Year.ToString()!);
         if (m.Runtime.HasValue) AddChip($"{m.Runtime} min");
         if (m.Mpaa != null) AddChip(m.Mpaa);
-        if (m.Rating.HasValue) AddChip($"★ {m.Rating:F1}", "#1A1A00");
         if (m.IsMissing) AddChip("MISSING", "#3A1010");
 
         // Drive
@@ -110,10 +127,11 @@ public sealed partial class MovieDetailDialog : Window
         FavBtn.Content = m.IsFavorite ? "★ Favorited" : "☆ Favorite";
         WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Unwatched";
 
-        // Plot
-        if (m.Plot != null)
+        // Plot (fall back to outline — many MediaElch NFOs use <outline> only)
+        var plotText = m.Plot ?? m.Outline;
+        if (!string.IsNullOrWhiteSpace(plotText))
         {
-            PlotText.Text = m.Plot;
+            PlotText.Text = plotText;
             PlotText.Visibility = Visibility.Visible;
         }
 

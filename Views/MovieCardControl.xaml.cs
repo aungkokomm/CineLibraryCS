@@ -53,7 +53,21 @@ public sealed partial class MovieCardControl : UserControl
             HoverOverlay.Visibility = Visibility.Collapsed;
             CardLift.Y = 0;
         };
-        Tapped += (_, _) => OpenDetail();
+        Tapped += (_, e) =>
+        {
+            // Don't re-open if the tap originated inside the "View Details" button
+            // (its Click already opens the dialog — without this guard we'd get two windows).
+            if (e.OriginalSource is FrameworkElement fe)
+            {
+                var cur = fe;
+                while (cur != null)
+                {
+                    if (cur is Button) return;
+                    cur = cur.Parent as FrameworkElement;
+                }
+            }
+            OpenDetail();
+        };
     }
 
     private void OnGlobalSizeChanged(object? s, EventArgs e) => ApplySize();
@@ -101,10 +115,13 @@ public sealed partial class MovieCardControl : UserControl
         {
             RatingText.Text = $"★ {m.Rating:F1}";
             RatingBadge.Visibility = Visibility.Visible;
+            RatingInline.Text = $"★ {m.Rating:F1}";
+            RatingInline.Visibility = Visibility.Visible;
         }
         else
         {
             RatingBadge.Visibility = Visibility.Collapsed;
+            RatingInline.Visibility = Visibility.Collapsed;
         }
 
         GenresText.Text = string.Join(" · ",

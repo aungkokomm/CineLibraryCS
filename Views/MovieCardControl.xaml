@@ -89,8 +89,20 @@
                         <TextBlock x:Name="TitleText" FontSize="12" FontWeight="Bold"
                                    Foreground="White" TextTrimming="CharacterEllipsis"
                                    MaxLines="2" TextWrapping="WrapWholeWords"/>
-                        <TextBlock x:Name="MetaText" FontSize="11"
-                                   Foreground="#D8D8D8" Margin="0,1,0,0"/>
+                        <Grid Margin="0,1,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" x:Name="MetaText" FontSize="11"
+                                       Foreground="#D8D8D8"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Grid.Column="1" x:Name="RatingInline" FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#FACC15"
+                                       Margin="6,0,0,0"
+                                       Visibility="Collapsed"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Grid>
