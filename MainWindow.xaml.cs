@@ -231,8 +231,8 @@ public sealed partial class MainWindow : Window
         });
         var link = new HyperlinkButton
         {
-            Content = "github.com/aungkokomm/CineLibrary",
-            NavigateUri = new Uri("https://github.com/aungkokomm/CineLibrary"),
+            Content = "github.com/aungkokomm/CineLibraryCS",
+            NavigateUri = new Uri("https://github.com/aungkokomm/CineLibraryCS"),
             Padding = new Thickness(0),
         };
         panel.Children.Add(link);

@@ -19,7 +19,7 @@ Built with C# + WinUI 3.
 
 ## Download
 
-Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibrary/releases). Unzip anywhere and run `CineLibrary.exe` — no install required.
+Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). Unzip anywhere and run `CineLibrary.exe` — no install required.
 
 ## Build from source
 
@@ -30,7 +30,7 @@ Requirements:
 - .NET 8 SDK
 
 ```powershell
-git clone https://github.com/aungkokomm/CineLibrary.git
+git clone https://github.com/aungkokomm/CineLibraryCS.git
 cd CineLibrary
 msbuild CineLibraryCS.csproj -t:Build -p:Configuration=Debug -p:Platform=x64
 ```
