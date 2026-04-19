@@ -476,7 +476,8 @@ CREATE TABLE IF NOT EXISTS preferences (
             SELECT m.id, m.title, m.original_title, m.year, m.rating, m.runtime,
                    m.plot, m.tagline, m.mpaa, m.imdb_id, m.premiered, m.studio, m.country,
                    m.local_poster, m.local_fanart, m.is_missing, m.is_favorite, m.is_watched,
-                   m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path
+                   m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
+                   m.outline
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -518,6 +519,7 @@ CREATE TABLE IF NOT EXISTS preferences (
                 Playable = playable,
                 FolderRelPath = folderRel,
                 VideoFileRelPath = videoRel,
+                Outline = r.IsDBNull(22) ? null : r.GetString(22),
             };
         }
 

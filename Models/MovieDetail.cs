@@ -17,6 +17,7 @@ public class MovieDetail
     public double? Rating { get; set; }
     public int? Runtime { get; set; }
     public string? Plot { get; set; }
+    public string? Outline { get; set; }
     public string? Tagline { get; set; }
     public string? Mpaa { get; set; }
     public string? ImdbId { get; set; }
