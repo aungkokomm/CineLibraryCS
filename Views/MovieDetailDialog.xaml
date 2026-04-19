@@ -1,0 +1,175 @@
+<Window
+    x:Class="CineLibraryCS.Views.MovieDetailDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:CineLibraryCS.Models"
+    Title="Movie Details">
+
+    <Grid x:Name="RootGrid" Background="{ThemeResource SidebarBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Custom titlebar drag region -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
+            <TextBlock x:Name="TitleBarText" Text="Movie Details"
+                       FontSize="12" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextBrush}"
+                       VerticalAlignment="Center" Margin="14,0,0,0"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Padding="24">
+            <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch">
+
+                <!-- Hero fanart -->
+                <Border x:Name="HeroBorder" Height="260" CornerRadius="10"
+                        Background="{ThemeResource HeroBgBrush}"
+                        HorizontalAlignment="Stretch">
+                    <Grid>
+                        <Image x:Name="HeroImage" Stretch="UniformToFill"/>
+                        <!-- Gradient overlay so posters/titles remain readable -->
+                        <Border>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Offset="0" Color="#00000000"/>
+                                    <GradientStop Offset="1" Color="#99000000"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Poster + Meta row -->
+                <Grid Margin="0,-90,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Poster -->
+                    <Border Grid.Column="0" Width="180" Height="260" CornerRadius="10"
+                            Margin="16,0,20,0" VerticalAlignment="Top"
+                            Background="{ThemeResource PlaceholderBgBrush}">
+                        <Grid>
+                            <TextBlock x:Name="PosterPlaceholder" Text="🎬" FontSize="56"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Image x:Name="PosterImage" Stretch="UniformToFill"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Meta -->
+                    <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Bottom"
+                                Margin="0,0,0,10">
+                        <TextBlock x:Name="DetailTitle" FontSize="28" FontWeight="Bold"
+                                   Foreground="White" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="OriginalTitle" FontSize="14"
+                                   Foreground="#E0E0E0" Visibility="Collapsed"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock x:Name="Tagline" FontStyle="Italic" FontSize="13"
+                                   Foreground="#D8B4FE" Visibility="Collapsed"
+                                   TextWrapping="Wrap"/>
+                        <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Drive location -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                    <TextBlock Text="Located on:" FontSize="12"
+                               Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center"/>
+                    <Ellipse x:Name="DriveStatusDot" Width="8" Height="8" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="DriveText" FontSize="12"
+                               Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <!-- Actions -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                    <Button x:Name="PlayBtn" Click="OnPlay"
+                            Background="#A78BFA" Foreground="White"
+                            BorderThickness="0" CornerRadius="8" Padding="16,8">
+                        <TextBlock Text="▶ Play"/>
+                    </Button>
+                    <Button x:Name="FolderBtn" Content="📂 Open Folder" Click="OnOpenFolder"
+                            Background="{ThemeResource CardBrush}"
+                            Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            CornerRadius="8" Padding="12,8"/>
+                    <Button x:Name="FavBtn" Click="OnToggleFav"
+                            Background="{ThemeResource CardBrush}"
+                            Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            CornerRadius="8" Padding="12,8"/>
+                    <Button x:Name="WatchedBtn" Click="OnToggleWatched"
+                            Background="{ThemeResource CardBrush}"
+                            Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            CornerRadius="8" Padding="12,8"/>
+                </StackPanel>
+
+                <!-- Plot -->
+                <TextBlock x:Name="PlotText" FontSize="14" Foreground="{ThemeResource TextBrush}"
+                           TextWrapping="Wrap" Margin="0,20,0,0" Visibility="Collapsed"
+                           LineHeight="22"/>
+
+                <!-- Fields grid -->
+                <Grid Margin="0,20,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" x:Name="GenresField" Visibility="Collapsed" Spacing="4">
+                        <TextBlock Text="Genres" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                        <StackPanel x:Name="GenreLinks" Orientation="Horizontal" Spacing="4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" x:Name="DirectorField" Visibility="Collapsed" Spacing="4">
+                        <TextBlock Text="Director" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                        <StackPanel x:Name="DirectorLinks" Orientation="Horizontal" Spacing="4"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Spacing="4">
+                        <TextBlock x:Name="StudioLabel" Visibility="Collapsed"
+                                   Text="Studio" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                        <TextBlock x:Name="StudioText" Visibility="Collapsed"
+                                   FontSize="13" Foreground="{ThemeResource TextBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Cast -->
+                <StackPanel x:Name="CastSection" Margin="0,24,0,0" Visibility="Collapsed">
+                    <TextBlock Text="Cast" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" Margin="0,0,0,10"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled">
+                        <ItemsRepeater x:Name="CastRepeater">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="8"/>
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:Actor">
+                                    <Border Background="{ThemeResource CardBrush}"
+                                            CornerRadius="8" Padding="12,8"
+                                            MinWidth="120" MaxWidth="160">
+                                        <StackPanel>
+                                            <TextBlock Text="{x:Bind Name}"
+                                                       FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource TextBrush}"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="{x:Bind Role, TargetNullValue=''}"
+                                                       FontSize="11"
+                                                       Foreground="{ThemeResource MutedBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

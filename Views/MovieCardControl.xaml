@@ -1,0 +1,99 @@
+<UserControl
+    x:Class="CineLibraryCS.Views.MovieCardControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CineLibraryCS.Views">
+
+    <Grid x:Name="CardRoot" Width="150" Height="280">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="CardLift" Y="0"/>
+        </Grid.RenderTransform>
+        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="10">
+            <Grid>
+                <!-- Poster image -->
+                <Image x:Name="PosterImage" Stretch="UniformToFill"
+                       VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+
+                <!-- Placeholder -->
+                <Grid x:Name="PosterPlaceholder"
+                      Background="{ThemeResource PlaceholderBgBrush}" Visibility="Visible">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                        <TextBlock Text="🎬" FontSize="40" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="PlaceholderTitle" Text="" FontSize="11"
+                                   Foreground="{ThemeResource MutedBrush}"
+                                   TextWrapping="Wrap" TextAlignment="Center"
+                                   MaxWidth="150" Margin="8,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Status badge: small dot + label, corner -->
+                <Border x:Name="StatusBadge"
+                        Background="#CC000000" CornerRadius="8"
+                        VerticalAlignment="Top" HorizontalAlignment="Left"
+                        Padding="6,2" Margin="6" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse x:Name="StatusDot" Width="6" Height="6" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="StatusText" FontSize="9" FontWeight="Bold"
+                                   Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Favorite star top-right -->
+                <Border x:Name="FavBadge" Style="{StaticResource PosterBadgeStyle}"
+                        VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Margin="8" Visibility="Collapsed">
+                    <TextBlock Text="★" FontSize="13" Foreground="#F59E0B"/>
+                </Border>
+
+                <!-- Watched tick bottom-left -->
+                <Border x:Name="WatchedBadge"
+                        Background="#CC22C55E" CornerRadius="10"
+                        Width="22" Height="22" Padding="0"
+                        VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                        Margin="8,0,0,58" Visibility="Collapsed">
+                    <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Rating bottom-right -->
+                <Border x:Name="RatingBadge" Style="{StaticResource PosterBadgeStyle}"
+                        VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                        Margin="8,0,8,58" Visibility="Collapsed">
+                    <TextBlock x:Name="RatingText" FontSize="12" Foreground="#F59E0B" FontWeight="Bold"/>
+                </Border>
+
+                <!-- Hover overlay -->
+                <Border x:Name="HoverOverlay" CornerRadius="10"
+                        Background="#CC000000" Opacity="0" Visibility="Collapsed">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                        <TextBlock x:Name="GenresText" FontSize="11"
+                                   Foreground="#E0E0E0"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"/>
+                        <Button Content="View Details" Click="OnViewDetails"
+                                Style="{StaticResource PillButtonActiveStyle}"
+                                HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Info strip: strong dark gradient so white title is always readable -->
+                <Border VerticalAlignment="Bottom" CornerRadius="0,0,10,10"
+                        Height="54" Padding="8,6">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#00000000"/>
+                            <GradientStop Offset="0.35" Color="#99000000"/>
+                            <GradientStop Offset="1" Color="#F0000000"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <StackPanel VerticalAlignment="Bottom">
+                        <TextBlock x:Name="TitleText" FontSize="12" FontWeight="Bold"
+                                   Foreground="White" TextTrimming="CharacterEllipsis"
+                                   MaxLines="2" TextWrapping="WrapWholeWords"/>
+                        <TextBlock x:Name="MetaText" FontSize="11"
+                                   Foreground="#D8D8D8" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

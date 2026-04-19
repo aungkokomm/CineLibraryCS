@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+publish/
+*.zip
+
+# Local data
+CineLibrary-Data/
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Misc
+_zip.ps1
