@@ -26,9 +26,10 @@ public sealed partial class DrivesPage : Page
         AppState.Instance.RefreshConnected();
         _drives = AppState.Instance.Db.GetDrives();
         DrivesRepeater.ItemsSource = _drives;
+        EmptyState.Visibility = _drives.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // ── Add drive ─────────────────────────────────────────────────────────
+    // ── Add drive (no scan — just register it) ────────────────────────────
 
     private async void OnAddDrive(object sender, RoutedEventArgs e)
     {
@@ -46,7 +47,6 @@ public sealed partial class DrivesPage : Page
             return;
         }
 
-        // Build a list of drives that aren't already added
         var existing = AppState.Instance.Db.GetDrives().Select(d => d.VolumeSerial).ToHashSet();
         var newDrives = new List<(string Serial, string Letter, string VolumeLabel)>();
 
@@ -67,7 +67,6 @@ public sealed partial class DrivesPage : Page
             return;
         }
 
-        // Pick drive — use SelectedIndex to look up from newDrives (no Tag marshaling)
         var combo = new ComboBox { MinWidth = 300 };
         foreach (var (_, letter, label) in newDrives)
             combo.Items.Add($"{label} ({letter}:)");
@@ -93,6 +92,11 @@ public sealed partial class DrivesPage : Page
         panel.Children.Add(combo);
         panel.Children.Add(new TextBlock { Text = "Drive label:", FontSize = 13, Foreground = muted });
         panel.Children.Add(nameBox);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "After adding, use “+ Add Folder” on the drive card to pick which folders to index.",
+            FontSize = 12, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
 
         var dialog = new ContentDialog
         {
@@ -115,25 +119,92 @@ public sealed partial class DrivesPage : Page
         AppState.Instance.Db.AddDrive(ser, finalLabel, let);
         Refresh();
         RefreshRequested?.Invoke(this, EventArgs.Empty);
-
-        // Prompt to scan
-        var scanDialog = new ContentDialog
-        {
-            Title = "Scan now?",
-            Content = $"Drive '{finalLabel}' added. Would you like to scan it now?",
-            PrimaryButtonText = "Scan",
-            CloseButtonText = "Later",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-            RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
-        };
-        if (await scanDialog.ShowAsync() == ContentDialogResult.Primary)
-            await ScanDriveAsync(ser, let, finalLabel, null);
     }
 
-    // ── Scan ─────────────────────────────────────────────────────────────
+    // ── Add folder to a drive ─────────────────────────────────────────────
 
-    private async void OnScanDrive(object sender, RoutedEventArgs e)
+    private async void OnAddFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn || btn.Tag is not string serial) return;
+            var connected = AppState.Instance.Connected;
+            if (!connected.TryGetValue(serial, out var letter))
+            {
+                await ShowInfoDialog("Drive offline",
+                    "Connect this drive to add or scan folders on it.");
+                return;
+            }
+            var driveRoot = $"{letter}:\\";
+            var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
+
+            var picker = new Windows.Storage.Pickers.FolderPicker();
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+            picker.FileTypeFilter.Add("*");
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder == null) return;
+
+            if (!folder.Path.StartsWith(driveRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                await ShowInfoDialog("Wrong drive",
+                    $"Please choose a folder on drive {letter}: ({driveRoot}).");
+                return;
+            }
+
+            // Relative path, forward-slash, no trailing slash. Empty string means drive root itself.
+            var relPath = Path.GetRelativePath(driveRoot, folder.Path).Replace('\\', '/').TrimEnd('/');
+            if (relPath == ".") relPath = "";
+
+            // Prevent duplicates / nested-within-existing
+            var existingRoots = AppState.Instance.Db.GetDriveRoots(serial);
+            if (existingRoots.Any(x => x.RootPath == relPath))
+            {
+                await ShowInfoDialog("Already added", $"'{(relPath == "" ? "(drive root)" : relPath)}' is already tracked on this drive.");
+                return;
+            }
+
+            AppState.Instance.Db.AddDriveRoot(serial, relPath);
+
+            // Now scan just that folder
+            await ScanDriveAsync(serial, letter, drive?.Label ?? serial, folder.Path);
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    // ── Remove folder ─────────────────────────────────────────────────────
+
+    private async void OnRemoveFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn || btn.Tag is not DriveRoot dr) return;
+            var drive = _drives.FirstOrDefault(d => d.VolumeSerial == dr.VolumeSerial);
+
+            var dialog = new ContentDialog
+            {
+                Title = "Remove folder?",
+                Content = $"Remove '{dr.DisplayName}' from '{drive?.Label}'? Movies indexed under this folder will be deleted from the library. The actual files on the drive are untouched.",
+                PrimaryButtonText = "Remove",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot,
+                RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            AppState.Instance.Db.RemoveDriveRoot(dr.VolumeSerial, dr.RootPath);
+            Refresh();
+            RefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    // ── Update Database (rescan all tracked folders on this drive) ────────
+
+    private async void OnUpdateDatabase(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -145,66 +216,33 @@ public sealed partial class DrivesPage : Page
                 return;
             }
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
-            var driveRoot = $"{letter}:\\";
-
-            // Ask: full drive or specific folder?
-            var scopePanel = new StackPanel { Spacing = 12 };
-            var rbFull   = new RadioButton { Content = "Scan full drive",       IsChecked = true, GroupName = "ScanScope" };
-            var rbFolder = new RadioButton { Content = "Scan specific folder…", IsChecked = false, GroupName = "ScanScope" };
-            scopePanel.Children.Add(rbFull);
-            scopePanel.Children.Add(rbFolder);
-
-            var scopeDialog = new ContentDialog
+            var roots = AppState.Instance.Db.GetDriveRoots(serial);
+            if (roots.Count == 0)
             {
-                Title = $"Scan {drive?.Label ?? serial}",
-                Content = scopePanel,
-                PrimaryButtonText = "Next",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-                RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
-            };
-
-            if (await scopeDialog.ShowAsync() != ContentDialogResult.Primary) return;
-
-            string? scanFolder = null;
-
-            if (rbFolder.IsChecked == true)
-            {
-                // Open a folder picker restricted to the drive
-                var picker = new Windows.Storage.Pickers.FolderPicker();
-                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-                picker.FileTypeFilter.Add("*");
-
-                // Associate picker with the app window (required for unpackaged WinUI 3)
-                var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                var folder = await picker.PickSingleFolderAsync();
-                if (folder == null) return;   // user cancelled
-
-                // Validate the chosen folder is actually under this drive
-                if (!folder.Path.StartsWith(driveRoot, StringComparison.OrdinalIgnoreCase))
-                {
-                    await ShowInfoDialog("Wrong drive",
-                        $"Please choose a folder on drive {letter}: ({driveRoot}).");
-                    return;
-                }
-
-                scanFolder = folder.Path;
+                await ShowInfoDialog("No folders", "Add at least one folder to this drive before updating.");
+                return;
             }
 
-            await ScanDriveAsync(serial, letter, drive?.Label ?? serial, scanFolder);
+            var driveRoot = $"{letter}:\\";
+            foreach (var r in roots)
+            {
+                var abs = string.IsNullOrEmpty(r.RootPath)
+                    ? driveRoot
+                    : Path.Combine(driveRoot, r.RootPath.Replace('/', '\\'));
+                await ScanDriveAsync(serial, letter, drive?.Label ?? serial, abs);
+            }
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }
+
+    // ── Scan (shared) ─────────────────────────────────────────────────────
 
     private async Task ScanDriveAsync(string serial, string letter, string label, string? scanFolder = null)
     {
         var driveRoot = $"{letter}:\\";
 
-        var scopeLabel = scanFolder != null
-            ? $"…\\{Path.GetFileName(scanFolder)}"
+        var scopeLabel = scanFolder != null && !string.Equals(scanFolder.TrimEnd('\\'), driveRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)
+            ? $"…\\{Path.GetFileName(scanFolder.TrimEnd('\\'))}"
             : label;
 
         ScanOverlay.Visibility = Visibility.Visible;
@@ -227,7 +265,7 @@ public sealed partial class DrivesPage : Page
         try
         {
             await AppState.Instance.Scanner.ScanAsync(serial, driveRoot, progress, _scanCts.Token, scanFolder);
-            await Task.Delay(1500);
+            await Task.Delay(1200);
         }
         catch (OperationCanceledException)
         {
@@ -257,7 +295,44 @@ public sealed partial class DrivesPage : Page
             NavigateToLibrary?.Invoke(this, serial);
     }
 
-    // ── Rename ────────────────────────────────────────────────────────────
+    // ── Clean up missing movies ───────────────────────────────────────────
+
+    private async void OnCleanupMissing(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn || btn.Tag is not string serial) return;
+            var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
+            if (drive == null || drive.MissingCount == 0) return;
+
+            var dialog = new ContentDialog
+            {
+                Title = $"Remove {drive.MissingCount} missing movies?",
+                Content =
+                    $"The last scan of '{drive.Label}' didn't find {drive.MissingCount} movie(s) that were previously indexed. " +
+                    "Their folders may have been renamed or deleted on the drive.\n\n" +
+                    "Removing them will delete their entries (and cached posters/fanart) from the CineLibrary database. " +
+                    "The actual files on the drive are not touched.\n\n" +
+                    "Tip: if the drive was only partially connected or you scanned the wrong folder, " +
+                    "cancel this and rescan first — otherwise you'll re-scrape these next time.",
+                PrimaryButtonText = $"Delete {drive.MissingCount} entries",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot,
+                RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            var deleted = AppState.Instance.Db.CleanupMissingMovies(serial);
+            Refresh();
+            RefreshRequested?.Invoke(this, EventArgs.Empty);
+
+            await ShowInfoDialog("Cleaned up", $"Removed {deleted} missing movie entries from '{drive.Label}'.");
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    // ── Rename drive ──────────────────────────────────────────────────────
 
     private async void OnRenameDrive(object sender, RoutedEventArgs e)
     {
@@ -267,11 +342,28 @@ public sealed partial class DrivesPage : Page
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
             if (drive == null) return;
 
-            var box = new TextBox { Text = drive.Label, SelectionStart = 0, SelectionLength = drive.Label.Length };
+            var box = new TextBox
+            {
+                Text = drive.Label,
+                SelectionStart = 0,
+                SelectionLength = drive.Label.Length,
+                PlaceholderText = "e.g. Seagate Red 5TB - Movies",
+                MinWidth = 320,
+            };
+            var muted = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Give this drive a unique name so you can tell it apart from other drives with the same model.",
+                FontSize = 12, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            });
+            panel.Children.Add(box);
+
             var dialog = new ContentDialog
             {
                 Title = "Rename Drive",
-                Content = box,
+                Content = panel,
                 PrimaryButtonText = "Rename",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
@@ -279,8 +371,11 @@ public sealed partial class DrivesPage : Page
                 RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
             };
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
             var newName = box.Text.Trim();
             if (string.IsNullOrEmpty(newName)) return;
+            if (newName == drive.Label) return;
+
             AppState.Instance.Db.RenameDrive(serial, newName);
             Refresh();
             RefreshRequested?.Invoke(this, EventArgs.Empty);
@@ -288,7 +383,7 @@ public sealed partial class DrivesPage : Page
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }
 
-    // ── Remove ────────────────────────────────────────────────────────────
+    // ── Remove drive ──────────────────────────────────────────────────────
 
     private async void OnRemoveDrive(object sender, RoutedEventArgs e)
     {

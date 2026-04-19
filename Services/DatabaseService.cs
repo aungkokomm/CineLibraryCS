@@ -176,7 +176,116 @@ CREATE TABLE IF NOT EXISTS preferences (
                 MissingCount = r.IsDBNull(5) ? 0 : r.GetInt32(5),
             });
         }
+        r.Close();
+        foreach (var d in list)
+            d.Folders = GetDriveRoots(d.VolumeSerial);
         return list;
+    }
+
+    public List<Models.DriveRoot> GetDriveRoots(string serial)
+    {
+        var list = new List<Models.DriveRoot>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT id, volume_serial, root_path FROM drive_roots WHERE volume_serial=@s ORDER BY root_path";
+        cmd.Parameters.AddWithValue("@s", serial);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new Models.DriveRoot
+            {
+                Id = r.GetInt32(0),
+                VolumeSerial = r.GetString(1),
+                RootPath = r.GetString(2),
+            });
+        }
+        return list;
+    }
+
+    /// <summary>Purge movies flagged is_missing=1 for this drive (plus their cached artwork). Returns count deleted.</summary>
+    public int CleanupMissingMovies(string serial)
+    {
+        // First, collect + delete cached artwork for missing rows
+        using (var get = _conn.CreateCommand())
+        {
+            get.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND is_missing=1";
+            get.Parameters.AddWithValue("@s", serial);
+            using var rr = get.ExecuteReader();
+            while (rr.Read())
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (!rr.IsDBNull(i))
+                    {
+                        var p = Path.Combine(_dataDir, rr.GetString(i));
+                        if (File.Exists(p)) try { File.Delete(p); } catch { }
+                    }
+                }
+            }
+        }
+
+        using var del = _conn.CreateCommand();
+        del.CommandText = "DELETE FROM movies WHERE volume_serial=@s AND is_missing=1";
+        del.Parameters.AddWithValue("@s", serial);
+        return del.ExecuteNonQuery();
+    }
+
+    public void AddDriveRoot(string serial, string relPath)
+    {
+        var norm = (relPath ?? "").Replace('\\', '/').Trim().TrimEnd('/');
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO drive_roots (volume_serial, root_path) VALUES (@s, @p)";
+        cmd.Parameters.AddWithValue("@s", serial);
+        cmd.Parameters.AddWithValue("@p", norm);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Removes a tracked folder and purges its movies (+ cached artwork) from the DB.</summary>
+    public void RemoveDriveRoot(string serial, string relPath)
+    {
+        var norm = (relPath ?? "").Replace('\\', '/').Trim().TrimEnd('/');
+
+        // Delete cached artwork for movies under this root
+        using (var get = _conn.CreateCommand())
+        {
+            get.CommandText = @"SELECT local_poster, local_fanart, local_nfo FROM movies
+                                WHERE volume_serial=@s AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
+            get.Parameters.AddWithValue("@s", serial);
+            get.Parameters.AddWithValue("@r", norm);
+            get.Parameters.AddWithValue("@p", norm + "/%");
+            using var rr = get.ExecuteReader();
+            while (rr.Read())
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (!rr.IsDBNull(i))
+                    {
+                        var p = Path.Combine(_dataDir, rr.GetString(i));
+                        if (File.Exists(p)) try { File.Delete(p); } catch { }
+                    }
+                }
+            }
+        }
+
+        using var tx = _conn.BeginTransaction();
+        using (var del1 = _conn.CreateCommand())
+        {
+            del1.Transaction = tx;
+            del1.CommandText = @"DELETE FROM movies
+                                 WHERE volume_serial=@s AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
+            del1.Parameters.AddWithValue("@s", serial);
+            del1.Parameters.AddWithValue("@r", norm);
+            del1.Parameters.AddWithValue("@p", norm + "/%");
+            del1.ExecuteNonQuery();
+        }
+        using (var del2 = _conn.CreateCommand())
+        {
+            del2.Transaction = tx;
+            del2.CommandText = "DELETE FROM drive_roots WHERE volume_serial=@s AND root_path=@p";
+            del2.Parameters.AddWithValue("@s", serial);
+            del2.Parameters.AddWithValue("@p", norm);
+            del2.ExecuteNonQuery();
+        }
+        tx.Commit();
     }
 
     public Dictionary<string, string> GetConnectedDrives()

@@ -9,118 +9,263 @@
     <Grid Padding="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="DRIVES" FontSize="18" FontWeight="Bold"
-                       Foreground="{ThemeResource TextBrush}"
-                       CharacterSpacing="100" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="+ Add Drive" Click="OnAddDrive"
-                    Background="#A78BFA" Foreground="White"
-                    BorderThickness="0" CornerRadius="8" Padding="16,8"/>
-        </Grid>
+        <!-- Page title -->
+        <TextBlock Grid.Row="0" Text="DRIVES" FontSize="18" FontWeight="Bold"
+                   Foreground="{ThemeResource TextBrush}"
+                   CharacterSpacing="100" Margin="0,0,0,20"/>
 
-        <!-- Info bar -->
-        <Border Grid.Row="1" Background="{ThemeResource SubtleBgBrush}"
-                CornerRadius="8" Padding="16,12" Margin="0,0,0,20">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="ℹ" FontSize="16" Foreground="#60A5FA" VerticalAlignment="Center"/>
-                <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource MutedBrush}" FontSize="13">
-                    <Run>Connect your external drives and click </Run>
-                    <Run FontWeight="Bold">Scan</Run>
-                    <Run> to import movies. Drives are identified by volume serial — they can be on any drive letter.</Run>
-                </TextBlock>
-            </StackPanel>
-        </Border>
+        <!-- Drive cards area -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="16">
 
-        <!-- Drive cards -->
-        <ScrollViewer Grid.Row="2">
-            <ItemsRepeater x:Name="DrivesRepeater">
-                <ItemsRepeater.Layout>
-                    <StackLayout Orientation="Vertical" Spacing="12"/>
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="models:DriveInfo">
-                        <Border Background="{ThemeResource CardBrush}" CornerRadius="12" Padding="20">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                <!-- Section header with Add Drive button + tagline -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                                <!-- Status dot -->
-                                <Ellipse Grid.Column="0" Width="12" Height="12"
-                                         Margin="0,0,16,0" VerticalAlignment="Center">
-                                    <Ellipse.Fill>
-                                        <SolidColorBrush Color="{x:Bind IsConnected, Converter={StaticResource BoolToColorConverter}}"/>
-                                    </Ellipse.Fill>
-                                </Ellipse>
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="YOUR DRIVES" FontSize="22" FontWeight="Bold"
+                               Foreground="{ThemeResource TextBrush}"
+                               CharacterSpacing="80" VerticalAlignment="Center"/>
 
-                                <!-- Info -->
-                                <StackPanel Grid.Column="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <TextBlock Text="{x:Bind Label}" FontSize="16"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{ThemeResource TextBrush}"/>
-                                        <Border Background="{ThemeResource ChipBrush}"
-                                                CornerRadius="4" Padding="6,2">
-                                            <TextBlock Text="{x:Bind StatusText}" FontSize="11"
-                                                       Foreground="{ThemeResource MutedBrush}"/>
+                    <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                            Content="+ Add Drive" Click="OnAddDrive"
+                            Background="#A78BFA" Foreground="White"
+                            BorderThickness="0" CornerRadius="8" Padding="16,10"
+                            VerticalAlignment="Top"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="External HDDs that hold your movies. Identified by hardware ID, so drive letter changes don't break anything."
+                               Foreground="{ThemeResource MutedBrush}" FontSize="13"
+                               TextWrapping="Wrap" MaxWidth="720"
+                               HorizontalAlignment="Left"
+                               Margin="0,6,16,0"/>
+                </Grid>
+
+                <!-- Empty state -->
+                <Border x:Name="EmptyState" Visibility="Collapsed"
+                        Background="{ThemeResource CardBrush}"
+                        CornerRadius="12" Padding="28" Margin="0,8,0,0">
+                    <StackPanel HorizontalAlignment="Center" Spacing="6">
+                        <TextBlock Text="No drives yet" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Click + Add Drive to get started."
+                                   Foreground="{ThemeResource MutedBrush}" FontSize="13"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Drive cards -->
+                <ItemsRepeater x:Name="DrivesRepeater">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" Spacing="16"/>
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:DriveInfo">
+                            <Border Background="{ThemeResource CardBrush}"
+                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                    CornerRadius="12" Padding="20">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Disk icon -->
+                                    <Border Grid.Column="0" Width="40" Height="40"
+                                            Background="{ThemeResource InputBgBrush}"
+                                            BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="8" VerticalAlignment="Top" Margin="0,2,0,0">
+                                        <TextBlock Text="💾" FontSize="20"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+
+                                    <!-- Main content -->
+                                    <StackPanel Grid.Column="1" Margin="16,0,16,0" Spacing="10">
+                                        <!-- Title + status -->
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{x:Bind Label}"
+                                                       FontSize="17" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource TextBrush}"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                                                    <Ellipse.Fill>
+                                                        <SolidColorBrush Color="{x:Bind IsConnected, Converter={StaticResource BoolToColorConverter}}"/>
+                                                    </Ellipse.Fill>
+                                                </Ellipse>
+                                                <TextBlock Text="{x:Bind NotConnectedText}"
+                                                           FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Folder list -->
+                                        <ItemsRepeater ItemsSource="{x:Bind Folders}">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Orientation="Vertical" Spacing="6"/>
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="models:DriveRoot">
+                                                    <Border Background="{ThemeResource InputBgBrush}"
+                                                            BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="6" Padding="10,8">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="📁" FontSize="14"
+                                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                            <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}"
+                                                                       FontSize="13"
+                                                                       Foreground="{ThemeResource TextBrush}"
+                                                                       FontFamily="Consolas"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <Button Grid.Column="2"
+                                                                    Content="✕" FontSize="11"
+                                                                    Tag="{x:Bind}"
+                                                                    Click="OnRemoveFolder"
+                                                                    Background="Transparent"
+                                                                    Foreground="#EF4444"
+                                                                    BorderThickness="0"
+                                                                    Padding="8,2"
+                                                                    MinWidth="0" MinHeight="0"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTipService.ToolTip="Remove folder and its movies"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+
+                                        <!-- + Add Folder -->
+                                        <Button Content="+ Add Folder"
+                                                Tag="{x:Bind VolumeSerial}"
+                                                Click="OnAddFolder"
+                                                Background="Transparent"
+                                                Foreground="{ThemeResource MutedBrush}"
+                                                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="10,8"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Center"
+                                                FontSize="12"/>
+
+                                        <!-- Missing-movies cleanup (only visible when MissingCount > 0) -->
+                                        <Border Background="#1F2A1010"
+                                                BorderBrush="#EF4444" BorderThickness="1"
+                                                CornerRadius="6" Padding="10,8"
+                                                Visibility="{x:Bind MissingVisibility}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="⚠" FontSize="14"
+                                                           Foreground="#EF4444" VerticalAlignment="Center"
+                                                           Margin="0,0,10,0"/>
+                                                <TextBlock Grid.Column="1"
+                                                           FontSize="12"
+                                                           Foreground="{ThemeResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           VerticalAlignment="Center">
+                                                    <Run Text="{x:Bind MovieCount}"/>
+                                                    <Run Text="indexed, but"/>
+                                                    <Run Text="{x:Bind MissingCount}"/>
+                                                    <Run Text="movie(s) weren't found in the last scan. Delete those entries?"/>
+                                                </TextBlock>
+                                                <Button Grid.Column="2"
+                                                        Content="{x:Bind MissingButtonText}"
+                                                        Tag="{x:Bind VolumeSerial}"
+                                                        Click="OnCleanupMissing"
+                                                        Background="#2A1010" Foreground="#EF4444"
+                                                        BorderBrush="#EF4444" BorderThickness="1"
+                                                        CornerRadius="6" Padding="10,6"
+                                                        FontSize="12"
+                                                        Margin="10,0,0,0"/>
+                                            </Grid>
                                         </Border>
-                                    </StackPanel>
-                                    <TextBlock FontSize="12" Foreground="{ThemeResource MutedBrush}"
-                                               Margin="0,4,0,0">
-                                        <Run Text="{x:Bind MovieCount}"/>
-                                        <Run Text=" movies"/>
-                                    </TextBlock>
-                                </StackPanel>
 
-                                <!-- Actions -->
-                                <StackPanel Grid.Column="2" Orientation="Horizontal"
-                                            Spacing="8" VerticalAlignment="Center">
-                                    <Button Content="Browse"
-                                            Tag="{x:Bind VolumeSerial}"
-                                            Background="{ThemeResource InputBgBrush}"
-                                            Foreground="{ThemeResource TextBrush}"
-                                            BorderBrush="{ThemeResource BorderBrush}"
-                                            CornerRadius="8" Padding="12,7"
-                                            Click="OnBrowseDrive"/>
-                                    <Button Content="↻ Scan"
-                                            Tag="{x:Bind VolumeSerial}"
-                                            Background="#1A2A1A" Foreground="#22C55E"
-                                            BorderBrush="#22C55E" CornerRadius="8" Padding="12,7"
-                                            IsEnabled="{x:Bind IsConnected}"
-                                            Click="OnScanDrive"/>
-                                    <Button Content="Rename"
-                                            Tag="{x:Bind VolumeSerial}"
-                                            Background="{ThemeResource InputBgBrush}"
-                                            Foreground="{ThemeResource TextBrush}"
-                                            BorderBrush="{ThemeResource BorderBrush}"
-                                            CornerRadius="8" Padding="12,7"
-                                            Click="OnRenameDrive"/>
-                                    <Button Content="🗑"
-                                            Tag="{x:Bind VolumeSerial}"
-                                            Background="#2A1010" Foreground="#EF4444"
-                                            BorderBrush="#EF4444" CornerRadius="8" Padding="12,7"
-                                            Click="OnRemoveDrive"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
+                                        <!-- Bottom action row -->
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                    Content="↻ Update Database"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnUpdateDatabase"
+                                                    Background="#1A2A3A" Foreground="#60A5FA"
+                                                    BorderBrush="#60A5FA" BorderThickness="1"
+                                                    CornerRadius="8" Padding="12,7"
+                                                    IsEnabled="{x:Bind IsConnected}"/>
+                                            <Button Grid.Column="1"
+                                                    Content="Browse"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnBrowseDrive"
+                                                    Background="{ThemeResource InputBgBrush}"
+                                                    Foreground="{ThemeResource TextBrush}"
+                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="8" Padding="12,7"
+                                                    Margin="8,0,0,0"/>
+                                            <Button Grid.Column="2"
+                                                    Content="✎ Rename"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnRenameDrive"
+                                                    Background="{ThemeResource InputBgBrush}"
+                                                    Foreground="{ThemeResource TextBrush}"
+                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="8" Padding="12,7"
+                                                    Margin="8,0,0,0"
+                                                    ToolTipService.ToolTip="Rename this drive (e.g. 'Seagate Red 5TB - Movies')"/>
+                                            <Button Grid.Column="4"
+                                                    Content="🗑 Remove Drive"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnRemoveDrive"
+                                                    Background="Transparent"
+                                                    Foreground="#EF4444"
+                                                    BorderBrush="#EF4444" BorderThickness="1"
+                                                    CornerRadius="8" Padding="12,7"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Big movie count on the right -->
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Top"
+                                                HorizontalAlignment="Right" Margin="0,4,0,0">
+                                        <TextBlock Text="{x:Bind MovieCount}"
+                                                   FontSize="36" FontWeight="Bold"
+                                                   Foreground="#FACC15"
+                                                   HorizontalAlignment="Right"/>
+                                        <TextBlock Text="MOVIES"
+                                                   FontSize="10" CharacterSpacing="200"
+                                                   Foreground="{ThemeResource MutedBrush}"
+                                                   HorizontalAlignment="Right"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </StackPanel>
         </ScrollViewer>
 
         <!-- Scan progress overlay -->
-        <Grid x:Name="ScanOverlay" Grid.Row="0" Grid.RowSpan="3"
+        <Grid x:Name="ScanOverlay" Grid.Row="0" Grid.RowSpan="2"
               Background="#CC0A0A0C" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
                 <ProgressRing Width="48" Height="48"
