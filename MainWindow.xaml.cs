@@ -52,6 +52,19 @@ public sealed partial class MainWindow : Window
         acc.Invoked += (_, a) => { ApplySidebarCollapsed(!_sidebarCollapsed); a.Handled = true; };
         RootGrid.KeyboardAccelerators.Add(acc);
 
+        // Global Ctrl+Q to quit
+        var quitAcc = new KeyboardAccelerator { Key = VirtualKey.Q, Modifiers = VirtualKeyModifiers.Control };
+        quitAcc.Invoked += (_, a) => { Close(); a.Handled = true; };
+        RootGrid.KeyboardAccelerators.Add(quitAcc);
+
+        // Global Ctrl+F to focus search
+        var searchAcc = new KeyboardAccelerator { Key = VirtualKey.F, Modifiers = VirtualKeyModifiers.Control };
+        searchAcc.Invoked += (_, a) => { 
+            _libraryPage?.FocusSearchBox();
+            a.Handled = true; 
+        };
+        RootGrid.KeyboardAccelerators.Add(searchAcc);
+
         _ = InitAsync();
     }
 
@@ -225,6 +238,37 @@ public sealed partial class MainWindow : Window
             vm.ShowWatchlist();
             NavigateTo("library");
         }
+    }
+
+    // ── v1.4 New Navigation ────────────────────────────────────────────────
+
+    private void OnNavStatistics(object sender, RoutedEventArgs e)
+    {
+        ContentFrame.Navigate(typeof(Views.StatisticsPage));
+        SidebarTitle.Text = "📊 Statistics";
+    }
+
+    private async void OnHelpClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Views.KeyboardShortcutsDialog();
+        await dialog.ShowAsync();
+    }
+
+    public void NavigateToFilterResults(string filterType, string filterValue)
+    {
+        var page = ContentFrame.Content as Views.FilterResultsPage;
+        if (page == null)
+        {
+            page = new Views.FilterResultsPage();
+            ContentFrame.Navigate(typeof(Views.FilterResultsPage));
+        }
+        page?.SetFilter(filterType, filterValue);
+        SidebarTitle.Text = $"Filtered Results";
+    }
+
+    public void NavigateToAllMovies()
+    {
+        OnNavAllMovies(null, null);
     }
 
     // ── About ─────────────────────────────────────────────────────────────

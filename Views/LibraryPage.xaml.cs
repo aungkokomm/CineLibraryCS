@@ -73,6 +73,12 @@ public sealed partial class LibraryPage : Page
         KeyboardAccelerators.Add(acc);
     }
 
+    public void FocusSearchBox()
+    {
+        SearchBox.Focus(FocusState.Programmatic);
+        SearchBox.SelectAll();
+    }
+
     private void UpdateEmptyState()
     {
         var empty = _vm.Movies.Count == 0 && !_vm.IsLoading;
