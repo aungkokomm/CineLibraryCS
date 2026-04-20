@@ -331,18 +331,23 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         {
             uint serial = 0, maxLen = 0, flags = 0;
             var sb = new StringBuilder(256);
-            if (GetVolumeInformation(drivePath, sb, 256, ref serial, ref maxLen, ref flags, null, 0))
+            if (GetVolumeInformation(drivePath, sb, 256, out serial, out maxLen, out flags, null, 0))
                 return serial.ToString("X8");
         }
         catch { }
         return null;
     }
 
-    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
     private static extern bool GetVolumeInformation(
-        string lpRootPathName, StringBuilder lpVolumeNameBuffer, int nVolumeNameSize,
-        ref uint lpVolumeSerialNumber, ref uint lpMaximumComponentLength, ref uint lpFileSystemFlags,
-        string? lpFileSystemNameBuffer, int nFileSystemNameSize);
+        string lpRootPathName, 
+        [System.Runtime.InteropServices.Out] StringBuilder lpVolumeNameBuffer, 
+        int nVolumeNameSize,
+        out uint lpVolumeSerialNumber, 
+        out uint lpMaximumComponentLength, 
+        out uint lpFileSystemFlags,
+        [System.Runtime.InteropServices.Out] StringBuilder? lpFileSystemNameBuffer, 
+        int nFileSystemNameSize);
 
     public void AddDrive(string volumeSerial, string label, string lastSeenLetter)
     {
@@ -647,7 +652,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             {
                 Id = r.GetInt32(0),
                 Name = r.GetString(1),
-                MovieCount = r.GetInt32(2),
+                MovieCount = (int)r.GetInt64(2),
             });
         }
         return list;
@@ -665,7 +670,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.Parameters.AddWithValue("@top", top);
         var list = new List<GenreFacet>();
         using var r = cmd.ExecuteReader();
-        while (r.Read()) list.Add(new GenreFacet { Name = r.GetString(0), Count = r.GetInt32(1) });
+        while (r.Read()) list.Add(new GenreFacet { Name = r.GetString(0), Count = (int)r.GetInt64(1) });
         return list;
     }
 
@@ -682,11 +687,11 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         r.Read();
         return new LibraryStats
         {
-            TotalMovies = r.GetInt32(0),
-            TotalMissing = r.IsDBNull(1) ? 0 : r.GetInt32(1),
+            TotalMovies = (int)r.GetInt64(0),
+            TotalMissing = r.IsDBNull(1) ? 0 : (int)r.GetInt64(1),
             TotalRuntime = r.GetInt64(2),
             AvgRating = r.IsDBNull(3) ? null : r.GetDouble(3),
-            TotalDrives = r.GetInt32(4),
+            TotalDrives = (int)r.GetInt64(4),
         };
     }
 
@@ -739,19 +744,19 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             GROUP BY (year / 10) * 10
             ORDER BY decade DESC";
 
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add((
-                reader.GetInt32(0),
-                reader.GetInt32(1),
-                reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
-            ));
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                result.Add((
+                    reader.GetInt32(0),
+                    (int)reader.GetInt64(1),
+                    reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
+                ));
+            }
+            return result;
         }
-        return result;
-    }
 
-    public List<GenreFacet> GetTopDirectors(int limit = 10)
+        public List<GenreFacet> GetTopDirectors(int limit = 10)
     {
         var result = new List<GenreFacet>();
         using var cmd = _conn.CreateCommand();
@@ -764,19 +769,19 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add(new GenreFacet
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
             {
-                Name = reader.GetString(0),
-                Count = reader.GetInt32(1)
-            });
+                result.Add(new GenreFacet
+                {
+                    Name = reader.GetString(0),
+                    Count = (int)reader.GetInt64(1)
+                });
+            }
+            return result;
         }
-        return result;
-    }
 
-    public List<GenreFacet> GetTopActors(int limit = 10)
+        public List<GenreFacet> GetTopActors(int limit = 10)
     {
         var result = new List<GenreFacet>();
         using var cmd = _conn.CreateCommand();
@@ -789,19 +794,19 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            result.Add(new GenreFacet
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
             {
-                Name = reader.GetString(0),
-                Count = reader.GetInt32(1)
-            });
+                result.Add(new GenreFacet
+                {
+                    Name = reader.GetString(0),
+                    Count = (int)reader.GetInt64(1)
+                });
+            }
+            return result;
         }
-        return result;
-    }
 
-    public (int watched, int total, double percent) GetWatchProgress()
+        public (int watched, int total, double percent) GetWatchProgress()
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
@@ -811,16 +816,16 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             FROM movies
             WHERE is_missing = 0";
 
-        using var reader = cmd.ExecuteReader();
-        if (reader.Read())
-        {
-            int watched = reader.IsDBNull(0) ? 0 : reader.GetInt32(0);
-            int total = reader.GetInt32(1);
-            double percent = total > 0 ? (watched * 100.0 / total) : 0;
-            return (watched, total, percent);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                int watched = reader.IsDBNull(0) ? 0 : (int)reader.GetInt64(0);
+                int total = (int)reader.GetInt64(1);
+                double percent = total > 0 ? (watched * 100.0 / total) : 0;
+                return (watched, total, percent);
+            }
+            return (0, 0, 0);
         }
-        return (0, 0, 0);
-    }
 
     public double GetTotalRuntimeHours()
     {
@@ -839,7 +844,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
-        return (int)cmd.ExecuteScalar()!;
+        return (int)(long)cmd.ExecuteScalar()!;
     }
 
     public void SetWatchlist(int movieId, bool isWatchlist)

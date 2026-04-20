@@ -14,7 +14,7 @@
         </Grid.RowDefinitions>
 
         <!-- ═══ TOP BAR ═══ -->
-        <Grid Grid.Row="0" Padding="24,16,24,0">
+        <Grid Grid.Row="0" Padding="24,12,24,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -157,7 +157,7 @@
         </Grid>
 
         <!-- ═══ FILTER BAR ═══ -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="24,12,24,8">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="24,0,24,12">
             <TextBlock x:Name="MovieCountText" Text="0 movies"
                        Foreground="{ThemeResource MutedBrush}" FontSize="13"
                        VerticalAlignment="Center" Margin="0,0,12,0"/>
