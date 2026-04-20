@@ -115,7 +115,7 @@
                             </Grid>
                         </Button>
 
-                        <!-- Statistics (v1.4) -->
+                        <!-- Statistics (v1.4) - TBD -->
                         <!-- Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="📊" VerticalAlignment="Center"/>

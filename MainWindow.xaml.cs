@@ -242,7 +242,7 @@ public sealed partial class MainWindow : Window
 
     // ── v1.4 New Navigation ────────────────────────────────────────────────
 
-    // TBD: Keyboard shortcuts and statistics pages for future release
+    // TBD: Statistics dashboard for future release
 
     // ── About ─────────────────────────────────────────────────────────────
 
