@@ -53,12 +53,11 @@ msbuild CineLibraryCS.csproj -t:Publish -p:Configuration=Release -p:Platform=x64
 
 - **Dev build**: `CineLibrary-Data/` next to the `.csproj`
 - **Portable build**: `CineLibrary-Data/` next to `CineLibrary.exe`
+SQLite DB + cached artwork live there. Back it up to keep your favorites/watched state across machines.
 
 ## In next release
 Will fix UI inconsistencies
    
-
-SQLite DB + cached artwork live there. Back it up to keep your favorites/watched state across machines.
 
 ## License
 
