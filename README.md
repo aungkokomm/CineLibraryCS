@@ -3,7 +3,7 @@
 A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, search and play your movies across multiple external drives.
 
 Built with C# + WinUI 3.
-<img width="959" height="508" alt="image" src="https://github.com/user-attachments/assets/9c11fe12-b624-4ba1-a6d7-09564bb4e950" />
+<img width="960" height="509" alt="image" src="https://github.com/user-attachments/assets/7d12d97a-7de7-41eb-9610-6530d8365362" />
 
 ## Features
 
