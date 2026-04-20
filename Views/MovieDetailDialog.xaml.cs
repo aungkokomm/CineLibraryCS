@@ -154,8 +154,7 @@ public sealed partial class MovieDetailDialog : Window
             DirectorLinks.Children.Clear();
             foreach (var d in m.Directors)
             {
-                var btn = new HyperlinkButton { Content = d, Padding = new Thickness(0), FontSize = 13, Tag = d };
-                btn.Click += (s, e) => OnDirectorClick(d);
+                var btn = new HyperlinkButton { Content = d, Padding = new Thickness(0), FontSize = 13 };
                 DirectorLinks.Children.Add(btn);
             }
         }
@@ -232,27 +231,5 @@ public sealed partial class MovieDetailDialog : Window
         AppState.Instance.Db.ToggleWatched(_movie.Id);
         _movie.IsWatched = !_movie.IsWatched;
         WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Unwatched";
-    }
-
-    // ── v1.4 Filter Navigation ────────────────────────────────────────────
-
-    private void OnDirectorClick(string directorName)
-    {
-        Close();
-        MainWindow.Current?.NavigateToFilterResults("director", directorName);
-    }
-
-    private void OnActorClick(string actorName)
-    {
-        Close();
-        MainWindow.Current?.NavigateToFilterResults("actor", actorName);
-    }
-
-    public void OnActorCardClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string actorName)
-        {
-            OnActorClick(actorName);
-        }
     }
 }

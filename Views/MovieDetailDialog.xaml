@@ -149,12 +149,9 @@
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="models:Actor">
-                                    <Button Background="{ThemeResource CardBrush}"
+                                    <Border Background="{ThemeResource CardBrush}"
                                             CornerRadius="8" Padding="12,8"
-                                            MinWidth="120" MaxWidth="160"
-                                            Click="OnActorCardClick"
-                                            Tag="{x:Bind Name}"
-                                            BorderThickness="0">
+                                            MinWidth="120" MaxWidth="160">
                                         <StackPanel>
                                             <TextBlock Text="{x:Bind Name}"
                                                        FontSize="12" FontWeight="SemiBold"
@@ -165,7 +162,7 @@
                                                        Foreground="{ThemeResource MutedBrush}"
                                                        TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </Button>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>

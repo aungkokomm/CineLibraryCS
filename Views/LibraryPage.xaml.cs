@@ -76,7 +76,6 @@ public sealed partial class LibraryPage : Page
     public void FocusSearchBox()
     {
         SearchBox.Focus(FocusState.Programmatic);
-        SearchBox.SelectAll();
     }
 
     private void UpdateEmptyState()
@@ -334,4 +333,5 @@ public sealed partial class LibraryPage : Page
         }
     }
 }
+
 

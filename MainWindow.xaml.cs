@@ -242,34 +242,7 @@ public sealed partial class MainWindow : Window
 
     // ── v1.4 New Navigation ────────────────────────────────────────────────
 
-    private void OnNavStatistics(object sender, RoutedEventArgs e)
-    {
-        ContentFrame.Navigate(typeof(Views.StatisticsPage));
-        SidebarTitle.Text = "📊 Statistics";
-    }
-
-    private async void OnHelpClick(object sender, RoutedEventArgs e)
-    {
-        var dialog = new Views.KeyboardShortcutsDialog();
-        await dialog.ShowAsync();
-    }
-
-    public void NavigateToFilterResults(string filterType, string filterValue)
-    {
-        var page = ContentFrame.Content as Views.FilterResultsPage;
-        if (page == null)
-        {
-            page = new Views.FilterResultsPage();
-            ContentFrame.Navigate(typeof(Views.FilterResultsPage));
-        }
-        page?.SetFilter(filterType, filterValue);
-        SidebarTitle.Text = $"Filtered Results";
-    }
-
-    public void NavigateToAllMovies()
-    {
-        OnNavAllMovies(null, null);
-    }
+    // TBD: Keyboard shortcuts and statistics pages for future release
 
     // ── About ─────────────────────────────────────────────────────────────
 

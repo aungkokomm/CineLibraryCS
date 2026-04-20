@@ -33,22 +33,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
-  <ItemGroup>
-    <Page Remove="Views\FilterResultsPage.xaml" />
-    <Page Remove="Views\KeyboardShortcutsDialog.xaml" />
-    <Page Remove="Views\StatisticsPage.xaml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Views\FilterResultsPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </None>
-    <None Update="Views\KeyboardShortcutsDialog.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </None>
-    <None Update="Views\StatisticsPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </None>
-  </ItemGroup>
 </Project>

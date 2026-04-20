@@ -28,10 +28,10 @@
             </StackPanel>
 
             <!-- Help Button (v1.4) -->
-            <Button Grid.Column="2" Click="OnHelpClick" Background="Transparent" BorderThickness="0"
+            <!-- Button Grid.Column="2" Click="OnHelpClick" Background="Transparent" BorderThickness="0"
                     Padding="8,6" ToolTipService.ToolTip="Keyboard shortcuts (?)">
                 <TextBlock Text="?" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource TextBrush}"/>
-            </Button>
+            </Button -->
         </Grid>
 
         <!-- ═══ MAIN CONTENT ROW ═══ -->
@@ -116,12 +116,12 @@
                         </Button>
 
                         <!-- Statistics (v1.4) -->
-                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
+                        <!-- Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="📊" VerticalAlignment="Center"/>
                                 <TextBlock Text="Statistics" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Button>
+                        </Button -->
 
                         <!-- Drives -->
                         <Button Style="{StaticResource NavItemStyle}" Click="OnNavDrives">
