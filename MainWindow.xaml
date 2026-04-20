@@ -91,6 +91,24 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Watchlist (v1.3) -->
+                        <Button x:Name="BtnWatchlist" Style="{StaticResource NavItemStyle}" Click="OnNavWatchlist">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="📋" VerticalAlignment="Center"/>
+                                    <TextBlock Text="To Watch" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="WatchlistBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
                         <!-- Drives -->
                         <Button Style="{StaticResource NavItemStyle}" Click="OnNavDrives">
                             <Grid HorizontalAlignment="Stretch">

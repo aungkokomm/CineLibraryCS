@@ -16,6 +16,7 @@ namespace CineLibraryCS.Views;
 public sealed partial class LibraryPage : Page
 {
     private readonly LibraryViewModel _vm;
+    public LibraryViewModel ViewModel => _vm;
     public event EventHandler? SidebarRefreshRequested;
 
     // Set to true only after construction finishes. XAML-driven events

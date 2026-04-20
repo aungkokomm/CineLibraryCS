@@ -142,6 +142,26 @@ CREATE TABLE IF NOT EXISTS preferences (
             Exec("ALTER TABLE movies ADD COLUMN is_watched INTEGER DEFAULT 0");
         if (!cols.Contains("is_favorite"))
             Exec("ALTER TABLE movies ADD COLUMN is_favorite INTEGER DEFAULT 0");
+        if (!cols.Contains("is_watchlist"))
+            Exec("ALTER TABLE movies ADD COLUMN is_watchlist INTEGER DEFAULT 0");
+
+        // Create indexes for performance
+        CreateIndexes();
+    }
+
+    private void CreateIndexes()
+    {
+        Exec(@"
+CREATE INDEX IF NOT EXISTS idx_movies_title ON movies(title);
+CREATE INDEX IF NOT EXISTS idx_movies_year ON movies(year);
+CREATE INDEX IF NOT EXISTS idx_movies_volume ON movies(volume_serial);
+CREATE INDEX IF NOT EXISTS idx_movie_genres_genre_id ON movie_genres(genre_id);
+CREATE INDEX IF NOT EXISTS idx_movie_genres_movie_id ON movie_genres(movie_id);
+CREATE INDEX IF NOT EXISTS idx_movie_directors_director_id ON movie_directors(director_id);
+CREATE INDEX IF NOT EXISTS idx_watchlist ON movies(is_watchlist) WHERE is_watchlist = 1;
+CREATE INDEX IF NOT EXISTS idx_favorite ON movies(is_favorite) WHERE is_favorite = 1;
+CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 1;
+        ");
     }
 
     // ── Drives ───────────────────────────────────────────────────────────────
@@ -387,9 +407,12 @@ CREATE TABLE IF NOT EXISTS preferences (
         string SortDir = "asc",
         string? DriveSerial = null,
         string? Genre = null,
+        string? Actor = null,
+        string? Director = null,
         int? CollectionId = null,
         string WatchedFilter = "all",   // all | watched | unwatched
         bool FavoritesOnly = false,
+        bool IsWatchlistOnly = false,
         int Limit = 60,
         int Offset = 0
     );
@@ -403,10 +426,13 @@ CREATE TABLE IF NOT EXISTS preferences (
                 OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND d.name LIKE @q))");
         if (opts.DriveSerial != null) where.Add("m.volume_serial=@serial");
         if (opts.Genre != null) where.Add("EXISTS (SELECT 1 FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id AND g.name=@genre)");
+        if (opts.Actor != null) where.Add("EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND LOWER(a.name)=LOWER(@actor))");
+        if (opts.Director != null) where.Add("EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND LOWER(d.name)=LOWER(@director))");
         if (opts.CollectionId != null) where.Add("EXISTS (SELECT 1 FROM movie_sets ms WHERE ms.movie_id=m.id AND ms.set_id=@colId)");
         if (opts.WatchedFilter == "watched") where.Add("m.is_watched=1");
         else if (opts.WatchedFilter == "unwatched") where.Add("m.is_watched=0");
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
+        if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
 
         var sortCol = opts.SortKey switch
         {
@@ -438,6 +464,8 @@ CREATE TABLE IF NOT EXISTS preferences (
             cmd.Parameters.AddWithValue("@q", $"%{opts.Search}%");
         if (opts.DriveSerial != null) cmd.Parameters.AddWithValue("@serial", opts.DriveSerial);
         if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
+        if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
+        if (opts.Director != null) cmd.Parameters.AddWithValue("@director", opts.Director);
         if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
         cmd.Parameters.AddWithValue("@lim", opts.Limit);
         cmd.Parameters.AddWithValue("@off", opts.Offset);
@@ -694,6 +722,134 @@ CREATE TABLE IF NOT EXISTS preferences (
 
     public SqliteConnection GetConnection() => _conn;
     public string DataDir => _dataDir;
+
+    // ── Statistics (v1.3) ───────────────────────────────────────────────────
+
+    public List<(int decade, int count, double avgRating)> GetMoviesByDecade()
+    {
+        var result = new List<(int, int, double)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT 
+                (year / 10) * 10 as decade,
+                COUNT(*) as count,
+                AVG(CAST(rating AS FLOAT)) as avgRating
+            FROM movies
+            WHERE year IS NOT NULL AND is_missing = 0
+            GROUP BY (year / 10) * 10
+            ORDER BY decade DESC";
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add((
+                reader.GetInt32(0),
+                reader.GetInt32(1),
+                reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
+            ));
+        }
+        return result;
+    }
+
+    public List<GenreFacet> GetTopDirectors(int limit = 10)
+    {
+        var result = new List<GenreFacet>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT d.name, COUNT(md.movie_id) as count
+            FROM directors d
+            LEFT JOIN movie_directors md ON d.id = md.director_id
+            GROUP BY d.id, d.name
+            ORDER BY count DESC
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new GenreFacet
+            {
+                Name = reader.GetString(0),
+                Count = reader.GetInt32(1)
+            });
+        }
+        return result;
+    }
+
+    public List<GenreFacet> GetTopActors(int limit = 10)
+    {
+        var result = new List<GenreFacet>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT a.name, COUNT(DISTINCT ma.movie_id) as count
+            FROM actors a
+            LEFT JOIN movie_actors ma ON a.id = ma.actor_id
+            GROUP BY a.id, a.name
+            ORDER BY count DESC
+            LIMIT @limit";
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new GenreFacet
+            {
+                Name = reader.GetString(0),
+                Count = reader.GetInt32(1)
+            });
+        }
+        return result;
+    }
+
+    public (int watched, int total, double percent) GetWatchProgress()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT 
+                SUM(CASE WHEN is_watched = 1 THEN 1 ELSE 0 END) as watched,
+                COUNT(*) as total
+            FROM movies
+            WHERE is_missing = 0";
+
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            int watched = reader.IsDBNull(0) ? 0 : reader.GetInt32(0);
+            int total = reader.GetInt32(1);
+            double percent = total > 0 ? (watched * 100.0 / total) : 0;
+            return (watched, total, percent);
+        }
+        return (0, 0, 0);
+    }
+
+    public double GetTotalRuntimeHours()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT SUM(CAST(runtime AS FLOAT)) FROM movies WHERE runtime IS NOT NULL AND is_missing = 0";
+
+        var result = cmd.ExecuteScalar();
+        if (result is not DBNull && result != null)
+        {
+            return (double)result / 60.0; // Convert minutes to hours
+        }
+        return 0;
+    }
+
+    public int GetWatchlistCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
+        return (int)cmd.ExecuteScalar()!;
+    }
+
+    public void SetWatchlist(int movieId, bool isWatchlist)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET is_watchlist = @val WHERE id = @id";
+        cmd.Parameters.AddWithValue("@val", isWatchlist ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 

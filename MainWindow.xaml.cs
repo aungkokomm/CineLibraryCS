@@ -114,6 +114,13 @@ public sealed partial class MainWindow : Window
             StatRuntime.Text = stats?.TotalRuntimeText ?? "—";
             StatRating.Text = stats?.AvgRatingText ?? "—";
 
+            // Update watchlist badge (v1.3)
+            if (_libraryPage?.ViewModel is LibraryViewModel vm)
+            {
+                vm.RefreshWatchlistCount();
+                WatchlistBadge.Text = vm.WatchlistCount.ToString();
+            }
+
             DrivesRepeater.ItemsSource = _vm.Drives;
             LibrariesHeader.Visibility = _vm.Drives.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -209,6 +216,17 @@ public sealed partial class MainWindow : Window
             NavigateTo("library", new LibraryNavParam(Genre: genre, Label: genre));
     }
 
+    // ── v1.3 New Navigation ────────────────────────────────────────────────
+
+    private void OnNavWatchlist(object sender, RoutedEventArgs e)
+    {
+        if (_libraryPage?.ViewModel is LibraryViewModel vm)
+        {
+            vm.ShowWatchlist();
+            NavigateTo("library");
+        }
+    }
+
     // ── About ─────────────────────────────────────────────────────────────
 
     private async void OnAboutClick(object sender, RoutedEventArgs e)
@@ -239,7 +257,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.2.1",
+            Title = "CineLibrary v1.3.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

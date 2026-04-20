@@ -10,6 +10,7 @@ public enum SortKey { Title, Year, Rating, Runtime, DateAdded }
 public enum SortDir { Asc, Desc }
 public enum WatchedFilter { All, Unwatched, Watched }
 public enum ViewMode { Grid, List }
+public enum LibraryViewType { AllMovies, Watched, Unwatched, Favorites, Watchlist }
 
 public partial class LibraryViewModel : ObservableObject
 {
@@ -24,11 +25,15 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private bool _favoritesOnly = false;
     [ObservableProperty] private string? _driveSerial = null;
     [ObservableProperty] private string? _genre = null;
+    [ObservableProperty] private string? _filterActor = null;
+    [ObservableProperty] private string? _filterDirector = null;
+    [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private int? _collectionId = null;
     [ObservableProperty] private bool _isLoading = false;
     [ObservableProperty] private bool _hasMore = false;
     [ObservableProperty] private int _totalCount = 0;
     [ObservableProperty] private string _pageTitle = "All Movies";
+    [ObservableProperty] private int _watchlistCount = 0;
 
     public ObservableCollection<MovieListItem> Movies { get; } = new();
 
@@ -95,6 +100,8 @@ public partial class LibraryViewModel : ObservableObject
         SortDir: SortDir == SortDir.Asc ? "asc" : "desc",
         DriveSerial: DriveSerial,
         Genre: Genre,
+        Actor: FilterActor,
+        Director: FilterDirector,
         CollectionId: CollectionId,
         WatchedFilter: WatchedFilter switch
         {
@@ -103,6 +110,7 @@ public partial class LibraryViewModel : ObservableObject
             _ => "all"
         },
         FavoritesOnly: FavoritesOnly,
+        IsWatchlistOnly: IsWatchlistOnly,
         Limit: PageSize,
         Offset: offset
     );
@@ -190,8 +198,67 @@ public partial class LibraryViewModel : ObservableObject
         Genre = null;
         CollectionId = null;
         FavoritesOnly = false;
+        FilterActor = null;
+        FilterDirector = null;
+        IsWatchlistOnly = false;
         PageTitle = "All Movies";
         _ = LoadAsync();
+    }
+
+    // ── New filters (v1.3) ───────────────────────────────────────────────────
+
+    public void FilterByActor(string actorName)
+    {
+        FilterActor = actorName;
+        FilterDirector = null;
+        Genre = null;
+        DriveSerial = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        IsWatchlistOnly = false;
+        SearchText = "";
+        PageTitle = $"Movies with {actorName}";
+        _ = LoadAsync();
+    }
+
+    public void FilterByDirector(string directorName)
+    {
+        FilterDirector = directorName;
+        FilterActor = null;
+        Genre = null;
+        DriveSerial = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        IsWatchlistOnly = false;
+        SearchText = "";
+        PageTitle = $"Directed by {directorName}";
+        _ = LoadAsync();
+    }
+
+    public void ShowWatchlist()
+    {
+        IsWatchlistOnly = true;
+        FilterActor = null;
+        FilterDirector = null;
+        Genre = null;
+        DriveSerial = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        SearchText = "";
+        PageTitle = "📋 To Watch";
+        RefreshWatchlistCount();
+        _ = LoadAsync();
+    }
+
+    public void RefreshWatchlistCount()
+    {
+        WatchlistCount = _state.Db.GetWatchlistCount();
+    }
+
+    public void ToggleWatchlist(int movieId, bool isWatchlist)
+    {
+        _state.Db.SetWatchlist(movieId, isWatchlist);
+        RefreshWatchlistCount();
     }
 
     // ── Mutations ────────────────────────────────────────────────────────────
