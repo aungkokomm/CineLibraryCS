@@ -29,6 +29,7 @@ public class MovieDetail
     public bool IsMissing { get; set; }
     public bool IsFavorite { get; set; }
     public bool IsWatched { get; set; }
+    public bool IsWatchlist { get; set; }
     public bool IsOnline { get; set; }
     public bool Playable { get; set; }
     public string? DriveLabel { get; set; }

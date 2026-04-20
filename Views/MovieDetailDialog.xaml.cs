@@ -126,6 +126,7 @@ public sealed partial class MovieDetailDialog : Window
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = m.IsFavorite ? "★ Favorited" : "☆ Favorite";
         WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Unwatched";
+        WatchlistBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
 
         // Plot (fall back to outline — many MediaElch NFOs use <outline> only)
         var plotText = m.Plot ?? m.Outline;
@@ -225,11 +226,19 @@ public sealed partial class MovieDetailDialog : Window
         FavBtn.Content = _movie.IsFavorite ? "★ Favorited" : "☆ Favorite";
     }
 
-    private void OnToggleWatched(object sender, RoutedEventArgs e)
-    {
-        if (_movie == null) return;
-        AppState.Instance.Db.ToggleWatched(_movie.Id);
-        _movie.IsWatched = !_movie.IsWatched;
-        WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Unwatched";
+         private void OnToggleWatched(object sender, RoutedEventArgs e)
+         {
+             if (_movie == null) return;
+             AppState.Instance.Db.ToggleWatched(_movie.Id);
+             _movie.IsWatched = !_movie.IsWatched;
+             WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Unwatched";
+         }
+
+         private void OnToggleWatchlist(object sender, RoutedEventArgs e)
+         {
+             if (_movie == null) return;
+             AppState.Instance.Db.SetWatchlist(_movie.Id, !_movie.IsWatchlist);
+             _movie.IsWatchlist = !_movie.IsWatchlist;
+             WatchlistBtn.Content = _movie.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
+         }
     }
-}

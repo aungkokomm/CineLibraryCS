@@ -509,7 +509,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             SELECT m.id, m.title, m.original_title, m.year, m.rating, m.runtime,
                    m.plot, m.tagline, m.mpaa, m.imdb_id, m.premiered, m.studio, m.country,
                    m.local_poster, m.local_fanart, m.is_missing, m.is_favorite, m.is_watched,
-                   m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
+                   m.is_watchlist, m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
                    m.outline
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
@@ -519,10 +519,10 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         using (var r = cmd.ExecuteReader())
         {
             if (!r.Read()) return null;
-            var serial = r.GetString(18);
+            var serial = r.GetString(19);
             var letter = connected.TryGetValue(serial, out var l) ? l : null;
-            var folderRel = r.IsDBNull(20) ? null : r.GetString(20);
-            var videoRel = r.IsDBNull(21) ? null : r.GetString(21);
+            var folderRel = r.IsDBNull(21) ? null : r.GetString(21);
+            var videoRel = r.IsDBNull(22) ? null : r.GetString(22);
             var playable = letter != null && videoRel != null && !r.GetBoolean(15);
 
             movie = new MovieDetail
@@ -545,14 +545,15 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
                 IsMissing = r.GetInt32(15) == 1,
                 IsFavorite = r.GetInt32(16) == 1,
                 IsWatched = r.GetInt32(17) == 1,
+                IsWatchlist = r.GetInt32(18) == 1,
                 VolumeSerial = serial,
-                DriveLabel = r.IsDBNull(19) ? null : r.GetString(19),
+                DriveLabel = r.IsDBNull(20) ? null : r.GetString(20),
                 CurrentLetter = letter,
                 IsOnline = letter != null,
                 Playable = playable,
                 FolderRelPath = folderRel,
                 VideoFileRelPath = videoRel,
-                Outline = r.IsDBNull(22) ? null : r.GetString(22),
+                Outline = r.IsDBNull(23) ? null : r.GetString(23),
             };
         }
 
