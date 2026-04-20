@@ -1,9 +1,10 @@
 # CineLibrary
 
 A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, search and play your movies across multiple external drives.
+(This is constantly evolving my personal passion project so always be sure to check latest releases)
 
 Built with C# + WinUI 3.
-<img width="959" height="508" alt="image" src="https://github.com/user-attachments/assets/9c11fe12-b624-4ba1-a6d7-09564bb4e950" />
+<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/498599c9-6769-417e-9e1e-117bdc54b9ee" />
 
 ## Features
 
@@ -53,8 +54,11 @@ msbuild CineLibraryCS.csproj -t:Publish -p:Configuration=Release -p:Platform=x64
 
 - **Dev build**: `CineLibrary-Data/` next to the `.csproj`
 - **Portable build**: `CineLibrary-Data/` next to `CineLibrary.exe`
-
 SQLite DB + cached artwork live there. Back it up to keep your favorites/watched state across machines.
+
+## In next release
+Will fix UI inconsistencies
+   
 
 ## License
 
