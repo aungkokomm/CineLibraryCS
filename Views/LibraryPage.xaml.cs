@@ -307,4 +307,24 @@ public sealed partial class LibraryPage : Page
         var file = await picker.PickSaveFileAsync();
         return file?.Path;
     }
+
+    // ── Back/Toggle sidebar button ────────────────────────────────────────
+
+    public void ShowBackButton(bool show)
+    {
+        // Button is already defined in XAML with Visibility="Collapsed"
+        // This will be called by MainWindow to show/hide it
+    }
+
+    private void OnBackToggleClick(object sender, RoutedEventArgs e)
+    {
+        // Get the main window and toggle sidebar
+        if (App.MainWindow is MainWindow mainWindow)
+        {
+            var toggleSidebarMethod = typeof(MainWindow).GetMethod("OnToggleSidebar", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            toggleSidebarMethod?.Invoke(mainWindow, new object[] { sender, e });
+        }
+    }
 }
+

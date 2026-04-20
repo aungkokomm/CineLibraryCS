@@ -17,15 +17,36 @@
         <Grid Grid.Row="0" Padding="24,16,24,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="PageTitleText" Text="ALL MOVIES"
+            <!-- Back/Toggle button (shows when sidebar is hidden) -->
+            <Button x:Name="BackToggleBtn"
+                    Grid.Column="0"
+                    Click="OnBackToggleClick"
+                    Background="{ThemeResource InputBgBrush}"
+                    BorderBrush="{ThemeResource InputBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="8"
+                    Width="36"
+                    Height="36"
+                    VerticalAlignment="Center"
+                    Margin="0,0,12,0"
+                    ToolTipService.ToolTip="Show sidebar"
+                    Visibility="Collapsed">
+                <TextBlock Text="‹" FontSize="18" FontWeight="Bold" 
+                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Foreground="{ThemeResource TextBrush}"/>
+            </Button>
+
+            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="ALL MOVIES"
                        FontSize="18" FontWeight="Bold" Foreground="{ThemeResource TextBrush}"
                        CharacterSpacing="100" VerticalAlignment="Center"/>
 
-            <AutoSuggestBox Grid.Column="1"
+            <AutoSuggestBox Grid.Column="2"
                             x:Name="SearchBox"
                             PlaceholderText="Search title, actor, director, plot…"
                             Margin="20,0"
@@ -35,14 +56,16 @@
                             BorderBrush="{ThemeResource InputBorderBrush}"
                             Foreground="{ThemeResource TextBrush}"/>
 
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
 
                 <ComboBox x:Name="SortCombo"
                           SelectionChanged="OnSortChanged"
                           Background="{ThemeResource InputBgBrush}"
                           Foreground="{ThemeResource TextBrush}"
                           BorderBrush="{ThemeResource InputBorderBrush}"
-                          MinWidth="140">
+                          MinWidth="140"
+                          Height="36"
+                          VerticalAlignment="Center">
                     <ComboBoxItem Tag="title:asc"      Content="Title ↑"/>
                     <ComboBoxItem Tag="title:desc"     Content="Title ↓"/>
                     <ComboBoxItem Tag="year:desc"      Content="Year ↓"/>
@@ -55,11 +78,13 @@
                     <ComboBoxItem Tag="date_added:asc"  Content="Date Added ↑"/>
                 </ComboBox>
 
-                <SplitButton Content="↓ Export" Click="OnExportCsvDefault"
+                <SplitButton Content="Export" Click="OnExportCsvDefault"
                              Background="{ThemeResource InputBgBrush}"
                              Foreground="{ThemeResource TextBrush}"
                              BorderBrush="{ThemeResource InputBorderBrush}"
-                             Padding="12,8">
+                             Padding="16,8"
+                             Height="36"
+                             VerticalAlignment="Center">
                     <SplitButton.Flyout>
                         <MenuFlyout Placement="Bottom">
                             <MenuFlyoutItem Text="Export as CSV"  Click="OnExportCsv"/>
@@ -72,41 +97,59 @@
                               Click="OnViewGrid"
                               Background="{ThemeResource InputBgBrush}"
                               BorderBrush="{ThemeResource InputBorderBrush}"
-                              Padding="10,8" ToolTipService.ToolTip="Grid view">
-                    <TextBlock Text="⊞" FontSize="16"/>
+                              Padding="10,8"
+                              Height="36"
+                              Width="36"
+                              VerticalAlignment="Center"
+                              ToolTipService.ToolTip="Grid view">
+                    <TextBlock Text="⊞" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 </ToggleButton>
                 <ToggleButton x:Name="ListViewToggle"
                               Click="OnViewList"
                               Background="{ThemeResource InputBgBrush}"
                               BorderBrush="{ThemeResource InputBorderBrush}"
-                              Padding="10,8" ToolTipService.ToolTip="List view">
-                    <TextBlock Text="☰" FontSize="16"/>
+                              Padding="10,8"
+                              Height="36"
+                              Width="36"
+                              VerticalAlignment="Center"
+                              ToolTipService.ToolTip="List view">
+                    <TextBlock Text="☰" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 </ToggleButton>
 
                 <!-- Density picker: S / M / L / XL (like Windows Explorer) -->
                 <Border Background="{ThemeResource InputBgBrush}"
                         BorderBrush="{ThemeResource InputBorderBrush}"
-                        BorderThickness="1" CornerRadius="4" Margin="4,0,0,0">
+                        BorderThickness="1" CornerRadius="4"
+                        Height="36"
+                        VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
                         <ToggleButton x:Name="DensityS" Click="OnDensityClick" Tag="S"
                                       Background="Transparent" BorderThickness="0"
-                                      Padding="8,6" ToolTipService.ToolTip="Small (120px)">
-                            <TextBlock Text="S" FontSize="12" FontWeight="SemiBold"/>
+                                      Padding="12,8" Height="36" Width="36"
+                                      VerticalAlignment="Center"
+                                      ToolTipService.ToolTip="Small (120px)">
+                            <TextBlock Text="S" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityM" Click="OnDensityClick" Tag="M" IsChecked="True"
                                       Background="Transparent" BorderThickness="0"
-                                      Padding="8,6" ToolTipService.ToolTip="Medium (150px)">
-                            <TextBlock Text="M" FontSize="12" FontWeight="SemiBold"/>
+                                      Padding="12,8" Height="36" Width="36"
+                                      VerticalAlignment="Center"
+                                      ToolTipService.ToolTip="Medium (150px)">
+                            <TextBlock Text="M" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityL" Click="OnDensityClick" Tag="L"
                                       Background="Transparent" BorderThickness="0"
-                                      Padding="8,6" ToolTipService.ToolTip="Large (190px)">
-                            <TextBlock Text="L" FontSize="12" FontWeight="SemiBold"/>
+                                      Padding="12,8" Height="36" Width="36"
+                                      VerticalAlignment="Center"
+                                      ToolTipService.ToolTip="Large (190px)">
+                            <TextBlock Text="L" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityXL" Click="OnDensityClick" Tag="XL"
                                       Background="Transparent" BorderThickness="0"
-                                      Padding="8,6" ToolTipService.ToolTip="Extra large (240px)">
-                            <TextBlock Text="XL" FontSize="12" FontWeight="SemiBold"/>
+                                      Padding="12,8" Height="36" Width="36"
+                                      VerticalAlignment="Center"
+                                      ToolTipService.ToolTip="Extra large (240px)">
+                            <TextBlock Text="XL" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                     </StackPanel>
                 </Border>
