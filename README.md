@@ -5,6 +5,7 @@ A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, 
 ***If you’ve ever lost track of what’s hiding on your drives, CineLibrary is there for you.***
 
 (This is constantly evolving my personal passion project, so always be sure to check latest releases)
+
 Stay tuned, Next Release is planned for next week! 
 
 Built with C# + WinUI 3.
