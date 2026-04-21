@@ -2,7 +2,10 @@
 
 A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, search and play your movies across multiple external drives.
 
-***If you’ve ever lost track of what’s hiding on your drives, CineLibrary is there for you.***
+***Stop letting your movies gather dust in forgotten directories.***  
+***Treat them with CineLibrary — making your collection visible, searchable, and alive again.***  
+***CineLibrary: where your movies stop hiding and start shining.***
+
 
 (This is constantly evolving my personal passion project, so always be sure to check latest releases)
 
