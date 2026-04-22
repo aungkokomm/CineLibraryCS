@@ -31,6 +31,9 @@ Built with C# + WinUI 3.
 
 Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). Unzip anywhere and run `CineLibrary.exe` — no install required.
 
+![Stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge&color=blue)
+![Downloads](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge&color=brightgreen)
+
 ## Build from source
 
 Requirements:
