@@ -38,8 +38,9 @@
         <Setter Property="BorderThickness"         Value="0"/>
         <Setter Property="HorizontalAlignment"     Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        <Setter Property="Padding"                 Value="12,8"/>
-        <Setter Property="CornerRadius"            Value="8"/>
+        <Setter Property="Padding"                 Value="10,5"/>
+        <Setter Property="MinHeight"               Value="32"/>
+        <Setter Property="CornerRadius"            Value="6"/>
         <Setter Property="FontSize"                Value="13"/>
     </Style>
 
@@ -82,6 +83,24 @@
         <Setter Property="Background"   Value="#CC000000"/>
         <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="Padding"      Value="4,2"/>
+    </Style>
+
+    <!-- Statistics tile (small square card with a big number) -->
+    <Style x:Key="StatTileStyle" TargetType="Border">
+        <Setter Property="Background"      Value="{ThemeResource CardBrush}"/>
+        <Setter Property="BorderBrush"     Value="{ThemeResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="10"/>
+        <Setter Property="Padding"         Value="16"/>
+    </Style>
+
+    <!-- Statistics panel (larger container for a chart/list) -->
+    <Style x:Key="StatPanelStyle" TargetType="Border">
+        <Setter Property="Background"      Value="{ThemeResource CardBrush}"/>
+        <Setter Property="BorderBrush"     Value="{ThemeResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="10"/>
+        <Setter Property="Padding"         Value="18"/>
     </Style>
 
 </ResourceDictionary>

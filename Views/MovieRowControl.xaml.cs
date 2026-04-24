@@ -22,6 +22,8 @@ public sealed partial class MovieRowControl : UserControl
         set => SetValue(MovieProperty, value);
     }
 
+    public event EventHandler? SidebarRefreshRequested;
+
     public MovieRowControl()
     {
         InitializeComponent();
@@ -111,7 +113,22 @@ public sealed partial class MovieRowControl : UserControl
         catch { }
     }
 
-    private void OnTapped(object sender, TappedRoutedEventArgs e) => OpenDetail();
+    private void OnTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Ignore taps that originated inside any Button on the row (Watched / Fav toggles,
+        // or any future overlay buttons) — their own Click handlers do the work; bubbling
+        // up to OpenDetail would cause a double-action (e.g. toggle fav + open dialog).
+        if (e.OriginalSource is DependencyObject src)
+        {
+            DependencyObject? cur = src;
+            while (cur != null)
+            {
+                if (cur is Button) { e.Handled = true; return; }
+                cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
+            }
+        }
+        OpenDetail();
+    }
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e)
         => RowBorder.Background = new SolidColorBrush(ActualTheme == ElementTheme.Light
@@ -149,6 +166,7 @@ public sealed partial class MovieRowControl : UserControl
     {
         if (Movie == null) return;
         var win = new MovieDetailDialog(Movie.Id);
+        win.WatchlistChanged += (s, e) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         win.Activate();
     }
 }

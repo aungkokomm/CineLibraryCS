@@ -61,12 +61,18 @@ public partial class MainViewModel : ObservableObject
     {
         _pollTimer = new System.Threading.Timer(_ =>
         {
-            _dispatcherQueue?.TryEnqueue(async () => await PollDrivesAsync());
+            if (_shuttingDown) return;
+            _dispatcherQueue?.TryEnqueue(async () =>
+            {
+                if (_shuttingDown) return;
+                await PollDrivesAsync();
+            });
         }, null, 10_000, 10_000);
     }
 
     private async Task PollDrivesAsync()
     {
+        if (_shuttingDown) return;
         var prev = _prevConnected;
         _state.RefreshConnected();
         var curr = _state.Connected;
@@ -102,6 +108,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     public void DismissToast() => ToastVisible = false;
+
+    // ── Shutdown ──────────────────────────────────────────────────────────
+    // Timers fire on ThreadPool threads. Without explicit disposal they can
+    // tick during Close() and race with SqliteConnection teardown, producing
+    // STATUS_STACK_BUFFER_OVERRUN (0xC0000409). Dispose() is called from
+    // MainWindow.Closed BEFORE the native stack frame unwinds.
+
+    private volatile bool _shuttingDown;
+    public bool IsShuttingDown => _shuttingDown;
+
+    public void Shutdown()
+    {
+        _shuttingDown = true;
+        try { _pollTimer?.Dispose(); } catch { }
+        _pollTimer = null;
+        try { _toastTimer?.Dispose(); } catch { }
+        _toastTimer = null;
+    }
 
     // ── Export ────────────────────────────────────────────────────────────
 

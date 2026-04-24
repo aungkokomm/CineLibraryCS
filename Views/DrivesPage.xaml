@@ -6,7 +6,7 @@
     xmlns:models="using:CineLibraryCS.Models"
     Background="{ThemeResource BgBrush}">
 
-    <Grid Padding="24">
+    <Grid Padding="24,8,24,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

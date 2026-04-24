@@ -17,6 +17,7 @@ public sealed partial class MainWindow : Window
     private readonly MainViewModel _vm;
     private LibraryPage? _libraryPage;
     private DrivesPage? _drivesPage;
+    private StatisticsPage? _statisticsPage;
 
     public MainWindow()
     {
@@ -59,11 +60,29 @@ public sealed partial class MainWindow : Window
 
         // Global Ctrl+F to focus search
         var searchAcc = new KeyboardAccelerator { Key = VirtualKey.F, Modifiers = VirtualKeyModifiers.Control };
-        searchAcc.Invoked += (_, a) => { 
+        searchAcc.Invoked += (_, a) => {
             _libraryPage?.FocusSearchBox();
-            a.Handled = true; 
+            a.Handled = true;
         };
         RootGrid.KeyboardAccelerators.Add(searchAcc);
+
+        // v1.4.1 — Ctrl+? (Ctrl+Shift+/) shows keyboard shortcuts dialog
+        var helpAcc = new KeyboardAccelerator
+        {
+            Key = (VirtualKey)191, // '/' on US layout
+            Modifiers = VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+        };
+        helpAcc.Invoked += async (_, a) => { a.Handled = true; await ShowShortcutsDialogAsync(); };
+        RootGrid.KeyboardAccelerators.Add(helpAcc);
+
+        // Stop background timers BEFORE the XAML/Sqlite teardown begins.
+        // Otherwise _pollTimer can tick during Close() and race with
+        // SqliteConnection disposal → STATUS_STACK_BUFFER_OVERRUN.
+        this.Closed += (_, _) =>
+        {
+            try { _vm.Shutdown(); } catch { }
+            try { AppState.Instance.Db.Dispose(); } catch { }
+        };
 
         _ = InitAsync();
     }
@@ -182,6 +201,12 @@ public sealed partial class MainWindow : Window
             _drivesPage.Refresh();
             ContentFrame.Content = _drivesPage;
         }
+        else if (page == "statistics")
+        {
+            _statisticsPage ??= new StatisticsPage();
+            _statisticsPage.Refresh();
+            ContentFrame.Content = _statisticsPage;
+        }
     }
 
     private async Task RefreshSidebarAsync()
@@ -240,9 +265,69 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    // ── v1.4 New Navigation ────────────────────────────────────────────────
+    // ── v1.4.1 Statistics dashboard ────────────────────────────────────────
 
-    // TBD: Statistics dashboard for future release
+    private void OnNavStatistics(object sender, RoutedEventArgs e)
+        => NavigateTo("statistics");
+
+    // ── v1.4.1 Keyboard shortcuts dialog ──────────────────────────────────
+
+    private async void OnHelpClick(object sender, RoutedEventArgs e)
+        => await ShowShortcutsDialogAsync();
+
+    private async Task ShowShortcutsDialogAsync()
+    {
+        var panel = new StackPanel { Spacing = 10, MinWidth = 360 };
+
+        void AddRow(string keys, string what)
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var kb = new Border
+            {
+                Background = (SolidColorBrush)Application.Current.Resources["CardBrush"],
+                BorderBrush = (SolidColorBrush)Application.Current.Resources["BorderBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 2, 8, 2),
+                HorizontalAlignment = HorizontalAlignment.Left,
+            };
+            kb.Child = new TextBlock { Text = keys, FontSize = 12, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };
+            kb.SetValue(Grid.ColumnProperty, 0);
+            row.Children.Add(kb);
+
+            var desc = new TextBlock
+            {
+                Text = what,
+                FontSize = 13,
+                Margin = new Thickness(12, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            desc.SetValue(Grid.ColumnProperty, 1);
+            row.Children.Add(desc);
+
+            panel.Children.Add(row);
+        }
+
+        AddRow("Ctrl + F",      "Focus search box");
+        AddRow("Esc",           "Clear search");
+        AddRow("Ctrl + B",      "Toggle sidebar");
+        AddRow("Ctrl + Shift + /", "Show this shortcuts dialog");
+        AddRow("Ctrl + Q",      "Quit CineLibrary");
+
+        var dialog = new ContentDialog
+        {
+            Title = "Keyboard shortcuts",
+            Content = panel,
+            CloseButtonText = "Close",
+            XamlRoot = Content.XamlRoot,
+            RequestedTheme = CurrentTheme,
+        };
+        await dialog.ShowAsync();
+    }
 
     // ── About ─────────────────────────────────────────────────────────────
 
@@ -274,7 +359,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.3.0",
+            Title = "CineLibrary v1.4.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

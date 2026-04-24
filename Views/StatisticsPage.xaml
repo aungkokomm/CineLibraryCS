@@ -1,0 +1,161 @@
+<Page
+    x:Class="CineLibraryCS.Views.StatisticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:CineLibraryCS.Models"
+    Background="{ThemeResource BgBrush}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="28,8,28,40">
+        <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch" Spacing="24">
+
+            <!-- Page header -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="📊 LIBRARY STATISTICS"
+                           FontSize="12" FontWeight="Bold"
+                           Foreground="{ThemeResource MutedBrush}" CharacterSpacing="200"/>
+                <TextBlock x:Name="PageTitle" Text="Your Collection at a Glance"
+                           FontSize="26" FontWeight="Bold"
+                           Foreground="{ThemeResource TextBrush}"/>
+            </StackPanel>
+
+            <!-- ── Top row: summary tiles ──────────────────────────────────── -->
+            <Grid ColumnSpacing="14" RowSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StatTileStyle}">
+                    <StackPanel>
+                        <TextBlock Text="🎬" FontSize="22"/>
+                        <TextBlock x:Name="TileTotalMovies" Text="0"
+                                   FontSize="32" FontWeight="Bold"
+                                   Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Total movies" FontSize="12"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource StatTileStyle}">
+                    <StackPanel>
+                        <TextBlock Text="⏱️" FontSize="22"/>
+                        <TextBlock x:Name="TileTotalRuntime" Text="—"
+                                   FontSize="32" FontWeight="Bold"
+                                   Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Total runtime" FontSize="12"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource StatTileStyle}">
+                    <StackPanel>
+                        <TextBlock Text="⭐" FontSize="22"/>
+                        <TextBlock x:Name="TileAvgRating" Text="—"
+                                   FontSize="32" FontWeight="Bold"
+                                   Foreground="#FACC15" Margin="0,4,0,0"/>
+                        <TextBlock Text="Avg rating" FontSize="12"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3" Style="{StaticResource StatTileStyle}">
+                    <StackPanel>
+                        <TextBlock Text="💾" FontSize="22"/>
+                        <TextBlock x:Name="TileTotalDrives" Text="0"
+                                   FontSize="32" FontWeight="Bold"
+                                   Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Drives tracked" FontSize="12"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── Watch progress ──────────────────────────────────────────── -->
+            <Border Style="{StaticResource StatPanelStyle}">
+                <StackPanel Spacing="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="✓ Watch progress" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <TextBlock Grid.Column="1" x:Name="WatchProgressText" Text="0 / 0 (0%)"
+                                   FontSize="13" Foreground="{ThemeResource MutedBrush}"/>
+                    </Grid>
+                    <ProgressBar x:Name="WatchProgressBar" Minimum="0" Maximum="100" Value="0"
+                                 Height="10" Foreground="#22C55E"/>
+                    <TextBlock x:Name="WatchlistCountText" Text=""
+                               FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Two-column: Decades + Top genres ────────────────────────── -->
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StatPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="📅 Movies by decade" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <StackPanel x:Name="DecadesPanel" Spacing="6"/>
+                        <TextBlock x:Name="DecadesEmpty" Text="No year data yet."
+                                   FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource StatPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="🏷 Top genres" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <StackPanel x:Name="GenresPanel" Spacing="6"/>
+                        <TextBlock x:Name="GenresEmpty" Text="No genres tagged yet."
+                                   FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── Two-column: Directors + Actors ──────────────────────────── -->
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StatPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="🎥 Top directors" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <StackPanel x:Name="DirectorsPanel" Spacing="6"/>
+                        <TextBlock x:Name="DirectorsEmpty" Text="No director data yet."
+                                   FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource StatPanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="🎭 Top actors" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <StackPanel x:Name="ActorsPanel" Spacing="6"/>
+                        <TextBlock x:Name="ActorsEmpty" Text="No actor data yet."
+                                   FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <TextBlock x:Name="MissingHint" Text=""
+                       FontSize="12" Foreground="#EF4444" Margin="0,0,0,8"
+                       Visibility="Collapsed"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
