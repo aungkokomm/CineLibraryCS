@@ -96,8 +96,9 @@ public sealed partial class MovieRowControl : UserControl
 
         try
         {
-            var bytes = await Task.Run(() => File.ReadAllBytes(fullPath));
+            var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath!, fullPath));
             if (myToken != _thumbLoadToken) return;
+            if (bytes == null) return;
 
             var bmp = new BitmapImage { DecodePixelWidth = 44 };
             var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();

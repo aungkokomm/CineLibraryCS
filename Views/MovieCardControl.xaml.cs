@@ -151,8 +151,13 @@ public sealed partial class MovieCardControl : UserControl
 
         try
         {
-            var bytes = await Task.Run(() => File.ReadAllBytes(fullPath));
+            var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath!, fullPath));
             if (myToken != _posterLoadToken) return;
+            if (bytes == null)
+            {
+                PosterPlaceholder.Visibility = Visibility.Visible;
+                return;
+            }
 
             var bmp = new BitmapImage { DecodePixelWidth = (int)Math.Max(120, GlobalCardWidth) };
             var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();

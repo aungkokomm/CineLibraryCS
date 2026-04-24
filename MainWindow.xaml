@@ -178,13 +178,53 @@
                             </ItemsRepeater>
                         </Expander>
 
-                        <!-- Collections section (collapsible) -->
+                        <!-- v1.5: Top Genres moved above Collections per user request.
+                             Sidebar order is now: Libraries → Top Genres → Collections. -->
+                        <!-- Top Genres section (collapsible) -->
+                        <Expander x:Name="GenresHeader" Header="TOP GENRES"
+                                  Visibility="Collapsed" IsExpanded="True"
+                                  Background="Transparent" BorderThickness="0"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Stretch"
+                                  Margin="0,4,0,0">
+                            <ItemsRepeater x:Name="GenresRepeater">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Orientation="Vertical"/>
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="models:GenreFacet">
+                                        <Button Style="{StaticResource NavItemStyle}"
+                                                Tag="{Binding Name}"
+                                                Click="OnNavGenre">
+                                            <Grid HorizontalAlignment="Stretch">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="🏷" VerticalAlignment="Center"
+                                                               Foreground="{ThemeResource MutedBrush}"/>
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                                    <TextBlock Text="{Binding Count}" FontSize="11"
+                                                               Foreground="{ThemeResource MutedBrush}"
+                                                               HorizontalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </Expander>
+
+                        <!-- Collections section (collapsible) — now last per v1.5 reorder. -->
                         <Expander x:Name="CollectionsHeader" Header="COLLECTIONS"
                                   Visibility="Collapsed" IsExpanded="False"
                                   Background="Transparent" BorderThickness="0"
                                   HorizontalAlignment="Stretch"
                                   HorizontalContentAlignment="Stretch"
-                                  Margin="0,4,0,0">
+                                  Margin="0,4,0,8">
                             <ItemsRepeater x:Name="CollectionsRepeater">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Orientation="Vertical"/>
@@ -207,44 +247,6 @@
                                                 </StackPanel>
                                                 <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
                                                     <TextBlock Text="{Binding MovieCount}" FontSize="11"
-                                                               Foreground="{ThemeResource MutedBrush}"
-                                                               HorizontalAlignment="Center"/>
-                                                </Border>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsRepeater.ItemTemplate>
-                            </ItemsRepeater>
-                        </Expander>
-
-                        <!-- Top Genres section (collapsible) -->
-                        <Expander x:Name="GenresHeader" Header="TOP GENRES"
-                                  Visibility="Collapsed" IsExpanded="True"
-                                  Background="Transparent" BorderThickness="0"
-                                  HorizontalAlignment="Stretch"
-                                  HorizontalContentAlignment="Stretch"
-                                  Margin="0,4,0,8">
-                            <ItemsRepeater x:Name="GenresRepeater">
-                                <ItemsRepeater.Layout>
-                                    <StackLayout Orientation="Vertical"/>
-                                </ItemsRepeater.Layout>
-                                <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="models:GenreFacet">
-                                        <Button Style="{StaticResource NavItemStyle}"
-                                                Tag="{Binding Name}"
-                                                Click="OnNavGenre">
-                                            <Grid HorizontalAlignment="Stretch">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <TextBlock Text="🏷" VerticalAlignment="Center"
-                                                               Foreground="{ThemeResource MutedBrush}"/>
-                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
-                                                    <TextBlock Text="{Binding Count}" FontSize="11"
                                                                Foreground="{ThemeResource MutedBrush}"
                                                                HorizontalAlignment="Center"/>
                                                 </Border>

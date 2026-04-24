@@ -31,17 +31,29 @@ public partial class MainViewModel : ObservableObject
         await Task.Run(() =>
         {
             _state.RefreshConnected();
+            _prevConnected = _state.Connected.ToDictionary(kv => kv.Key, _ => true);
         });
         await RefreshSidebarAsync();
-        StartPolling();
+        // Drive change detection is now event-driven via WM_DEVICECHANGE —
+        // see DeviceChangeWatcher wired in MainWindow.xaml.cs. No polling.
     }
 
     public async Task RefreshSidebarAsync()
     {
-        var drives = await Task.Run(() => _state.Db.GetDrives());
-        var collections = await Task.Run(() => _state.Db.GetCollections());
-        var genres = await Task.Run(() => _state.Db.GetTopGenres(8));
-        var stats = await Task.Run(() => _state.Db.GetStats());
+        // Fetch all sidebar data in a single Task.Run — the DatabaseService
+        // methods are [MethodImpl(Synchronized)] so parallel Task.Runs would
+        // just serialize anyway, and one background hop is cheaper than four.
+        var data = await Task.Run(() => (
+            Drives: _state.Db.GetDrives(),
+            Collections: _state.Db.GetCollections(),
+            Genres: _state.Db.GetTopGenres(8),
+            Stats: _state.Db.GetStats()
+        ));
+
+        var drives = data.Drives;
+        var collections = data.Collections;
+        var genres = data.Genres;
+        var stats = data.Stats;
 
         Drives.Clear();
         foreach (var d in drives) Drives.Add(d);
@@ -52,43 +64,32 @@ public partial class MainViewModel : ObservableObject
         Stats = stats;
     }
 
-    // ── Drive polling ─────────────────────────────────────────────────────
+    // ── Drive change (WM_DEVICECHANGE driven) ─────────────────────────────
 
-    private System.Threading.Timer? _pollTimer;
     private Dictionary<string, bool> _prevConnected = new();
 
-    private void StartPolling()
-    {
-        _pollTimer = new System.Threading.Timer(_ =>
-        {
-            if (_shuttingDown) return;
-            _dispatcherQueue?.TryEnqueue(async () =>
-            {
-                if (_shuttingDown) return;
-                await PollDrivesAsync();
-            });
-        }, null, 10_000, 10_000);
-    }
-
-    private async Task PollDrivesAsync()
+    /// <summary>
+    /// Called from DeviceChangeWatcher on the UI thread when Windows reports
+    /// a volume arrival/removal. Refreshes the connected set, raises a toast
+    /// on new drives, and triggers a sidebar refresh.
+    /// </summary>
+    public async Task OnDeviceChangeAsync()
     {
         if (_shuttingDown) return;
         var prev = _prevConnected;
-        _state.RefreshConnected();
+        await Task.Run(() => _state.RefreshConnected());
+        if (_shuttingDown) return;
         var curr = _state.Connected;
 
-        // Detect newly connected drives
         foreach (var drive in Drives)
         {
             var wasConnected = prev.TryGetValue(drive.VolumeSerial, out _);
             var nowConnected = curr.ContainsKey(drive.VolumeSerial);
             if (!wasConnected && nowConnected)
-            {
                 ShowToast($"Drive '{drive.Label}' connected");
-            }
         }
 
-        _prevConnected = curr.ToDictionary(kv => kv.Key, kv => true);
+        _prevConnected = curr.ToDictionary(kv => kv.Key, _ => true);
         await RefreshSidebarAsync();
     }
 
@@ -121,8 +122,6 @@ public partial class MainViewModel : ObservableObject
     public void Shutdown()
     {
         _shuttingDown = true;
-        try { _pollTimer?.Dispose(); } catch { }
-        _pollTimer = null;
         try { _toastTimer?.Dispose(); } catch { }
         _toastTimer = null;
     }

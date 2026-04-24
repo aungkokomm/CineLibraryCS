@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using CineLibraryCS.Models;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -166,6 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Drives ───────────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<Models.DriveInfo> GetDrives()
     {
         var list = new List<Models.DriveInfo>();
@@ -202,6 +204,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return list;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<Models.DriveRoot> GetDriveRoots(string serial)
     {
         var list = new List<Models.DriveRoot>();
@@ -222,6 +225,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
     }
 
     /// <summary>Purge movies flagged is_missing=1 for this drive (plus their cached artwork). Returns count deleted.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public int CleanupMissingMovies(string serial)
     {
         // First, collect + delete cached artwork for missing rows
@@ -249,6 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return del.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void AddDriveRoot(string serial, string relPath)
     {
         var norm = (relPath ?? "").Replace('\\', '/').Trim().TrimEnd('/');
@@ -260,6 +265,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
     }
 
     /// <summary>Removes a tracked folder and purges its movies (+ cached artwork) from the DB.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void RemoveDriveRoot(string serial, string relPath)
     {
         var norm = (relPath ?? "").Replace('\\', '/').Trim().TrimEnd('/');
@@ -308,6 +314,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         tx.Commit();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public Dictionary<string, string> GetConnectedDrives()
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -349,6 +356,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         [System.Runtime.InteropServices.Out] StringBuilder? lpFileSystemNameBuffer, 
         int nFileSystemNameSize);
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void AddDrive(string volumeSerial, string label, string lastSeenLetter)
     {
         using var cmd = _conn.CreateCommand();
@@ -360,6 +368,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void UpdateDriveLastSeen(string serial, string letter)
     {
         using var cmd = _conn.CreateCommand();
@@ -369,6 +378,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void RenameDrive(string serial, string newLabel)
     {
         using var cmd = _conn.CreateCommand();
@@ -378,6 +388,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void RemoveDrive(string serial)
     {
         // Clean up cached image files
@@ -422,6 +433,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         int Offset = 0
     );
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<MovieListItem> GetMovies(ListOptions opts, Dictionary<string, string> connected)
     {
         var where = new List<string>();
@@ -502,6 +514,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Movie Detail ─────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public MovieDetail? GetMovieDetail(int id, Dictionary<string, string> connected)
     {
         using var cmd = _conn.CreateCommand();
@@ -620,6 +633,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Mutations ────────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void ToggleFavorite(int id)
     {
         using var cmd = _conn.CreateCommand();
@@ -628,6 +642,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void ToggleWatched(int id)
     {
         using var cmd = _conn.CreateCommand();
@@ -638,6 +653,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Collections ──────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<Collection> GetCollections()
     {
         using var cmd = _conn.CreateCommand();
@@ -661,6 +677,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Facets ───────────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<GenreFacet> GetTopGenres(int top = 8)
     {
         using var cmd = _conn.CreateCommand();
@@ -677,6 +694,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Stats ────────────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public LibraryStats GetStats()
     {
         using var cmd = _conn.CreateCommand();
@@ -698,6 +716,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Preferences ──────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public string? GetPref(string key)
     {
         using var cmd = _conn.CreateCommand();
@@ -706,6 +725,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return cmd.ExecuteScalar() as string;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void SetPref(string key, string value)
     {
         using var cmd = _conn.CreateCommand();
@@ -717,6 +737,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Image cache ──────────────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public string? GetCachedImagePath(string? relPath)
     {
         if (relPath == null) return null;
@@ -731,6 +752,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 
     // ── Statistics (v1.3) ───────────────────────────────────────────────────
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<(int decade, int count, double avgRating)> GetMoviesByDecade()
     {
         var result = new List<(int, int, double)>();
@@ -757,6 +779,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return result;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<GenreFacet> GetTopDirectors(int limit = 10)
     {
         var result = new List<GenreFacet>();
@@ -782,6 +805,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return result;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public List<GenreFacet> GetTopActors(int limit = 10)
     {
         var result = new List<GenreFacet>();
@@ -807,6 +831,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return result;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public (int watched, int total, double percent) GetWatchProgress()
     {
         using var cmd = _conn.CreateCommand();
@@ -828,6 +853,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return (0, 0, 0);
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public double GetTotalRuntimeHours()
     {
         using var cmd = _conn.CreateCommand();
@@ -841,6 +867,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return 0;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public int GetWatchlistCount()
     {
         using var cmd = _conn.CreateCommand();
@@ -848,6 +875,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void SetWatchlist(int movieId, bool isWatchlist)
     {
         using var cmd = _conn.CreateCommand();
@@ -866,5 +894,6 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         cmd.ExecuteNonQuery();
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void Dispose() => _conn.Dispose();
 }

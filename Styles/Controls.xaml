@@ -38,10 +38,11 @@
         <Setter Property="BorderThickness"         Value="0"/>
         <Setter Property="HorizontalAlignment"     Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        <Setter Property="Padding"                 Value="10,5"/>
-        <Setter Property="MinHeight"               Value="32"/>
-        <Setter Property="CornerRadius"            Value="6"/>
-        <Setter Property="FontSize"                Value="13"/>
+        <!-- v1.5: slimmer — less chunky between items, smaller font -->
+        <Setter Property="Padding"                 Value="10,3"/>
+        <Setter Property="MinHeight"               Value="26"/>
+        <Setter Property="CornerRadius"            Value="5"/>
+        <Setter Property="FontSize"                Value="12"/>
     </Style>
 
     <!-- Badge -->

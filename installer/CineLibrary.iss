@@ -4,7 +4,7 @@
 ; self-contained, with its library data in CineLibrary-Data\ next to the exe.
 
 #define MyAppName       "CineLibrary"
-#define MyAppVersion    "1.4.1"
+#define MyAppVersion    "1.5.0"
 #define MyAppPublisher  "Aung Ko Ko Myint"
 #define MyAppURL        "https://github.com/aungkokomm/CineLibraryCS"
 #define MyAppExeName    "CineLibrary.exe"

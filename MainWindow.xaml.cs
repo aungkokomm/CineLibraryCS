@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private LibraryPage? _libraryPage;
     private DrivesPage? _drivesPage;
     private StatisticsPage? _statisticsPage;
+    private DeviceChangeWatcher? _deviceWatcher;
 
     public MainWindow()
     {
@@ -75,11 +76,22 @@ public sealed partial class MainWindow : Window
         helpAcc.Invoked += async (_, a) => { a.Handled = true; await ShowShortcutsDialogAsync(); };
         RootGrid.KeyboardAccelerators.Add(helpAcc);
 
+        // Event-driven drive detection — replaces the 10-second poll timer.
+        // The watcher subclasses our HWND and marshals WM_DEVICECHANGE to the
+        // UI thread (the subclass proc runs on the UI thread by definition).
+        _deviceWatcher = new DeviceChangeWatcher(hwnd, () =>
+        {
+            // Don't await — we're inside WndProc and must return promptly.
+            _ = _vm.OnDeviceChangeAsync();
+        });
+
         // Stop background timers BEFORE the XAML/Sqlite teardown begins.
-        // Otherwise _pollTimer can tick during Close() and race with
-        // SqliteConnection disposal → STATUS_STACK_BUFFER_OVERRUN.
+        // The poll timer is gone in v1.5 (see above) but the toast timer
+        // still exists, and the SqliteConnection still needs clean disposal.
         this.Closed += (_, _) =>
         {
+            try { _deviceWatcher?.Dispose(); } catch { }
+            _deviceWatcher = null;
             try { _vm.Shutdown(); } catch { }
             try { AppState.Instance.Db.Dispose(); } catch { }
         };
@@ -359,7 +371,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.4.1",
+            Title = "CineLibrary v1.5.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

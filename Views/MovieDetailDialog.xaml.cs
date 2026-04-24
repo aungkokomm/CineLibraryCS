@@ -189,7 +189,8 @@ public sealed partial class MovieDetailDialog : Window
         if (fullPath == null) return;
         try
         {
-            var bytes = await Task.Run(() => File.ReadAllBytes(fullPath));
+            var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath!, fullPath));
+            if (bytes == null) return;
             var bmp = new BitmapImage { DecodePixelWidth = decodeWidth };
             var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
