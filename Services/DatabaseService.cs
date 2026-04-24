@@ -745,19 +745,19 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             GROUP BY (year / 10) * 10
             ORDER BY decade DESC";
 
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                result.Add((
-                    reader.GetInt32(0),
-                    (int)reader.GetInt64(1),
-                    reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
-                ));
-            }
-            return result;
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add((
+                reader.GetInt32(0),
+                (int)reader.GetInt64(1),
+                reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
+            ));
         }
+        return result;
+    }
 
-        public List<GenreFacet> GetTopDirectors(int limit = 10)
+    public List<GenreFacet> GetTopDirectors(int limit = 10)
     {
         var result = new List<GenreFacet>();
         using var cmd = _conn.CreateCommand();
@@ -770,19 +770,19 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new GenreFacet
             {
-                result.Add(new GenreFacet
-                {
-                    Name = reader.GetString(0),
-                    Count = (int)reader.GetInt64(1)
-                });
-            }
-            return result;
+                Name = reader.GetString(0),
+                Count = (int)reader.GetInt64(1)
+            });
         }
+        return result;
+    }
 
-        public List<GenreFacet> GetTopActors(int limit = 10)
+    public List<GenreFacet> GetTopActors(int limit = 10)
     {
         var result = new List<GenreFacet>();
         using var cmd = _conn.CreateCommand();
@@ -795,38 +795,38 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             LIMIT @limit";
         cmd.Parameters.AddWithValue("@limit", limit);
 
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new GenreFacet
             {
-                result.Add(new GenreFacet
-                {
-                    Name = reader.GetString(0),
-                    Count = (int)reader.GetInt64(1)
-                });
-            }
-            return result;
+                Name = reader.GetString(0),
+                Count = (int)reader.GetInt64(1)
+            });
         }
+        return result;
+    }
 
-        public (int watched, int total, double percent) GetWatchProgress()
+    public (int watched, int total, double percent) GetWatchProgress()
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
-            SELECT 
+            SELECT
                 SUM(CASE WHEN is_watched = 1 THEN 1 ELSE 0 END) as watched,
                 COUNT(*) as total
             FROM movies
             WHERE is_missing = 0";
 
-            using var reader = cmd.ExecuteReader();
-            if (reader.Read())
-            {
-                int watched = reader.IsDBNull(0) ? 0 : (int)reader.GetInt64(0);
-                int total = (int)reader.GetInt64(1);
-                double percent = total > 0 ? (watched * 100.0 / total) : 0;
-                return (watched, total, percent);
-            }
-            return (0, 0, 0);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            int watched = reader.IsDBNull(0) ? 0 : (int)reader.GetInt64(0);
+            int total = (int)reader.GetInt64(1);
+            double percent = total > 0 ? (watched * 100.0 / total) : 0;
+            return (watched, total, percent);
         }
+        return (0, 0, 0);
+    }
 
     public double GetTotalRuntimeHours()
     {

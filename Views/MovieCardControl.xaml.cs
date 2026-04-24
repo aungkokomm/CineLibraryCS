@@ -21,6 +21,8 @@ public sealed partial class MovieCardControl : UserControl
         set => SetValue(MovieProperty, value);
     }
 
+    public event EventHandler? SidebarRefreshRequested;
+
     // ── Global card size (all cards resize together when density changes) ──
 
     public static double GlobalCardWidth { get; private set; } = 150;
@@ -57,13 +59,16 @@ public sealed partial class MovieCardControl : UserControl
         {
             // Don't re-open if the tap originated inside the "View Details" button
             // (its Click already opens the dialog — without this guard we'd get two windows).
-            if (e.OriginalSource is FrameworkElement fe)
+            // NOTE: we must walk the VISUAL tree (VisualTreeHelper.GetParent), not the logical
+            // tree (.Parent). The TextBlock inside Button's ContentPresenter has Parent = null
+            // across the template boundary, so .Parent-walking missed the Button.
+            if (e.OriginalSource is DependencyObject src)
             {
-                var cur = fe;
+                DependencyObject? cur = src;
                 while (cur != null)
                 {
-                    if (cur is Button) return;
-                    cur = cur.Parent as FrameworkElement;
+                    if (cur is Button) { e.Handled = true; return; }
+                    cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
                 }
             }
             OpenDetail();
@@ -173,6 +178,7 @@ public sealed partial class MovieCardControl : UserControl
     {
         if (Movie == null) return;
         var win = new MovieDetailDialog(Movie.Id);
+        win.WatchlistChanged += (s, e) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         win.Activate();
     }
 }

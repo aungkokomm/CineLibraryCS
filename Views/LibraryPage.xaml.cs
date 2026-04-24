@@ -60,9 +60,27 @@ public sealed partial class LibraryPage : Page
 
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.Movies.CollectionChanged += (_, _) => UpdateEmptyState();
+
+        // Wire up sidebar refresh from movie cards (watchlist / favorite / watched toggles
+        // made inside the detail dialog need to bubble back up so the sidebar counts refresh)
+        GridRepeater.ElementPrepared += OnGridRepeaterElementPrepared;
+        ListRepeater.ElementPrepared += OnListRepeaterElementPrepared;
+
         _ready = true;
 
         _ = _vm.LoadAsync();
+    }
+
+    private void OnGridRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is MovieCardControl card)
+            card.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnListRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is MovieRowControl row)
+            row.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void AddAccelerator(VirtualKey key, VirtualKeyModifiers mods,

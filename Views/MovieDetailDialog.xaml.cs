@@ -17,6 +17,8 @@ public sealed partial class MovieDetailDialog : Window
     private readonly int _movieId;
     private MovieDetail? _movie;
 
+    public event EventHandler? WatchlistChanged;
+
     public MovieDetailDialog(int movieId)
     {
         _movieId = movieId;
@@ -240,5 +242,6 @@ public sealed partial class MovieDetailDialog : Window
              AppState.Instance.Db.SetWatchlist(_movie.Id, !_movie.IsWatchlist);
              _movie.IsWatchlist = !_movie.IsWatchlist;
              WatchlistBtn.Content = _movie.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
+             WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
     }

@@ -27,11 +27,6 @@
                            Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
             </StackPanel>
 
-            <!-- Help Button (v1.4) -->
-            <!-- Button Grid.Column="2" Click="OnHelpClick" Background="Transparent" BorderThickness="0"
-                    Padding="8,6" ToolTipService.ToolTip="Keyboard shortcuts (?)">
-                <TextBlock Text="?" FontSize="12" FontWeight="Bold" Foreground="{ThemeResource TextBrush}"/>
-            </Button -->
         </Grid>
 
         <!-- ═══ MAIN CONTENT ROW ═══ -->
@@ -115,13 +110,13 @@
                             </Grid>
                         </Button>
 
-                        <!-- Statistics (v1.4) - TBD -->
-                        <!-- Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
+                        <!-- Statistics (v1.4.1) -->
+                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="📊" VerticalAlignment="Center"/>
                                 <TextBlock Text="Statistics" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Button -->
+                        </Button>
 
                         <!-- Drives -->
                         <Button Style="{StaticResource NavItemStyle}" Click="OnNavDrives">
@@ -280,10 +275,11 @@
                                    HorizontalAlignment="Right" FontSize="12"
                                    Foreground="{ThemeResource TextBrush}"/>
                     </Grid>
-                    <!-- Theme + Collapse row -->
+                    <!-- Theme + Help + Collapse row -->
                     <Grid Margin="0,8,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -294,7 +290,14 @@
                                 Foreground="{ThemeResource MutedBrush}"
                                 Padding="4" FontSize="14"
                                 ToolTipService.ToolTip="Cycle: System → Dark → Light"/>
-                        <Button x:Name="SidebarToggleBtn" Grid.Column="2" Click="OnToggleSidebar"
+                        <Button Grid.Column="2" Click="OnHelpClick"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="{ThemeResource MutedBrush}"
+                                Padding="4" FontSize="13" Margin="4,0,0,0"
+                                ToolTipService.ToolTip="Keyboard shortcuts (Ctrl+Shift+/)">
+                            <TextBlock Text="?" FontWeight="Bold"/>
+                        </Button>
+                        <Button x:Name="SidebarToggleBtn" Grid.Column="3" Click="OnToggleSidebar"
                                 Background="Transparent" BorderThickness="0"
                                 Foreground="{ThemeResource MutedBrush}"
                                 Padding="4" FontSize="14" Margin="4,0,0,0"
