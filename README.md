@@ -37,6 +37,8 @@ Grab the latest portable build from [Releases](https://github.com/aungkokomm/Cin
 
 📖 **New here?** The [User Guide](docs/USER_GUIDE.md) walks you from a fresh install to running a catalog of thousands of movies in under five minutes.
 
+📖 **မြန်မာဘာသာ?** [မြန်မာဘာသာ လက်စွဲ](docs/USER_GUIDE_MM.md) တွင် ဖတ်ရှုနိုင်သည်။
+
 ![Stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge&color=blue)
 ![Downloads](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge&color=brightgreen)
 
