@@ -160,6 +160,10 @@
                     Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
             <Button x:Name="FilterWatched"  Content="Watched"   Tag="watched"
                     Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
+            <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters"
+                    Click="OnClearFilters" Visibility="Collapsed"
+                    Style="{StaticResource PillButtonStyle}"
+                    Margin="12,0,0,0"/>
         </StackPanel>
 
         <!-- ═══ MOVIE GRID / LIST ═══ -->
@@ -170,16 +174,26 @@
                 <!-- Empty state -->
                 <StackPanel x:Name="EmptyState" Visibility="Collapsed"
                             VerticalAlignment="Center" HorizontalAlignment="Center"
-                            Spacing="8" Margin="24,80,24,24">
-                    <TextBlock Text="🎬" FontSize="48" HorizontalAlignment="Center" Opacity="0.5"/>
-                    <TextBlock Text="No movies match your filters"
-                               FontSize="15" FontWeight="SemiBold"
+                            Spacing="10" Margin="24,80,24,24" MaxWidth="440">
+                    <TextBlock x:Name="EmptyIcon" Text="🎬" FontSize="56"
+                               HorizontalAlignment="Center" Opacity="0.5"/>
+                    <TextBlock x:Name="EmptyTitle" Text="No movies match your filters"
+                               FontSize="16" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}"
-                               HorizontalAlignment="Center"/>
+                               HorizontalAlignment="Center" TextAlignment="Center"/>
                     <TextBlock x:Name="EmptyStateHint"
                                Text="Try clearing the search or choosing 'All' watched filter."
-                               FontSize="12" Foreground="{ThemeResource MutedBrush}"
-                               HorizontalAlignment="Center" TextAlignment="Center"/>
+                               FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    <Button x:Name="EmptyCtaBtn" Visibility="Collapsed"
+                            Click="OnEmptyCtaClick"
+                            HorizontalAlignment="Center"
+                            Margin="0,8,0,0"
+                            Background="{StaticResource BrandPurpleBrush}"
+                            Foreground="#FFFFFF"
+                            BorderThickness="0"
+                            CornerRadius="8" Padding="16,8"/>
                 </StackPanel>
 
                 <!-- Grid View -->

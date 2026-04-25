@@ -11,6 +11,7 @@ public class MovieListItem
     public bool IsMissing { get; set; }
     public bool IsFavorite { get; set; }
     public bool IsWatched { get; set; }
+    public bool IsWatchlist { get; set; }
     public string VolumeSerial { get; set; } = "";
     public string? DriveLabel { get; set; }
     public string? GenresCsv { get; set; }

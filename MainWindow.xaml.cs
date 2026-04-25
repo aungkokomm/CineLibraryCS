@@ -301,6 +301,35 @@ public sealed partial class MainWindow : Window
     private void OnNavDrives(object sender, RoutedEventArgs e)
         => NavigateTo("drives");
 
+    /// <summary>
+    /// Public navigation hook used by the empty-state CTA on Library.
+    /// Switches to the Drives page; the user proceeds with Add folder there.
+    /// </summary>
+    public void NavigateToDrivesAndAdd() => NavigateTo("drives");
+
+    private void OnNavRecentlyAdded(object sender, RoutedEventArgs e)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.ShowRecentlyAdded();
+        // Title update: ApplyNavParam normally sets the page title from the
+        // nav param; ShowRecentlyAdded sets PageTitle on the VM directly,
+        // but the breadcrumb in the page header is set on nav. Reset it.
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    private async void OnNavRandomPick(object sender, RoutedEventArgs e)
+    {
+        var id = AppState.Instance.Db.GetRandomUnwatchedId(AppState.Instance.Connected);
+        if (id == null)
+        {
+            ShowToast("Nothing unwatched left — fully caught up 🎉");
+            return;
+        }
+        var dialog = new MovieDetailDialog(id.Value);
+        dialog.WatchlistChanged += (_, _) => { _ = RefreshSidebarAsync(); };
+        dialog.Activate();
+    }
+
     private void OnNavDriveItem(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is string serial)
@@ -500,5 +529,6 @@ public record LibraryNavParam(
     string? Genre = null,
     int? CollectionId = null,
     bool FavoritesOnly = false,
+    bool RecentlyAdded = false,
     string? Label = null
 );

@@ -77,6 +77,11 @@ public sealed partial class LibraryPage : Page
         {
             card.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
             card.WatchedToggleRequested += (_, movie) => _vm.ToggleWatched(movie);
+            card.WatchlistToggleRequested += (_, movie) =>
+            {
+                _vm.ToggleWatchlistOnCard(movie);
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            };
         }
     }
 
@@ -105,6 +110,65 @@ public sealed partial class LibraryPage : Page
         EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         GridBorder.Opacity = empty ? 0 : 1;
         ListBorder.Opacity = empty ? 0 : 1;
+
+        if (!empty) return;
+
+        // First-launch: zero drives in DB → big CTA pointing to Drives → Add folder.
+        // Otherwise: filter-empty hint (existing behaviour).
+        var hasAnyDrive = AppState.Instance.Db.GetDrives().Count > 0;
+        if (!hasAnyDrive)
+        {
+            EmptyTitle.Text = "Welcome to CineLibrary";
+            EmptyStateHint.Text =
+                "Point CineLibrary at the folder where MediaElch saved your scraped " +
+                "movies (each movie in its own folder with a .nfo + poster). " +
+                "Drives → Add folder.";
+            EmptyCtaBtn.Content = "📂 Add my movies folder";
+            EmptyCtaBtn.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            EmptyTitle.Text = "No movies match your filters";
+            EmptyStateHint.Text = "Try clearing the search or choosing 'All' watched filter.";
+            EmptyCtaBtn.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnEmptyCtaClick(object sender, RoutedEventArgs e)
+    {
+        if (App.MainWindow is MainWindow mw)
+            mw.NavigateToDrivesAndAdd();
+    }
+
+    private void OnClearFilters(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Text = "";
+        _vm.SearchText = "";
+        // Reset watched-pill to All
+        var pill = (Style)Application.Current.Resources["PillButtonStyle"];
+        var pillActive = (Style)Application.Current.Resources["PillButtonActiveStyle"];
+        FilterAll.Style = pillActive;
+        FilterUnwatched.Style = pill;
+        FilterWatched.Style = pill;
+        _vm.WatchedFilter = WatchedFilter.All;
+        _vm.ClearFilters();
+        PageTitleText.Text = "ALL MOVIES";
+        UpdateClearFiltersButton();
+    }
+
+    private void UpdateClearFiltersButton()
+    {
+        var anyFilter =
+            !string.IsNullOrEmpty(_vm.SearchText) ||
+            _vm.WatchedFilter != WatchedFilter.All ||
+            _vm.FavoritesOnly ||
+            _vm.IsWatchlistOnly ||
+            _vm.DriveSerial != null ||
+            _vm.Genre != null ||
+            _vm.CollectionId != null ||
+            _vm.FilterActor != null ||
+            _vm.FilterDirector != null;
+        ClearFiltersBtn.Visibility = anyFilter ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Density (S/M/L/XL) ────────────────────────────────────────────────
@@ -216,6 +280,8 @@ public sealed partial class LibraryPage : Page
                 LoadingRing.Visibility = _vm.IsLoading ? Visibility.Visible : Visibility.Collapsed;
                 UpdateEmptyState();
             }
+            // Any filter-related VM change should reflect in the Clear button
+            UpdateClearFiltersButton();
         });
     }
 

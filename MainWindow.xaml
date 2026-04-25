@@ -110,6 +110,22 @@
                             </Grid>
                         </Button>
 
+                        <!-- Recently Added (v1.7) -->
+                        <Button Style="{StaticResource NavItemStyle}" Click="OnNavRecentlyAdded">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="🆕" VerticalAlignment="Center"/>
+                                <TextBlock Text="Recently Added" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Random Pick (v1.7) -->
+                        <Button Style="{StaticResource NavItemStyle}" Click="OnNavRandomPick">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="🎲" VerticalAlignment="Center"/>
+                                <TextBlock Text="Surprise me" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- Statistics (v1.4.1) -->
                         <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
                             <StackPanel Orientation="Horizontal" Spacing="8">

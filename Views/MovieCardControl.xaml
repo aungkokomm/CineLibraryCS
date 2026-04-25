@@ -77,6 +77,11 @@
                                 Click="OnWatchedToggle"
                                 Style="{StaticResource PillButtonStyle}"
                                 HorizontalAlignment="Center"/>
+                        <Button x:Name="WatchlistToggleBtn"
+                                Content="📋 Watchlist"
+                                Click="OnWatchlistToggle"
+                                Style="{StaticResource PillButtonStyle}"
+                                HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 

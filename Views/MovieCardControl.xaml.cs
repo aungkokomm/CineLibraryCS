@@ -23,6 +23,7 @@ public sealed partial class MovieCardControl : UserControl
 
     public event EventHandler? SidebarRefreshRequested;
     public event EventHandler<MovieListItem>? WatchedToggleRequested;
+    public event EventHandler<MovieListItem>? WatchlistToggleRequested;
 
     // ── Global card size (all cards resize together when density changes) ──
 
@@ -117,6 +118,7 @@ public sealed partial class MovieCardControl : UserControl
         FavBadge.Visibility = m.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         WatchedBadge.Visibility = m.IsWatched ? Visibility.Visible : Visibility.Collapsed;
         WatchedToggleBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
+        WatchlistToggleBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
 
         if (m.Rating.HasValue)
         {
@@ -188,6 +190,13 @@ public sealed partial class MovieCardControl : UserControl
         // Movie.IsWatched already flipped by VM handler — refresh visuals
         WatchedBadge.Visibility = Movie.IsWatched ? Visibility.Visible : Visibility.Collapsed;
         WatchedToggleBtn.Content = Movie.IsWatched ? "✓ Watched" : "○ Mark Watched";
+    }
+
+    private void OnWatchlistToggle(object sender, RoutedEventArgs e)
+    {
+        if (Movie == null) return;
+        WatchlistToggleRequested?.Invoke(this, Movie);
+        WatchlistToggleBtn.Content = Movie.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
     }
 
     private void OpenDetail()

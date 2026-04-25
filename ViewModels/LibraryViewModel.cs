@@ -116,16 +116,30 @@ public partial class LibraryViewModel : ObservableObject
     );
 
     // ── Search ───────────────────────────────────────────────────────────────
-
-    private System.Threading.Timer? _searchTimer;
+    // Debounced reload — cancels in-flight delay on every keystroke.
+    // Replaces the previous Timer-per-keystroke pattern (each new keystroke
+    // disposed the old Timer, but a callback could still fire on a disposed
+    // VM during shutdown, and creating a fresh Timer per keystroke was
+    // wasteful on busy typing).
+    private CancellationTokenSource? _searchCts;
 
     partial void OnSearchTextChanged(string value)
     {
-        _searchTimer?.Dispose();
-        _searchTimer = new System.Threading.Timer(_ =>
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
+        _ = Task.Run(async () =>
         {
-            _dispatcherQueue?.TryEnqueue(async () => await LoadAsync());
-        }, null, 300, Timeout.Infinite);
+            try { await Task.Delay(300, token); }
+            catch (OperationCanceledException) { return; }
+            if (token.IsCancellationRequested) return;
+            _dispatcherQueue?.TryEnqueue(async () =>
+            {
+                if (token.IsCancellationRequested) return;
+                await LoadAsync();
+            });
+        }, token);
     }
 
     // ── Sort / View ──────────────────────────────────────────────────────────
@@ -189,6 +203,29 @@ public partial class LibraryViewModel : ObservableObject
         Genre = null;
         CollectionId = null;
         PageTitle = "Favorites";
+        _ = LoadAsync();
+    }
+
+    /// <summary>
+    /// "Recently Added" view — clears filters and forces sort by date_added DESC.
+    /// Doesn't persist this sort to prefs (it's a transient nav choice).
+    /// </summary>
+    public void ShowRecentlyAdded()
+    {
+        DriveSerial = null;
+        Genre = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        FilterActor = null;
+        FilterDirector = null;
+        IsWatchlistOnly = false;
+        SearchText = "";
+        WatchedFilter = WatchedFilter.All;
+        // Bypass the partial OnSortKeyChanged (which would persist to prefs).
+        // Set fields directly + raise property changed manually.
+        SortKey = SortKey.DateAdded;
+        SortDir = SortDir.Desc;
+        PageTitle = "🆕 Recently Added";
         _ = LoadAsync();
     }
 
@@ -279,5 +316,16 @@ public partial class LibraryViewModel : ObservableObject
             Movies.Remove(movie);
         else if (WatchedFilter == WatchedFilter.Watched && !movie.IsWatched)
             Movies.Remove(movie);
+    }
+
+    public void ToggleWatchlistOnCard(MovieListItem movie)
+    {
+        var newVal = !movie.IsWatchlist;
+        _state.Db.SetWatchlist(movie.Id, newVal);
+        movie.IsWatchlist = newVal;
+        // If currently filtered to watchlist-only, removing should drop the card
+        if (IsWatchlistOnly && !newVal)
+            Movies.Remove(movie);
+        RefreshWatchlistCount();
     }
 }

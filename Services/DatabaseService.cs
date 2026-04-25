@@ -470,7 +470,8 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
                    m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                    (SELECT GROUP_CONCAT(g.name, ', ')
                     FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id
-                    WHERE mg.movie_id=m.id) as genres_csv
+                    WHERE mg.movie_id=m.id) as genres_csv,
+                   m.is_watchlist
             FROM movies m
             LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             {whereStr}
@@ -506,6 +507,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
                 VolumeSerial = serial,
                 DriveLabel = r.IsDBNull(10) ? null : r.GetString(10),
                 GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
+                IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
                 IsOnline = connected.ContainsKey(serial),
             });
         }
@@ -873,6 +875,40 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
         return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>
+    /// Picks a random unwatched movie id, preferring online drives.
+    /// Returns null if the library is empty or fully watched.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int? GetRandomUnwatchedId(Dictionary<string, string> connected)
+    {
+        if (connected.Count == 0)
+        {
+            using var any = _conn.CreateCommand();
+            any.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 ORDER BY RANDOM() LIMIT 1";
+            var v = any.ExecuteScalar();
+            return v == null || v == DBNull.Value ? null : Convert.ToInt32(v);
+        }
+
+        // Restrict to drives that are currently online so the user can actually play it.
+        var serials = string.Join(",", connected.Keys.Select(s => $"'{s.Replace("'", "''")}'"));
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"SELECT id FROM movies
+                              WHERE is_watched=0 AND is_missing=0
+                                AND volume_serial IN ({serials})
+                              ORDER BY RANDOM() LIMIT 1";
+        var val = cmd.ExecuteScalar();
+        if (val == null || val == DBNull.Value)
+        {
+            // Fall back to any unwatched (drive offline) so the user still gets a pick.
+            using var fb = _conn.CreateCommand();
+            fb.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 ORDER BY RANDOM() LIMIT 1";
+            val = fb.ExecuteScalar();
+            if (val == null || val == DBNull.Value) return null;
+        }
+        return Convert.ToInt32(val);
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
