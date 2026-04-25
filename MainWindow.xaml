@@ -136,13 +136,20 @@
                             </Grid>
                         </Button>
 
-                        <!-- Libraries section (collapsible) -->
-                        <Expander x:Name="LibrariesHeader" Header="LIBRARIES"
-                                  Visibility="Collapsed" IsExpanded="True"
-                                  Background="Transparent" BorderThickness="0"
-                                  HorizontalAlignment="Stretch"
-                                  HorizontalContentAlignment="Stretch"
-                                  Margin="0,8,0,0">
+                        <!-- Libraries section (collapsible, custom header) -->
+                        <StackPanel x:Name="LibrariesHeader" Visibility="Collapsed" Margin="0,8,0,0">
+                            <Button Tag="Libraries" Click="OnSidebarSectionToggle"
+                                    Style="{StaticResource SidebarSectionHeaderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="LIBRARIES" CharacterSpacing="100"/>
+                                    <TextBlock x:Name="LibrariesChevron" Grid.Column="1"
+                                               Text="⌃" FontSize="12"/>
+                                </Grid>
+                            </Button>
                             <ItemsRepeater x:Name="DrivesRepeater">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Orientation="Vertical"/>
@@ -176,17 +183,22 @@
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
-                        </Expander>
+                        </StackPanel>
 
-                        <!-- v1.5: Top Genres moved above Collections per user request.
-                             Sidebar order is now: Libraries → Top Genres → Collections. -->
-                        <!-- Top Genres section (collapsible) -->
-                        <Expander x:Name="GenresHeader" Header="TOP GENRES"
-                                  Visibility="Collapsed" IsExpanded="True"
-                                  Background="Transparent" BorderThickness="0"
-                                  HorizontalAlignment="Stretch"
-                                  HorizontalContentAlignment="Stretch"
-                                  Margin="0,4,0,0">
+                        <!-- Top Genres section (collapsible) — order: Libraries → Top Genres → Collections. -->
+                        <StackPanel x:Name="GenresHeader" Visibility="Collapsed" Margin="0,4,0,0">
+                            <Button Tag="Genres" Click="OnSidebarSectionToggle"
+                                    Style="{StaticResource SidebarSectionHeaderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="TOP GENRES" CharacterSpacing="100"/>
+                                    <TextBlock x:Name="GenresChevron" Grid.Column="1"
+                                               Text="⌃" FontSize="12"/>
+                                </Grid>
+                            </Button>
                             <ItemsRepeater x:Name="GenresRepeater">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Orientation="Vertical"/>
@@ -216,16 +228,24 @@
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
-                        </Expander>
+                        </StackPanel>
 
-                        <!-- Collections section (collapsible) — now last per v1.5 reorder. -->
-                        <Expander x:Name="CollectionsHeader" Header="COLLECTIONS"
-                                  Visibility="Collapsed" IsExpanded="False"
-                                  Background="Transparent" BorderThickness="0"
-                                  HorizontalAlignment="Stretch"
-                                  HorizontalContentAlignment="Stretch"
-                                  Margin="0,4,0,8">
-                            <ItemsRepeater x:Name="CollectionsRepeater">
+                        <!-- Collections section (collapsible) — last per v1.5 reorder. -->
+                        <StackPanel x:Name="CollectionsHeader" Visibility="Collapsed" Margin="0,4,0,8">
+                            <Button Tag="Collections" Click="OnSidebarSectionToggle"
+                                    Style="{StaticResource SidebarSectionHeaderStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="COLLECTIONS" CharacterSpacing="100"/>
+                                    <TextBlock x:Name="CollectionsChevron" Grid.Column="1"
+                                               Text="⌄" FontSize="12"/>
+                                </Grid>
+                            </Button>
+                            <ItemsRepeater x:Name="CollectionsRepeater"
+                                           Visibility="Collapsed">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Orientation="Vertical"/>
                                 </ItemsRepeater.Layout>
@@ -255,59 +275,62 @@
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
-                        </Expander>
+                        </StackPanel>
 
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Stats + Theme footer -->
-                <StackPanel x:Name="FooterPanel" Grid.Row="2" Padding="16,12"
-                            BorderThickness="0,1,0,0" BorderBrush="{ThemeResource BorderBrush}">
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                        <TextBlock Text="Total Runtime" Foreground="{ThemeResource MutedBrush}" FontSize="12"/>
-                        <TextBlock x:Name="StatRuntime" Grid.Column="1" Text="—"
-                                   HorizontalAlignment="Right" FontSize="12"
-                                   Foreground="{ThemeResource TextBrush}"/>
-                    </Grid>
-                    <Grid Margin="0,2">
-                        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                        <TextBlock Text="Avg Rating" Foreground="{ThemeResource MutedBrush}" FontSize="12"/>
-                        <TextBlock x:Name="StatRating" Grid.Column="1" Text="—"
-                                   HorizontalAlignment="Right" FontSize="12"
-                                   Foreground="{ThemeResource TextBrush}"/>
-                    </Grid>
-                    <!-- Theme + Help + Collapse row -->
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Theme" Foreground="{ThemeResource MutedBrush}"
-                                   FontSize="12" VerticalAlignment="Center"/>
-                        <Button x:Name="ThemeBtn" Grid.Column="1" Click="OnToggleTheme"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{ThemeResource MutedBrush}"
-                                Padding="4" FontSize="14"
-                                ToolTipService.ToolTip="Cycle: System → Dark → Light"/>
-                        <Button Grid.Column="2" Click="OnHelpClick"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{ThemeResource MutedBrush}"
-                                Padding="4" FontSize="13" Margin="4,0,0,0"
-                                ToolTipService.ToolTip="Keyboard shortcuts (Ctrl+Shift+/)">
-                            <TextBlock Text="?" FontWeight="Bold"/>
-                        </Button>
-                        <Button x:Name="SidebarToggleBtn" Grid.Column="3" Click="OnToggleSidebar"
-                                Background="Transparent" BorderThickness="0"
-                                Foreground="{ThemeResource MutedBrush}"
-                                Padding="4" FontSize="14" Margin="4,0,0,0"
-                                ToolTipService.ToolTip="Collapse sidebar">
-                            <TextBlock x:Name="SidebarToggleIcon" Text="⮜"/>
-                        </Button>
-                    </Grid>
-                </StackPanel>
+                <!-- Stats + Theme footer — wrapped in a rounded card so it
+                     reads as a deliberate panel rather than an orphaned strip. -->
+                <Border x:Name="FooterPanel" Grid.Row="2"
+                        Margin="10,8,10,10" Padding="14,10"
+                        Background="{ThemeResource CardBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="10">
+                    <StackPanel>
+                        <Grid Margin="0,2">
+                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Total Runtime" Foreground="{ThemeResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="StatRuntime" Grid.Column="1" Text="—"
+                                       HorizontalAlignment="Right" FontSize="12"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </Grid>
+                        <Grid Margin="0,2">
+                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <TextBlock Text="Avg Rating" Foreground="{ThemeResource MutedBrush}" FontSize="12"/>
+                            <TextBlock x:Name="StatRating" Grid.Column="1" Text="—"
+                                       HorizontalAlignment="Right" FontSize="12"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </Grid>
+                        <!-- Theme + Help + Collapse row -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Theme" Foreground="{ThemeResource MutedBrush}"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                            <Button x:Name="ThemeBtn" Grid.Column="1" Click="OnToggleTheme"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{ThemeResource MutedBrush}"
+                                    Padding="4" FontSize="14"/>
+                            <Button Grid.Column="2" Click="OnHelpClick"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{ThemeResource MutedBrush}"
+                                    Padding="4" FontSize="13" Margin="4,0,0,0">
+                                <TextBlock Text="?" FontWeight="Bold"/>
+                            </Button>
+                            <Button x:Name="SidebarToggleBtn" Grid.Column="3" Click="OnToggleSidebar"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{ThemeResource MutedBrush}"
+                                    Padding="4" FontSize="14" Margin="4,0,0,0">
+                                <TextBlock x:Name="SidebarToggleIcon" Text="⮜"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <!-- ═══ MAIN CONTENT ═══ -->

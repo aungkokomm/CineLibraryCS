@@ -49,6 +49,10 @@ public sealed partial class MainWindow : Window
 
         _vm = new MainViewModel();
 
+        // Suppress the auto-displayed accelerator-key tooltip (e.g. "Ctrl+F"
+        // floating over whichever element the focus visual lands on).
+        RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+
         // Global Ctrl+B to toggle sidebar
         var acc = new KeyboardAccelerator { Key = VirtualKey.B, Modifiers = VirtualKeyModifiers.Control };
         acc.Invoked += (_, a) => { ApplySidebarCollapsed(!_sidebarCollapsed); a.Handled = true; };
@@ -174,6 +178,24 @@ public sealed partial class MainWindow : Window
             GenresRepeater.ItemsSource = _vm.TopGenres;
             GenresHeader.Visibility = _vm.TopGenres.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         });
+    }
+
+    // ── Sidebar section collapse/expand ───────────────────────────────────
+
+    private void OnSidebarSectionToggle(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string tag) return;
+        var (repeater, chevron) = tag switch
+        {
+            "Libraries"   => ((FrameworkElement)DrivesRepeater,      LibrariesChevron),
+            "Genres"      => (GenresRepeater,                        GenresChevron),
+            "Collections" => (CollectionsRepeater,                   CollectionsChevron),
+            _             => (null!,                                  null!),
+        };
+        if (repeater == null) return;
+        var collapsed = repeater.Visibility == Visibility.Collapsed;
+        repeater.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
+        chevron.Text = collapsed ? "⌃" : "⌄"; // ⌃ open / ⌄ closed
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
@@ -371,7 +393,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.5.0",
+            Title = "CineLibrary v1.5.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

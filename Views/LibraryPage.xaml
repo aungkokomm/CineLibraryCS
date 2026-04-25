@@ -35,7 +35,6 @@
                     Height="36"
                     VerticalAlignment="Center"
                     Margin="0,0,12,0"
-                    ToolTipService.ToolTip="Show sidebar"
                     Visibility="Collapsed">
                 <TextBlock Text="‹" FontSize="18" FontWeight="Bold" 
                            VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -100,8 +99,7 @@
                               Padding="10,8"
                               Height="36"
                               Width="36"
-                              VerticalAlignment="Center"
-                              ToolTipService.ToolTip="Grid view">
+                              VerticalAlignment="Center">
                     <TextBlock Text="⊞" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 </ToggleButton>
                 <ToggleButton x:Name="ListViewToggle"
@@ -111,8 +109,7 @@
                               Padding="10,8"
                               Height="36"
                               Width="36"
-                              VerticalAlignment="Center"
-                              ToolTipService.ToolTip="List view">
+                              VerticalAlignment="Center">
                     <TextBlock Text="☰" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 </ToggleButton>
 
@@ -126,29 +123,25 @@
                         <ToggleButton x:Name="DensityS" Click="OnDensityClick" Tag="S"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
-                                      VerticalAlignment="Center"
-                                      ToolTipService.ToolTip="Small (120px)">
+                                      VerticalAlignment="Center">
                             <TextBlock Text="S" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityM" Click="OnDensityClick" Tag="M" IsChecked="True"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
-                                      VerticalAlignment="Center"
-                                      ToolTipService.ToolTip="Medium (150px)">
+                                      VerticalAlignment="Center">
                             <TextBlock Text="M" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityL" Click="OnDensityClick" Tag="L"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
-                                      VerticalAlignment="Center"
-                                      ToolTipService.ToolTip="Large (190px)">
+                                      VerticalAlignment="Center">
                             <TextBlock Text="L" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityXL" Click="OnDensityClick" Tag="XL"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
-                                      VerticalAlignment="Center"
-                                      ToolTipService.ToolTip="Extra large (240px)">
+                                      VerticalAlignment="Center">
                             <TextBlock Text="XL" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                     </StackPanel>
@@ -196,7 +189,7 @@
                             <UniformGridLayout x:Name="GridLayout"
                                                MinItemWidth="150" MinItemHeight="280"
                                                MinColumnSpacing="12" MinRowSpacing="12"
-                                               ItemsStretch="None"/>
+                                               ItemsStretch="Fill"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:MovieListItem">

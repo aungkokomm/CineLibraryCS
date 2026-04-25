@@ -21,6 +21,11 @@
             <SolidColorBrush x:Key="PlaceholderBgBrush" Color="#1A1A2E"/>
             <SolidColorBrush x:Key="ToastBgBrush"    Color="#1E1E3A"/>
             <SolidColorBrush x:Key="SubtleBgBrush"   Color="#0A1A2A"/>
+            <!-- Sidebar section header (orange-tinted) -->
+            <SolidColorBrush x:Key="SectionHeaderBgBrush"      Color="#3A2410"/>
+            <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#B45309"/>
+            <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#4F2F15"/>
+            <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#FBBF77"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -39,6 +44,11 @@
             <SolidColorBrush x:Key="PlaceholderBgBrush" Color="#EEEEFF"/>
             <SolidColorBrush x:Key="ToastBgBrush"    Color="#E8E8FF"/>
             <SolidColorBrush x:Key="SubtleBgBrush"   Color="#E8F0FF"/>
+            <!-- Sidebar section header (orange-tinted) -->
+            <SolidColorBrush x:Key="SectionHeaderBgBrush"      Color="#FFF4E6"/>
+            <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#F59E0B"/>
+            <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#FFE8CC"/>
+            <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#9A6300"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Default">
@@ -58,6 +68,11 @@
             <SolidColorBrush x:Key="PlaceholderBgBrush" Color="#1A1A2E"/>
             <SolidColorBrush x:Key="ToastBgBrush"    Color="#1E1E3A"/>
             <SolidColorBrush x:Key="SubtleBgBrush"   Color="#0A1A2A"/>
+            <!-- Sidebar section header (orange-tinted) -->
+            <SolidColorBrush x:Key="SectionHeaderBgBrush"      Color="#3A2410"/>
+            <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#B45309"/>
+            <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#4F2F15"/>
+            <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#FBBF77"/>
         </ResourceDictionary>
 
     </ResourceDictionary.ThemeDictionaries>
