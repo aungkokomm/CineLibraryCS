@@ -357,6 +357,12 @@
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <TextBlock x:Name="ToastText" Foreground="{ThemeResource TextBrush}"
                                VerticalAlignment="Center" FontSize="13"/>
+                    <Button x:Name="ToastActionBtn" Click="OnToastActionClick"
+                            Visibility="Collapsed"
+                            Background="{StaticResource BrandPurpleBrush}"
+                            Foreground="#FFFFFF" BorderThickness="0"
+                            CornerRadius="6" Padding="10,4" FontSize="12"
+                            VerticalAlignment="Center"/>
                     <Button Content="✕" Click="OnToastDismiss"
                             Background="Transparent" BorderThickness="0"
                             Foreground="{ThemeResource MutedBrush}" Padding="4" FontSize="12"/>

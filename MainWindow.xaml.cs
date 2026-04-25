@@ -148,6 +148,47 @@ public sealed partial class MainWindow : Window
         await _vm.InitializeAsync();
         RefreshSidebar();
         NavigateTo("library");
+
+        // Fire-and-forget update check. Silent on no-network. Skipped versions
+        // are remembered via the prefs table so the user isn't nagged.
+        _ = CheckForUpdatesAsync();
+    }
+
+    // ── Update check ──────────────────────────────────────────────────────
+
+    private string? _pendingUpdateUrl;
+    private string? _pendingUpdateVersion;
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var skipped = AppState.Instance.GetPref("skippedUpdate", "");
+            var info = await UpdateChecker.CheckAsync(string.IsNullOrEmpty(skipped) ? null : skipped);
+            if (info == null) return;
+
+            _pendingUpdateVersion = info.LatestVersion;
+            _pendingUpdateUrl = info.ReleaseUrl;
+            DispatcherQueue.TryEnqueue(() => ShowUpdateToast(info.LatestVersion));
+        }
+        catch { /* never let an update check break the app */ }
+    }
+
+    private void ShowUpdateToast(string version)
+    {
+        ToastText.Text = $"CineLibrary v{version} is available";
+        ToastActionBtn.Content = "Download";
+        ToastActionBtn.Visibility = Visibility.Visible;
+        ToastBorder.Visibility = Visibility.Visible;
+        // Update toast stays until dismissed — no auto-hide.
+    }
+
+    private async void OnToastActionClick(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_pendingUpdateUrl)) return;
+        try { await Windows.System.Launcher.LaunchUriAsync(new Uri(_pendingUpdateUrl)); }
+        catch { }
+        ToastBorder.Visibility = Visibility.Collapsed;
     }
 
     // ── Sidebar refresh ───────────────────────────────────────────────────
@@ -393,7 +434,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.5.1",
+            Title = "CineLibrary v1.6.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
@@ -409,6 +450,7 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             ToastText.Text = message;
+            ToastActionBtn.Visibility = Visibility.Collapsed;
             ToastBorder.Visibility = Visibility.Visible;
         });
         Task.Delay(6000).ContinueWith(_ =>
@@ -416,7 +458,16 @@ public sealed partial class MainWindow : Window
     }
 
     private void OnToastDismiss(object sender, RoutedEventArgs e)
-        => ToastBorder.Visibility = Visibility.Collapsed;
+    {
+        // Dismissing an update toast = "skip this version, don't nag again".
+        if (!string.IsNullOrEmpty(_pendingUpdateVersion))
+        {
+            try { AppState.Instance.SetPref("skippedUpdate", _pendingUpdateVersion); } catch { }
+            _pendingUpdateVersion = null;
+            _pendingUpdateUrl = null;
+        }
+        ToastBorder.Visibility = Visibility.Collapsed;
+    }
 
     // ── Sidebar collapse ──────────────────────────────────────────────────
 
