@@ -74,7 +74,10 @@ public sealed partial class LibraryPage : Page
     private void OnGridRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (args.Element is MovieCardControl card)
+        {
             card.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            card.WatchedToggleRequested += (_, movie) => _vm.ToggleWatched(movie);
+        }
     }
 
     private void OnListRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)

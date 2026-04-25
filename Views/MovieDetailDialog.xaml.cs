@@ -36,6 +36,13 @@ public sealed partial class MovieDetailDialog : Window
         appWindow.Resize(new SizeInt32(1100, 800));
         appWindow.Title = "Movie Details";
 
+        // Ensure window is resizable and maximizable
+        if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+        {
+            presenter.IsResizable = true;
+            presenter.IsMaximizable = true;
+        }
+
         // Inherit theme from main window
         if (RootGrid is FrameworkElement fe)
             fe.RequestedTheme = MainWindow.CurrentTheme;
@@ -127,8 +134,9 @@ public sealed partial class MovieDetailDialog : Window
         PlayBtn.IsEnabled = m.Playable;
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = m.IsFavorite ? "★ Favorited" : "☆ Favorite";
-        WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Unwatched";
+        WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
         WatchlistBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
+
 
         // Plot (fall back to outline — many MediaElch NFOs use <outline> only)
         var plotText = m.Plot ?? m.Outline;
@@ -234,7 +242,7 @@ public sealed partial class MovieDetailDialog : Window
              if (_movie == null) return;
              AppState.Instance.Db.ToggleWatched(_movie.Id);
              _movie.IsWatched = !_movie.IsWatched;
-             WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Unwatched";
+             WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Mark Watched";
          }
 
          private void OnToggleWatchlist(object sender, RoutedEventArgs e)

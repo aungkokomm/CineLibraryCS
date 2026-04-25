@@ -72,6 +72,11 @@
                         <Button Content="View Details" Click="OnViewDetails"
                                 Style="{StaticResource PillButtonActiveStyle}"
                                 HorizontalAlignment="Center"/>
+                        <Button x:Name="WatchedToggleBtn"
+                                Content="○ Mark Watched"
+                                Click="OnWatchedToggle"
+                                Style="{StaticResource PillButtonStyle}"
+                                HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
