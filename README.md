@@ -13,7 +13,8 @@ A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, 
 
 
 Built with C# + WinUI 3.
-<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/097fed4f-6131-45df-bf77-2b91a383d9c7" />
+<img width="959" height="510" alt="image" src="https://github.com/user-attachments/assets/8f06c27c-6429-4955-b589-b8a0633321cc" />
+
 
 
 ## Features
