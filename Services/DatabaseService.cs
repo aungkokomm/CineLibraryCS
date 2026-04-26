@@ -145,6 +145,8 @@ CREATE TABLE IF NOT EXISTS preferences (
             Exec("ALTER TABLE movies ADD COLUMN is_favorite INTEGER DEFAULT 0");
         if (!cols.Contains("is_watchlist"))
             Exec("ALTER TABLE movies ADD COLUMN is_watchlist INTEGER DEFAULT 0");
+        if (!cols.Contains("last_played_at"))
+            Exec("ALTER TABLE movies ADD COLUMN last_played_at INTEGER DEFAULT 0");
 
         // Create indexes for performance
         CreateIndexes();
@@ -162,6 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_movie_directors_director_id ON movie_directors(di
 CREATE INDEX IF NOT EXISTS idx_watchlist ON movies(is_watchlist) WHERE is_watchlist = 1;
 CREATE INDEX IF NOT EXISTS idx_favorite ON movies(is_favorite) WHERE is_favorite = 1;
 CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 1;
+CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_played_at > 0;
         ");
     }
 
@@ -429,6 +432,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         string WatchedFilter = "all",   // all | watched | unwatched
         bool FavoritesOnly = false,
         bool IsWatchlistOnly = false,
+        bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
         int Limit = 60,
         int Offset = 0
     );
@@ -450,6 +454,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
         else if (opts.WatchedFilter == "unwatched") where.Add("m.is_watched=0");
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
+        if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
 
         var sortCol = opts.SortKey switch
         {
@@ -457,6 +462,7 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
             "rating" => "m.rating",
             "runtime" => "m.runtime",
             "date_added" => "m.date_added",
+            "last_played" => "m.last_played_at",
             _ => "m.sort_title"
         };
         var sortDir = opts.SortDir == "desc" ? "DESC" : "ASC";
@@ -874,6 +880,32 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
+        return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>
+    /// Stamps last_played_at = now for "Continue Watching" tracking.
+    /// Called when the user hits Play in the detail dialog.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void MarkPlayed(int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET last_played_at = strftime('%s','now') WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Count of "in progress" movies — played at least once and not yet watched.
+    /// Used to gate the sidebar Continue Watching shortcut visibility/badge.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetContinueWatchingCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT COUNT(*) FROM movies
+                            WHERE last_played_at > 0 AND is_watched = 0 AND is_missing = 0";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 

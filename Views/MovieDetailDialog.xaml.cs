@@ -218,7 +218,15 @@ public sealed partial class MovieDetailDialog : Window
         var letter = _movie.CurrentLetter;
         var videoPath = Path.Combine($"{letter}:\\", _movie.VideoFileRelPath.Replace('/', '\\'));
         if (File.Exists(videoPath))
+        {
+            // Stamp Continue Watching: we can't see real playback position once
+            // the OS player takes over, so the row simply moves to the top of
+            // the Continue Watching list and stays until the user marks it Watched.
+            AppState.Instance.Db.MarkPlayed(_movie.Id);
+            // Tell the host so its sidebar badge updates
+            WatchlistChanged?.Invoke(this, EventArgs.Empty);
             await Launcher.LaunchUriAsync(new Uri(videoPath));
+        }
     }
 
     private async void OnOpenFolder(object sender, RoutedEventArgs e)

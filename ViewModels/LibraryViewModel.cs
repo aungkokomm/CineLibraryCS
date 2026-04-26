@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 
 namespace CineLibraryCS.ViewModels;
 
-public enum SortKey { Title, Year, Rating, Runtime, DateAdded }
+public enum SortKey { Title, Year, Rating, Runtime, DateAdded, LastPlayed }
 public enum SortDir { Asc, Desc }
 public enum WatchedFilter { All, Unwatched, Watched }
 public enum ViewMode { Grid, List }
@@ -28,6 +28,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterActor = null;
     [ObservableProperty] private string? _filterDirector = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
+    [ObservableProperty] private bool _isContinueWatching = false;
     [ObservableProperty] private int? _collectionId = null;
     [ObservableProperty] private bool _isLoading = false;
     [ObservableProperty] private bool _hasMore = false;
@@ -95,6 +96,7 @@ public partial class LibraryViewModel : ObservableObject
         SortKey: SortKey.ToString().ToLower() switch
         {
             "dateadded" => "date_added",
+            "lastplayed" => "last_played",
             var s => s
         },
         SortDir: SortDir == SortDir.Asc ? "asc" : "desc",
@@ -111,6 +113,7 @@ public partial class LibraryViewModel : ObservableObject
         },
         FavoritesOnly: FavoritesOnly,
         IsWatchlistOnly: IsWatchlistOnly,
+        ContinueWatching: IsContinueWatching,
         Limit: PageSize,
         Offset: offset
     );
@@ -219,13 +222,35 @@ public partial class LibraryViewModel : ObservableObject
         FilterActor = null;
         FilterDirector = null;
         IsWatchlistOnly = false;
+        IsContinueWatching = false;
         SearchText = "";
         WatchedFilter = WatchedFilter.All;
-        // Bypass the partial OnSortKeyChanged (which would persist to prefs).
-        // Set fields directly + raise property changed manually.
         SortKey = SortKey.DateAdded;
         SortDir = SortDir.Desc;
         PageTitle = "🆕 Recently Added";
+        _ = LoadAsync();
+    }
+
+    /// <summary>
+    /// "Continue Watching" — movies the user has hit Play on at least once
+    /// but hasn't marked watched. Sorted by last_played_at DESC so the most
+    /// recently started one is on top. is_watched=0 is enforced in the SQL.
+    /// </summary>
+    public void ShowContinueWatching()
+    {
+        DriveSerial = null;
+        Genre = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        FilterActor = null;
+        FilterDirector = null;
+        IsWatchlistOnly = false;
+        IsContinueWatching = true;
+        SearchText = "";
+        WatchedFilter = WatchedFilter.All;
+        SortKey = SortKey.LastPlayed;
+        SortDir = SortDir.Desc;
+        PageTitle = "▶ Continue Watching";
         _ = LoadAsync();
     }
 
@@ -238,6 +263,7 @@ public partial class LibraryViewModel : ObservableObject
         FilterActor = null;
         FilterDirector = null;
         IsWatchlistOnly = false;
+        IsContinueWatching = false;
         PageTitle = "All Movies";
         _ = LoadAsync();
     }

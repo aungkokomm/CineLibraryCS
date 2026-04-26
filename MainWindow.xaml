@@ -110,6 +110,25 @@
                             </Grid>
                         </Button>
 
+                        <!-- Continue Watching (v1.8) -->
+                        <Button x:Name="BtnContinueWatching" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavContinueWatching">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="▶" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Continue Watching" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="ContinueWatchingBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
                         <!-- Recently Added (v1.7) -->
                         <Button Style="{StaticResource NavItemStyle}" Click="OnNavRecentlyAdded">
                             <StackPanel Orientation="Horizontal" Spacing="8">

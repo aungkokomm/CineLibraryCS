@@ -210,6 +210,11 @@ public sealed partial class MainWindow : Window
                 WatchlistBadge.Text = vm.WatchlistCount.ToString();
             }
 
+            // Continue Watching badge (v1.8) — only show shortcut if there's anything to continue
+            var cwCount = AppState.Instance.Db.GetContinueWatchingCount();
+            ContinueWatchingBadge.Text = cwCount.ToString();
+            BtnContinueWatching.Visibility = cwCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
             DrivesRepeater.ItemsSource = _vm.Drives;
             LibrariesHeader.Visibility = _vm.Drives.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -306,6 +311,13 @@ public sealed partial class MainWindow : Window
     /// Switches to the Drives page; the user proceeds with Add folder there.
     /// </summary>
     public void NavigateToDrivesAndAdd() => NavigateTo("drives");
+
+    private void OnNavContinueWatching(object sender, RoutedEventArgs e)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.ShowContinueWatching();
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
 
     private void OnNavRecentlyAdded(object sender, RoutedEventArgs e)
     {
@@ -463,7 +475,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.7.1",
+            Title = "CineLibrary v1.8.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

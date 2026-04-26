@@ -3,6 +3,20 @@
 All notable changes to CineLibrary are documented here.
 Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.8.0] — 2026-04-26
+
+### Added
+- **▶ Continue Watching** sidebar shortcut. Hitting Play on any movie now
+  stamps `last_played_at` on its row. The shortcut shows movies played at
+  least once and not yet marked watched, sorted most-recent first, with a
+  badge count. Hidden when there's nothing to continue. The OS player
+  takes over once a movie launches, so resume position isn't tracked —
+  the row stays in Continue Watching until you mark it Watched.
+
+### Schema
+- New column `movies.last_played_at` (epoch seconds, default 0).
+  Migration runs automatically on first launch of v1.8.
+
 ## [1.7.1] — 2026-04-26
 
 ### Fixed
