@@ -1,4 +1,4 @@
-# CineLibrary — လက်စွဲစာအုပ်
+p# CineLibrary — လက်စွဲစာအုပ်
 
 > Windows အတွက် native ရုပ်ရှင် Library။
 > မည်သည့် drive အရေအတွက်မဆို ကြည့်ရှု၊ ရှာဖွေ၊ မှတ်တမ်းတင်နိုင်သည်။
@@ -252,7 +252,7 @@ CineLibrary သည် MediaElch ၏ convention အတိုင်း `poster.jpg
 - Install ဖိုင်တွဲ network share (UNC path) ပေါ်တွင် မဟုတ်ကြောင်း သေချာပါစေ — WinUI တွင် UNC path ၌ ပြဿနာများ ဖြစ်တတ်သည်။
 - ပြဿနာ ဆက်ဖြစ်နေလျှင် [GitHub](https://github.com/aungkokomm/CineLibraryCS/issues) တွင် issue တင်ပါ — launcher script ၏ exit code နှင့် ဖြစ်ရပ်ကို အကျဉ်းချုပ် ဖော်ပြပါ။ ကိုယ်ရေးကိုယ်တာ path များ ခေါင်းစဉ်တွင် မထည့်ပါနှင့်။
 
-### Catalog အသစ်ဆီ ပြန်စချင်တယ်
+### Catalog အသစ် ပြန်စချင်တယ်
 
 CineLibrary ပိတ်ပါ။ Exe ဘေးရှိ `CineLibrary-Data\` ဖိုင်တွဲ ဖျက်ပါ။ ပြန်ဖွင့်ပါ — CineLibrary သည် database အသစ် ဖန်တီးမည်။ ရုပ်ရှင်ဖိုင်များ မထိခိုက်ပါ။
 
@@ -262,7 +262,7 @@ CineLibrary ပိတ်ပါ။ Exe ဘေးရှိ `CineLibrary-Data\` ဖ
 
 - **Bug တွေ့လား? Idea ရှိလား?**
   [Issue တင်ပါ။](https://github.com/aungkokomm/CineLibraryCS/issues)
-- **ဘာတွေ လာမလာ ကြည့်ချင်လား?**
+- **Latest ဆွဲချင်သလား?**
   [Releases page](https://github.com/aungkokomm/CineLibraryCS/releases) တွင် changelog စစ်ပါ။
 - **ပါဝင်ကူညီချင်လား?**
   PR များ ကြိုဆိုသည်။ Codebase သည် C# / WinUI 3 ဖြင့် `Microsoft.Data.Sqlite` သုံးထားသော ရိုးရှင်းသည့် ဖွဲ့စည်းပုံ ဖြစ်သည် — ဝင်ရောက်လုပ်ကိုင်ရန် လွယ်ကူသည်။
