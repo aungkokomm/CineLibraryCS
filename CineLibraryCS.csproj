@@ -16,9 +16,9 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
+    <Version>1.7.1</Version>
+    <AssemblyVersion>1.7.1.0</AssemblyVersion>
+    <FileVersion>1.7.1.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +27,24 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
   </ItemGroup>
+
+  <!--
+    WinUI 3 unpackaged + self-contained publish drops CineLibrary.pri (the
+    app-level resource index built by makepri) somewhere on disk but does
+    NOT copy it to PublishDir. App runs fine from the *bin* folder because
+    runtime finds it via path proximity, but the moment you copy the publish
+    output anywhere else (e.g. into the Inno installer payload) the app
+    crashes at startup with XamlParseException trying to load MainWindow.xaml.
+    This target fixes that by copying CineLibrary.pri after Publish.
+  -->
+  <Target Name="CopyAppPriToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_AppPri Include="$(OutDir)$(AssemblyName).pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AppPri)" DestinationFolder="$(PublishDir)"
+          Condition="Exists('$(OutDir)$(AssemblyName).pri')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <Content Include="Assets\**">
