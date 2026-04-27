@@ -29,6 +29,8 @@ Built with C# + WinUI 3.
 - **Export** — CSV or HTML
 - **Keyboard shortcuts** — `Ctrl+F` search, `Ctrl+B` toggle sidebar, `Esc` clear search
 - **Light / Dark / System themes** with Mica backdrop
+- **Continue Watching**
+- **Surprise me**
 
 ## Download
 
