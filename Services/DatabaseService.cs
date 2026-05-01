@@ -430,6 +430,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         string? Genre = null,
         string? Actor = null,
         string? Director = null,
+        string? Studio = null,
         int? CollectionId = null,
         string WatchedFilter = "all",   // all | watched | unwatched
         bool FavoritesOnly = false,
@@ -451,6 +452,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         if (opts.Genre != null) where.Add("EXISTS (SELECT 1 FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id AND g.name=@genre)");
         if (opts.Actor != null) where.Add("EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND LOWER(a.name)=LOWER(@actor))");
         if (opts.Director != null) where.Add("EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND LOWER(d.name)=LOWER(@director))");
+        if (opts.Studio != null) where.Add("LOWER(m.studio)=LOWER(@studio)");
         if (opts.CollectionId != null) where.Add("EXISTS (SELECT 1 FROM movie_sets ms WHERE ms.movie_id=m.id AND ms.set_id=@colId)");
         if (opts.WatchedFilter == "watched") where.Add("m.is_watched=1");
         else if (opts.WatchedFilter == "unwatched") where.Add("m.is_watched=0");
@@ -492,6 +494,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
         if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
         if (opts.Director != null) cmd.Parameters.AddWithValue("@director", opts.Director);
+        if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
         if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
         cmd.Parameters.AddWithValue("@lim", opts.Limit);
         cmd.Parameters.AddWithValue("@off", opts.Offset);

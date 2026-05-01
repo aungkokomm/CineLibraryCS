@@ -27,6 +27,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _genre = null;
     [ObservableProperty] private string? _filterActor = null;
     [ObservableProperty] private string? _filterDirector = null;
+    [ObservableProperty] private string? _filterStudio = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
     [ObservableProperty] private int? _collectionId = null;
@@ -104,6 +105,7 @@ public partial class LibraryViewModel : ObservableObject
         Genre: Genre,
         Actor: FilterActor,
         Director: FilterDirector,
+        Studio: FilterStudio,
         CollectionId: CollectionId,
         WatchedFilter: WatchedFilter switch
         {
@@ -262,6 +264,7 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly = false;
         FilterActor = null;
         FilterDirector = null;
+        FilterStudio = null;
         IsWatchlistOnly = false;
         IsContinueWatching = false;
         PageTitle = "All Movies";
@@ -274,6 +277,7 @@ public partial class LibraryViewModel : ObservableObject
     {
         FilterActor = actorName;
         FilterDirector = null;
+        FilterStudio = null;
         Genre = null;
         DriveSerial = null;
         CollectionId = null;
@@ -288,6 +292,7 @@ public partial class LibraryViewModel : ObservableObject
     {
         FilterDirector = directorName;
         FilterActor = null;
+        FilterStudio = null;
         Genre = null;
         DriveSerial = null;
         CollectionId = null;
@@ -295,6 +300,21 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly = false;
         SearchText = "";
         PageTitle = $"Directed by {directorName}";
+        _ = LoadAsync();
+    }
+
+    public void FilterByStudio(string studio)
+    {
+        FilterStudio = studio;
+        FilterActor = null;
+        FilterDirector = null;
+        Genre = null;
+        DriveSerial = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        IsWatchlistOnly = false;
+        SearchText = "";
+        PageTitle = $"Studio: {studio}";
         _ = LoadAsync();
     }
 

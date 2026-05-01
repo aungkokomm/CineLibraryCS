@@ -104,6 +104,8 @@ public sealed partial class LibraryPage : Page
         SearchBox.Focus(FocusState.Programmatic);
     }
 
+    public void UpdatePageTitle(string title) => PageTitleText.Text = title;
+
     private void UpdateEmptyState()
     {
         var empty = _vm.Movies.Count == 0 && !_vm.IsLoading;
@@ -167,7 +169,8 @@ public sealed partial class LibraryPage : Page
             _vm.Genre != null ||
             _vm.CollectionId != null ||
             _vm.FilterActor != null ||
-            _vm.FilterDirector != null;
+            _vm.FilterDirector != null ||
+            _vm.FilterStudio != null;
         ClearFiltersBtn.Visibility = anyFilter ? Visibility.Visible : Visibility.Collapsed;
     }
 

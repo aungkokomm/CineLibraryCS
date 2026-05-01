@@ -149,36 +149,44 @@ public sealed partial class MovieDetailDialog : Window
             PlotText.Visibility = Visibility.Visible;
         }
 
-        // Genres
+        // Genres — clickable, filters library on click
         if (m.Genres.Count > 0)
         {
             GenresField.Visibility = Visibility.Visible;
             GenreLinks.Children.Clear();
             foreach (var g in m.Genres)
             {
+                var captured = g;
                 var btn = new HyperlinkButton { Content = g, Padding = new Thickness(0), FontSize = 13 };
+                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByGenre(captured));
                 GenreLinks.Children.Add(btn);
             }
         }
 
-        // Directors
+        // Directors — clickable
         if (m.Directors.Count > 0)
         {
             DirectorField.Visibility = Visibility.Visible;
             DirectorLinks.Children.Clear();
             foreach (var d in m.Directors)
             {
+                var captured = d;
                 var btn = new HyperlinkButton { Content = d, Padding = new Thickness(0), FontSize = 13 };
+                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByDirector(captured));
                 DirectorLinks.Children.Add(btn);
             }
         }
 
-        // Studio
+        // Studio — clickable HyperlinkButton (was a plain TextBlock)
         if (m.Studio != null)
         {
             StudioLabel.Visibility = Visibility.Visible;
-            StudioText.Text = m.Studio;
-            StudioText.Visibility = Visibility.Visible;
+            StudioText.Visibility = Visibility.Collapsed;
+            StudioLink.Visibility = Visibility.Visible;
+            StudioLink.Content = m.Studio;
+            // Detach prior handler in case dialog is reused
+            StudioLink.Click -= OnStudioClick;
+            StudioLink.Click += OnStudioClick;
         }
 
         // Cast
@@ -214,6 +222,28 @@ public sealed partial class MovieDetailDialog : Window
     }
 
     // ── Actions ───────────────────────────────────────────────────────────
+
+    private void OnStudioClick(object sender, RoutedEventArgs e)
+    {
+        if (_movie?.Studio == null) return;
+        var s = _movie.Studio;
+        NavigateAndClose(mw => mw.NavigateLibraryByStudio(s));
+    }
+
+    private void OnActorClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button b && b.Tag is string actor)
+            NavigateAndClose(mw => mw.NavigateLibraryByActor(actor));
+    }
+
+    /// <summary>
+    /// Apply a library filter via MainWindow then close this detail window.
+    /// </summary>
+    private void NavigateAndClose(Action<MainWindow> nav)
+    {
+        if (App.MainWindow is MainWindow mw) nav(mw);
+        Close();
+    }
 
     private async void OnPlay(object sender, RoutedEventArgs e)
     {

@@ -3,6 +3,16 @@
 All notable changes to CineLibrary are documented here.
 Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.9.1] — 2026-04-26
+
+### Fixed
+- **Genre / Director / Studio / Cast chips in the detail dialog** looked
+  clickable but did nothing. Now each navigates to the library page with
+  the corresponding filter applied (e.g. click "Drama" → All Movies ›
+  DRAMA, click "Hrishikesh Mukherjee" → Directed by Hrishikesh Mukherjee,
+  click an actor card → Movies with <name>). Studio is a new filter type
+  added in 1.9.1.
+
 ## [1.9.0] — 2026-04-26
 
 ### Added

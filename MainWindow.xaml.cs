@@ -312,6 +312,41 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public void NavigateToDrivesAndAdd() => NavigateTo("drives");
 
+    /// <summary>
+    /// Public hooks used by the movie detail dialog to filter the library
+    /// when the user clicks an actor / director / genre / studio chip.
+    /// Each switches the main window to the Library page (creating it on first
+    /// use), applies the filter, and updates the page header breadcrumb.
+    /// </summary>
+    public void NavigateLibraryByActor(string actor)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByActor(actor);
+        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {actor.ToUpper()}");
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    public void NavigateLibraryByDirector(string director)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByDirector(director);
+        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {director.ToUpper()}");
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    public void NavigateLibraryByGenre(string genre)
+    {
+        NavigateTo("library", new LibraryNavParam(Genre: genre, Label: genre));
+    }
+
+    public void NavigateLibraryByStudio(string studio)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByStudio(studio);
+        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {studio.ToUpper()}");
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
     private void OnNavContinueWatching(object sender, RoutedEventArgs e)
     {
         if (_libraryPage == null) NavigateTo("library");
@@ -475,7 +510,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v1.9.0",
+            Title = "CineLibrary v1.9.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

@@ -196,6 +196,8 @@
                         <TextBlock x:Name="StudioText" Visibility="Collapsed"
                                    FontSize="13" Foreground="{ThemeResource TextBrush}"
                                    TextWrapping="Wrap"/>
+                        <HyperlinkButton x:Name="StudioLink" Visibility="Collapsed"
+                                         Padding="0" FontSize="13"/>
                     </StackPanel>
                 </Grid>
 
@@ -211,9 +213,14 @@
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="models:Actor">
-                                    <Border Background="{ThemeResource CardBrush}"
+                                    <Button Background="{ThemeResource CardBrush}"
+                                            BorderBrush="{ThemeResource BorderBrush}"
+                                            BorderThickness="1"
                                             CornerRadius="8" Padding="12,8"
-                                            MinWidth="120" MaxWidth="160">
+                                            MinWidth="120" MaxWidth="160"
+                                            HorizontalContentAlignment="Left"
+                                            Tag="{x:Bind Name}"
+                                            Click="OnActorClick">
                                         <StackPanel>
                                             <TextBlock Text="{x:Bind Name}"
                                                        FontSize="12" FontWeight="SemiBold"
@@ -224,7 +231,7 @@
                                                        Foreground="{ThemeResource MutedBrush}"
                                                        TextWrapping="Wrap"/>
                                         </StackPanel>
-                                    </Border>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
