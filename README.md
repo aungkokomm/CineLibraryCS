@@ -31,6 +31,7 @@ Built with C# + WinUI 3.
 - **Light / Dark / System themes** with Mica backdrop
 - **Continue Watching**
 - **Surprise me**
+- **Notes in the movie detail dialog.** 
 
 ## Download
 
