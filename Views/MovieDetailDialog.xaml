@@ -118,6 +118,63 @@
                            TextWrapping="Wrap" Margin="0,20,0,0" Visibility="Collapsed"
                            LineHeight="22"/>
 
+                <!-- Notes (v1.9) -->
+                <Border Margin="0,20,0,0" Padding="14,12"
+                        Background="{ThemeResource CardBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="📝 Notes"
+                                       FontSize="14" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                <Button x:Name="NoteAddBtn" Click="OnNoteEditStart"
+                                        Content="+ Add note" Visibility="Collapsed"
+                                        Background="Transparent"
+                                        Foreground="{ThemeResource MutedBrush}"
+                                        BorderBrush="{ThemeResource BorderBrush}"
+                                        CornerRadius="6" Padding="10,4" FontSize="12"/>
+                                <Button x:Name="NoteEditBtn" Click="OnNoteEditStart"
+                                        Content="Edit" Visibility="Collapsed"
+                                        Background="Transparent"
+                                        Foreground="{ThemeResource MutedBrush}"
+                                        BorderBrush="{ThemeResource BorderBrush}"
+                                        CornerRadius="6" Padding="10,4" FontSize="12"/>
+                                <Button x:Name="NoteSaveBtn" Click="OnNoteSave"
+                                        Content="Save" Visibility="Collapsed"
+                                        Background="{StaticResource BrandPurpleBrush}"
+                                        Foreground="#FFFFFF"
+                                        BorderThickness="0"
+                                        CornerRadius="6" Padding="10,4" FontSize="12"/>
+                                <Button x:Name="NoteCancelBtn" Click="OnNoteCancel"
+                                        Content="Cancel" Visibility="Collapsed"
+                                        Background="Transparent"
+                                        Foreground="{ThemeResource MutedBrush}"
+                                        BorderBrush="{ThemeResource BorderBrush}"
+                                        CornerRadius="6" Padding="10,4" FontSize="12"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock x:Name="NoteText" Visibility="Collapsed"
+                                   FontSize="13" Foreground="{ThemeResource TextBrush}"
+                                   TextWrapping="Wrap" LineHeight="20"/>
+                        <TextBox x:Name="NoteEditor" Visibility="Collapsed"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="100" MaxHeight="240"
+                                 PlaceholderText="What did you think of this film?"
+                                 FontSize="13"/>
+                        <TextBlock x:Name="NoteOfflineHint" Visibility="Collapsed"
+                                   Text="Drive offline — note saved locally; will sync to the movie folder when reconnected."
+                                   FontSize="11" Foreground="{ThemeResource MutedBrush}"
+                                   FontStyle="Italic" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Fields grid -->
                 <Grid Margin="0,20,0,0">
                     <Grid.ColumnDefinitions>

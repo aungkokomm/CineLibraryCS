@@ -138,6 +138,9 @@ public sealed partial class MovieDetailDialog : Window
         WatchlistBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
 
 
+        // Notes
+        UpdateNoteUi(viewing: true);
+
         // Plot (fall back to outline — many MediaElch NFOs use <outline> only)
         var plotText = m.Plot ?? m.Outline;
         if (!string.IsNullOrWhiteSpace(plotText))
@@ -261,4 +264,81 @@ public sealed partial class MovieDetailDialog : Window
              WatchlistBtn.Content = _movie.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
              WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
+
+        // ── Notes (v1.9, hybrid DB + sidecar) ────────────────────────────────
+
+        /// <summary>
+        /// Renders the Notes panel in either viewing or editing mode based on
+        /// _movie.Note. Called after load and after save/cancel.
+        /// </summary>
+        private void UpdateNoteUi(bool viewing)
+        {
+            if (_movie == null) return;
+            var hasNote = !string.IsNullOrWhiteSpace(_movie.Note);
+
+            if (viewing)
+            {
+                NoteText.Text = _movie.Note ?? "";
+                NoteText.Visibility = hasNote ? Visibility.Visible : Visibility.Collapsed;
+                NoteEditor.Visibility = Visibility.Collapsed;
+                NoteAddBtn.Visibility = hasNote ? Visibility.Collapsed : Visibility.Visible;
+                NoteEditBtn.Visibility = hasNote ? Visibility.Visible : Visibility.Collapsed;
+                NoteSaveBtn.Visibility = Visibility.Collapsed;
+                NoteCancelBtn.Visibility = Visibility.Collapsed;
+                NoteOfflineHint.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                // Editing mode
+                NoteEditor.Text = _movie.Note ?? "";
+                NoteText.Visibility = Visibility.Collapsed;
+                NoteEditor.Visibility = Visibility.Visible;
+                NoteAddBtn.Visibility = Visibility.Collapsed;
+                NoteEditBtn.Visibility = Visibility.Collapsed;
+                NoteSaveBtn.Visibility = Visibility.Visible;
+                NoteCancelBtn.Visibility = Visibility.Visible;
+                NoteOfflineHint.Visibility = _movie.IsOnline ? Visibility.Collapsed : Visibility.Visible;
+                NoteEditor.Focus(FocusState.Programmatic);
+            }
+        }
+
+        private void OnNoteEditStart(object sender, RoutedEventArgs e) => UpdateNoteUi(viewing: false);
+
+        private void OnNoteCancel(object sender, RoutedEventArgs e) => UpdateNoteUi(viewing: true);
+
+        private void OnNoteSave(object sender, RoutedEventArgs e)
+        {
+            if (_movie == null) return;
+            var newNote = (NoteEditor.Text ?? "").Trim();
+
+            // 1) DB always succeeds (even when drive is offline)
+            AppState.Instance.Db.SetNote(_movie.Id, newNote);
+            _movie.Note = string.IsNullOrEmpty(newNote) ? null : newNote;
+
+            // 2) Best-effort sidecar write next to the .nfo. Skipped silently
+            //    when drive offline / read-only / network glitch.
+            TryWriteSidecar(_movie, newNote);
+
+            UpdateNoteUi(viewing: true);
+        }
+
+        private static void TryWriteSidecar(MovieDetail m, string note)
+        {
+            if (!m.IsOnline || m.CurrentLetter == null || m.FolderRelPath == null) return;
+            try
+            {
+                var folder = Path.Combine($"{m.CurrentLetter}:\\", m.FolderRelPath.Replace('/', '\\'));
+                if (!Directory.Exists(folder)) return;
+                var sidecar = Path.Combine(folder, ScannerService.NoteSidecarFileName);
+                if (string.IsNullOrEmpty(note))
+                {
+                    if (File.Exists(sidecar)) File.Delete(sidecar);
+                }
+                else
+                {
+                    File.WriteAllText(sidecar, note, System.Text.Encoding.UTF8);
+                }
+            }
+            catch { /* sidecar is best-effort; DB is the source of truth */ }
+        }
     }

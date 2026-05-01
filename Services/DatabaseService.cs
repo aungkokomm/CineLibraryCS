@@ -147,6 +147,8 @@ CREATE TABLE IF NOT EXISTS preferences (
             Exec("ALTER TABLE movies ADD COLUMN is_watchlist INTEGER DEFAULT 0");
         if (!cols.Contains("last_played_at"))
             Exec("ALTER TABLE movies ADD COLUMN last_played_at INTEGER DEFAULT 0");
+        if (!cols.Contains("note"))
+            Exec("ALTER TABLE movies ADD COLUMN note TEXT");
 
         // Create indexes for performance
         CreateIndexes();
@@ -531,7 +533,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
                    m.plot, m.tagline, m.mpaa, m.imdb_id, m.premiered, m.studio, m.country,
                    m.local_poster, m.local_fanart, m.is_missing, m.is_favorite, m.is_watched,
                    m.is_watchlist, m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
-                   m.outline
+                   m.outline, m.note
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -575,6 +577,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
                 FolderRelPath = folderRel,
                 VideoFileRelPath = videoRel,
                 Outline = r.IsDBNull(23) ? null : r.GetString(23),
+                Note = r.IsDBNull(24) ? null : r.GetString(24),
             };
         }
 
@@ -881,6 +884,20 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
         return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>
+    /// Save user note to the row. Empty/null clears it.
+    /// Sidecar file write is handled by the caller (needs the drive letter).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetNote(int movieId, string? note)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET note=@n WHERE id=@id";
+        cmd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(note) ? (object)DBNull.Value : note);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>

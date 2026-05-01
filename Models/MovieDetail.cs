@@ -37,6 +37,7 @@ public class MovieDetail
     public string VolumeSerial { get; set; } = "";
     public string? FolderRelPath { get; set; }
     public string? VideoFileRelPath { get; set; }
+    public string? Note { get; set; }
 
     public List<string> Genres { get; set; } = new();
     public List<string> Directors { get; set; } = new();

@@ -130,15 +130,16 @@ public class ScannerService
                 stmtGetId.Parameters["@f"].Value = folderRelPath;
                 var existingId = stmtGetId.ExecuteScalar();
 
+                int rowId;
                 if (existingId != null && existingId != DBNull.Value)
                 {
                     // Clear params from any previous iteration before re-binding
                     stmtUpdate.Parameters.Clear();
-                    var id = Convert.ToInt32(existingId);
+                    rowId = Convert.ToInt32(existingId);
                     BindMovieParams(stmtUpdate, parsed, videoRelPath, localPoster, localFanart, localNfo);
-                    stmtUpdate.Parameters.AddWithValue("@id", id);
+                    stmtUpdate.Parameters.AddWithValue("@id", rowId);
                     stmtUpdate.ExecuteNonQuery();
-                    UpsertRelated(conn, tx, id, parsed, lookup);
+                    UpsertRelated(conn, tx, rowId, parsed, lookup);
                     updated++;
                 }
                 else
@@ -152,10 +153,17 @@ public class ScannerService
                     using var lastId = conn.CreateCommand();
                     lastId.CommandText = "SELECT last_insert_rowid()";
                     lastId.Transaction = tx;
-                    var newId = Convert.ToInt32(lastId.ExecuteScalar());
-                    UpsertRelated(conn, tx, newId, parsed, lookup);
+                    rowId = Convert.ToInt32(lastId.ExecuteScalar());
+                    UpsertRelated(conn, tx, rowId, parsed, lookup);
                     inserted++;
                 }
+
+                // Sidecar note import (cinelibrary-note.txt next to .nfo).
+                // Only writes DB if DB note is currently empty — DB is the source
+                // of truth once the user has saved a note inside the app. This way
+                // a reinstall + rescan can recover notes from sidecars; subsequent
+                // edits in CineLibrary won't be reverted by the next scan.
+                ImportSidecarNoteIfNeeded(conn, tx, rowId, folder);
             }
 
             tx.Commit();
@@ -369,6 +377,37 @@ public class ScannerService
             return $"cache/{movieKey}/{destName}";
         }
         catch { return null; }
+    }
+
+    public const string NoteSidecarFileName = "cinelibrary-note.txt";
+
+    private static void ImportSidecarNoteIfNeeded(SqliteConnection conn, SqliteTransaction tx, int movieId, string folder)
+    {
+        var sidecar = Path.Combine(folder, NoteSidecarFileName);
+        if (!File.Exists(sidecar)) return;
+
+        // Only import when DB column is empty — protects user edits made
+        // inside the app from being overwritten by a stale sidecar.
+        using var check = conn.CreateCommand();
+        check.Transaction = tx;
+        check.CommandText = "SELECT note FROM movies WHERE id=@id";
+        check.Parameters.AddWithValue("@id", movieId);
+        var existing = check.ExecuteScalar();
+        var hasDbNote = existing != null && existing != DBNull.Value &&
+                        !string.IsNullOrWhiteSpace(existing.ToString());
+        if (hasDbNote) return;
+
+        string text;
+        try { text = File.ReadAllText(sidecar); }
+        catch { return; }
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        using var upd = conn.CreateCommand();
+        upd.Transaction = tx;
+        upd.CommandText = "UPDATE movies SET note=@n WHERE id=@id";
+        upd.Parameters.AddWithValue("@n", text);
+        upd.Parameters.AddWithValue("@id", movieId);
+        upd.ExecuteNonQuery();
     }
 
     private static string ComputeMovieKey(string volumeSerial, string folderRelPath)

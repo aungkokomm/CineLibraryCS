@@ -3,6 +3,25 @@
 All notable changes to CineLibrary are documented here.
 Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.9.0] — 2026-04-26
+
+### Added
+- **📝 Notes** in the movie detail dialog. Type whatever you want about
+  the film — your reaction, where you stopped, who you watched with —
+  and hit Save. Empty state shows **+ Add note**, content state shows
+  **Edit** / **Cancel** / **Save** controls. Always editable, even when
+  the drive is offline.
+
+### Storage (hybrid)
+- Primary: new column `movies.note` (TEXT). DB save always succeeds.
+- Sidecar: `cinelibrary-note.txt` written next to the movie's `.nfo`
+  when the drive is online. MediaElch ignores it (won't be stripped on
+  re-scrape), travels with the movie folder for portability across
+  installs / machines.
+- Scanner imports a sidecar to the DB only when the DB column is empty,
+  so user edits made inside the app are never overwritten by a stale
+  sidecar.
+
 ## [1.8.0] — 2026-04-26
 
 ### Added
