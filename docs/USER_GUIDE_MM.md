@@ -53,7 +53,7 @@ H:\Movies\
 သင့် Movie file နာမည်များ တည့်မတ်စေရန်နှင့် Folder📂 တခုချင်းစီတွင် အထာတကျ စီပေးရန်
 [CineLibraryEssentials] (https://github.com/aungkokomm/CineLibraryEssentials)
 ကို အသုံးပြု ရှင်းလင်းပြင်ဆင်ပြီးမှ **MediaElch** ဖြင့် အရင် Scrape ပြုလုပ်ပါ။ ပြီးမှသာ...
- CineLibrary ကိုအသုံးပြုပါပန် အကြံပေးအပ်ပါသည်။**
+ CineLibrary ကိုအသုံးပြုပါပန် အကြံပြုပါသည်။**
 
 လိုအပ်ချက်များ —
 
