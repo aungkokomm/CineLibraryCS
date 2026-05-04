@@ -36,8 +36,9 @@ Built with C# + WinUI 3.
 ## Download
 
 > ⚠️ **Prerequisite:** Your movies must already be organised in folders and scraped with [MediaElch](https://mediaelch.github.io/mediaelch-doc/) before using CineLibrary. MediaElch writes the `.nfo` metadata files and poster/fanart images that CineLibrary reads.
-Here is a complementary tool we have provided please grab it 
-[ Get CineLibrary Essentials] (https://github.com/aungkokomm/CineLibraryEssentials)
+
+Here is a specifically designated complementary tool we have provided! Please grab it 
+[Get CineLibrary Essentials] (https://github.com/aungkokomm/CineLibraryEssentials)
 
 Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). Unzip anywhere and run `CineLibrary.exe` — no install required.
 
