@@ -16,7 +16,8 @@ Built with C# + WinUI 3.
 <img width="960" height="508" alt="image" src="https://github.com/user-attachments/assets/4da7c178-ed33-4319-807b-8caa9476855b" />
 
 
-
+![Stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge&color=blue)
+![Downloads](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge&color=brightgreen)
 
 ## Features
 
@@ -45,8 +46,7 @@ Grab the latest portable build from [Releases](https://github.com/aungkokomm/Cin
 
 📖 **မြန်မာဘာသာ?** [မြန်မာဘာသာ လက်စွဲ](docs/USER_GUIDE_MM.md) တွင် ဖတ်ရှုနိုင်သည်။
 
-![Stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge&color=blue)
-![Downloads](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge&color=brightgreen)
+
 
 ## Build from source
 
