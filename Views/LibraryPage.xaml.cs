@@ -64,31 +64,70 @@ public sealed partial class LibraryPage : Page
         // Wire up sidebar refresh from movie cards (watchlist / favorite / watched toggles
         // made inside the detail dialog need to bubble back up so the sidebar counts refresh)
         GridRepeater.ElementPrepared += OnGridRepeaterElementPrepared;
+        GridRepeater.ElementClearing += OnGridRepeaterElementClearing;
         ListRepeater.ElementPrepared += OnListRepeaterElementPrepared;
+        ListRepeater.ElementClearing += OnListRepeaterElementClearing;
 
         _ready = true;
 
         _ = _vm.LoadAsync();
     }
 
+    // Named handlers so we can unsubscribe on ElementClearing — anonymous
+    // lambdas would accumulate every time ItemsRepeater recycles a card,
+    // and a click would fire the handler N times → even count = no net
+    // change → "Mark Watched looks like it stops working" bug.
+    private void OnCardSidebarRefresh(object? s, EventArgs e)
+        => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    private void OnCardWatchedToggle(object? s, MovieListItem movie)
+        => _vm.ToggleWatched(movie);
+    private void OnCardWatchlistToggle(object? s, MovieListItem movie)
+    {
+        _vm.ToggleWatchlistOnCard(movie);
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+    private void OnRowSidebarRefresh(object? s, EventArgs e)
+        => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+
     private void OnGridRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (args.Element is MovieCardControl card)
         {
-            card.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-            card.WatchedToggleRequested += (_, movie) => _vm.ToggleWatched(movie);
-            card.WatchlistToggleRequested += (_, movie) =>
-            {
-                _vm.ToggleWatchlistOnCard(movie);
-                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-            };
+            // Defensive unsubscribe — if a card was prepared without a paired
+            // clearing (rare, but keeps the count honest).
+            card.SidebarRefreshRequested -= OnCardSidebarRefresh;
+            card.WatchedToggleRequested  -= OnCardWatchedToggle;
+            card.WatchlistToggleRequested -= OnCardWatchlistToggle;
+
+            card.SidebarRefreshRequested += OnCardSidebarRefresh;
+            card.WatchedToggleRequested  += OnCardWatchedToggle;
+            card.WatchlistToggleRequested += OnCardWatchlistToggle;
+        }
+    }
+
+    private void OnGridRepeaterElementClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
+    {
+        if (args.Element is MovieCardControl card)
+        {
+            card.SidebarRefreshRequested -= OnCardSidebarRefresh;
+            card.WatchedToggleRequested  -= OnCardWatchedToggle;
+            card.WatchlistToggleRequested -= OnCardWatchlistToggle;
         }
     }
 
     private void OnListRepeaterElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (args.Element is MovieRowControl row)
-            row.SidebarRefreshRequested += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        {
+            row.SidebarRefreshRequested -= OnRowSidebarRefresh;
+            row.SidebarRefreshRequested += OnRowSidebarRefresh;
+        }
+    }
+
+    private void OnListRepeaterElementClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
+    {
+        if (args.Element is MovieRowControl row)
+            row.SidebarRefreshRequested -= OnRowSidebarRefresh;
     }
 
     private void AddAccelerator(VirtualKey key, VirtualKeyModifiers mods,
@@ -170,7 +209,8 @@ public sealed partial class LibraryPage : Page
             _vm.CollectionId != null ||
             _vm.FilterActor != null ||
             _vm.FilterDirector != null ||
-            _vm.FilterStudio != null;
+            _vm.FilterStudio != null ||
+            _vm.UserListId != null;
         ClearFiltersBtn.Visibility = anyFilter ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -271,11 +311,14 @@ public sealed partial class LibraryPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             if (e.PropertyName == nameof(LibraryViewModel.TotalCount) ||
-                e.PropertyName == nameof(LibraryViewModel.HasMore))
+                e.PropertyName == nameof(LibraryViewModel.HasMore) ||
+                e.PropertyName == nameof(LibraryViewModel.FilterTotal))
             {
-                MovieCountText.Text = _vm.HasMore
-                    ? $"{_vm.TotalCount}+ movies"
-                    : $"{_vm.TotalCount} movies";
+                // "60 of 1,200 movies" while pages are still loading,
+                // "850 movies" once everything fits.
+                MovieCountText.Text = _vm.FilterTotal == _vm.TotalCount
+                    ? $"{_vm.FilterTotal:N0} movies"
+                    : $"{_vm.TotalCount:N0} of {_vm.FilterTotal:N0} movies";
             }
             if (e.PropertyName == nameof(LibraryViewModel.IsLoading))
             {

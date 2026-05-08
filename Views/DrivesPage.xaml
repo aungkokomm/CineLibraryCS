@@ -37,11 +37,25 @@
                                Foreground="{ThemeResource TextBrush}"
                                CharacterSpacing="80" VerticalAlignment="Center"/>
 
-                    <Button Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
-                            Content="+ Add Drive" Click="OnAddDrive"
-                            Background="#A78BFA" Foreground="White"
-                            BorderThickness="0" CornerRadius="8" Padding="16,10"
-                            VerticalAlignment="Top"/>
+                    <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                                Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                        <Button x:Name="RefreshChangesBtn" Click="OnRefreshChanges"
+                                Background="{ThemeResource CardBrush}"
+                                Foreground="{ThemeResource TextBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" Padding="14,10">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE72C;" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Refresh changes" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Content="+ Add Drive" Click="OnAddDrive"
+                                Background="#A78BFA" Foreground="White"
+                                BorderThickness="0" CornerRadius="8" Padding="16,10"/>
+                    </StackPanel>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
                                Text="External HDDs that hold your movies. Identified by hardware ID, so drive letter changes don't break anything."

@@ -27,12 +27,73 @@ public sealed partial class MovieRowControl : UserControl
     public MovieRowControl()
     {
         InitializeComponent();
+        var flyout = new MenuFlyout();
+        flyout.Opening += (_, _) => RebuildContextFlyout(flyout);
+        ContextFlyout = flyout;
+    }
+
+    private void RebuildContextFlyout(MenuFlyout flyout)
+    {
+        flyout.Items.Clear();
+        if (Movie == null) return;
+
+        var listsSub = new MenuFlyoutSubItem { Text = "📑 Add to list" };
+        var allLists = AppState.Instance.Db.GetUserLists();
+        var membership = AppState.Instance.Db.GetUserListsForMovie(Movie.Id);
+        if (allLists.Count == 0)
+        {
+            listsSub.Items.Add(new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false });
+        }
+        else
+        {
+            foreach (var ul in allLists)
+            {
+                var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = membership.Contains(ul.Id) };
+                var capturedUl = ul;
+                item.Click += (_, _) =>
+                {
+                    if (item.IsChecked)
+                        AppState.Instance.Db.AddMovieToUserList(capturedUl.Id, Movie.Id);
+                    else
+                        AppState.Instance.Db.RemoveMovieFromUserList(capturedUl.Id, Movie.Id);
+                    SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+                };
+                listsSub.Items.Add(item);
+            }
+        }
+        flyout.Items.Add(listsSub);
     }
 
     private static void OnMovieChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is MovieRowControl c && e.NewValue is MovieListItem m)
+        if (d is not MovieRowControl c) return;
+        if (e.OldValue is MovieListItem prev)
+            prev.PropertyChanged -= c.OnMoviePropertyChanged;
+        if (e.NewValue is MovieListItem m)
+        {
             c.Populate(m);
+            m.PropertyChanged += c.OnMoviePropertyChanged;
+        }
+    }
+
+    private void OnMoviePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (Movie == null) return;
+        if (e.PropertyName == nameof(MovieListItem.IsWatched))
+        {
+            WatchedBtn.Content = Movie.IsWatched ? "✓" : "○";
+            WatchedBtn.Foreground = Movie.IsWatched
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+        }
+        else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
+        {
+            RowFav.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
+            FavBtn.Content = Movie.IsFavorite ? "★" : "☆";
+            FavBtn.Foreground = Movie.IsFavorite
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+        }
     }
 
     private void Populate(MovieListItem m)

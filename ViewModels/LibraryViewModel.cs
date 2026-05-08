@@ -30,6 +30,9 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterStudio = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
+    [ObservableProperty] private int? _userListId = null;
+    /// <summary>Total rows that match the current filter, before paging.</summary>
+    [ObservableProperty] private int _filterTotal = 0;
     [ObservableProperty] private int? _collectionId = null;
     [ObservableProperty] private bool _isLoading = false;
     [ObservableProperty] private bool _hasMore = false;
@@ -71,11 +74,18 @@ public partial class LibraryViewModel : ObservableObject
     {
         IsLoading = true;
         var opts = BuildOpts(0);
-        var movies = await Task.Run(() => _state.Db.GetMovies(opts, _state.Connected));
+        // Real total for the filter — separate cheap COUNT(*) query so the
+        // header reads "60 of 1,200 movies" instead of pretending the whole
+        // library is whatever the first page returned.
+        var (movies, total) = await Task.Run(() => (
+            _state.Db.GetMovies(opts, _state.Connected),
+            _state.Db.GetMoviesCount(opts)
+        ));
 
         Movies.Clear();
         foreach (var m in movies) Movies.Add(m);
-        HasMore = movies.Count == PageSize;
+        FilterTotal = total;
+        HasMore = movies.Count == PageSize && Movies.Count < total;
         TotalCount = Movies.Count;
         IsLoading = false;
     }
@@ -87,7 +97,7 @@ public partial class LibraryViewModel : ObservableObject
         var opts = BuildOpts(Movies.Count);
         var movies = await Task.Run(() => _state.Db.GetMovies(opts, _state.Connected));
         foreach (var m in movies) Movies.Add(m);
-        HasMore = movies.Count == PageSize;
+        HasMore = movies.Count == PageSize && Movies.Count < FilterTotal;
         TotalCount = Movies.Count;
         IsLoading = false;
     }
@@ -116,6 +126,7 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly: FavoritesOnly,
         IsWatchlistOnly: IsWatchlistOnly,
         ContinueWatching: IsContinueWatching,
+        UserListId: UserListId,
         Limit: PageSize,
         Offset: offset
     );
@@ -267,7 +278,26 @@ public partial class LibraryViewModel : ObservableObject
         FilterStudio = null;
         IsWatchlistOnly = false;
         IsContinueWatching = false;
+        UserListId = null;
         PageTitle = "All Movies";
+        _ = LoadAsync();
+    }
+
+    public void ShowUserList(int listId, string listName)
+    {
+        UserListId = listId;
+        DriveSerial = null;
+        Genre = null;
+        CollectionId = null;
+        FavoritesOnly = false;
+        FilterActor = null;
+        FilterDirector = null;
+        FilterStudio = null;
+        IsWatchlistOnly = false;
+        IsContinueWatching = false;
+        SearchText = "";
+        WatchedFilter = WatchedFilter.All;
+        PageTitle = $"📑 {listName}";
         _ = LoadAsync();
     }
 

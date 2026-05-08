@@ -287,6 +287,105 @@ public sealed partial class DrivesPage : Page
     private void OnCancelScan(object sender, RoutedEventArgs e)
         => _scanCts?.Cancel();
 
+    /// <summary>
+    /// Incremental rescan of every online drive's *configured drive-roots*
+    /// (NOT the whole drive — that was the v1 bug that pulled TV episode
+    /// nfos in as fake movies). For each user-added folder, walks just that
+    /// folder; the scanner's mtime check skips nfos unchanged since last scan.
+    /// Also runs a cleanup pass to remove any stray rows that the v1 bug
+    /// might have inserted on a previous run.
+    /// </summary>
+    private async void OnRefreshChanges(object sender, RoutedEventArgs e)
+    {
+        var connected = AppState.Instance.Connected;
+        var drives = AppState.Instance.Db.GetDrives()
+                          .Where(d => connected.ContainsKey(d.VolumeSerial))
+                          .ToList();
+        if (drives.Count == 0)
+        {
+            await ShowInfoDialog("No online drives", "Plug in at least one drive that has movies on it, then try again.");
+            return;
+        }
+
+        // Build the per-drive-root work list — these are the only paths we
+        // should touch. A drive without any drive-root entries is skipped.
+        var work = new List<(string Serial, string Letter, string Label, string DriveRoot, string ScanFolder)>();
+        foreach (var d in drives)
+        {
+            var letter = connected[d.VolumeSerial];
+            var driveRoot = $"{letter}:\\";
+            foreach (var r in d.Folders)
+            {
+                if (string.IsNullOrWhiteSpace(r.RootPath)) continue;
+                var abs = Path.Combine(driveRoot, r.RootPath.Replace('/', '\\'));
+                if (!Directory.Exists(abs)) continue;
+                work.Add((d.VolumeSerial, letter, d.Label, driveRoot, abs));
+            }
+        }
+        if (work.Count == 0)
+        {
+            await ShowInfoDialog("Nothing to refresh",
+                "None of the online drives have any folders configured to scan. " +
+                "Add a folder on a drive card first.");
+            return;
+        }
+
+        ScanOverlay.Visibility = Visibility.Visible;
+        ScanStatusText.Text = $"Refreshing {work.Count} folder(s)…";
+        ScanDetailText.Text = "";
+        _scanCts = new CancellationTokenSource();
+
+        int strayCleaned = 0;
+        try
+        {
+            for (int i = 0; i < work.Count; i++)
+            {
+                if (_scanCts.IsCancellationRequested) break;
+                var (serial, _, label, driveRoot, scanFolder) = work[i];
+
+                int prog = i + 1;
+                var progress = new Progress<ScanProgress>(p =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        ScanStatusText.Text = $"{prog}/{work.Count} — {label}: {p.Found} checked";
+                        ScanDetailText.Text = p.Done ? "" : Path.GetFileName(p.CurrentFolder);
+                    });
+                });
+
+                await AppState.Instance.Scanner.ScanAsync(
+                    serial, driveRoot, progress, _scanCts.Token,
+                    scanFolder: scanFolder, incremental: true);
+            }
+
+            // Cleanup: remove any movies whose folder_rel_path isn't under
+            // a configured drive_root. This silently undoes the v1 bug
+            // for users who already ran the broken refresh.
+            foreach (var d in drives)
+                strayCleaned += AppState.Instance.Db.RemoveMoviesOutsideDriveRoots(d.VolumeSerial);
+
+            ScanStatusText.Text = strayCleaned > 0
+                ? $"Refreshed — removed {strayCleaned} stray entries"
+                : "Refreshed — sidebar counts updated";
+            await Task.Delay(1500);
+        }
+        catch (OperationCanceledException)
+        {
+            ScanStatusText.Text = "Refresh cancelled";
+            await Task.Delay(1000);
+        }
+        catch (Exception ex)
+        {
+            await ShowInfoDialog("Refresh error", ex.Message);
+        }
+        finally
+        {
+            ScanOverlay.Visibility = Visibility.Collapsed;
+            Refresh();
+            RefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     // ── Browse ────────────────────────────────────────────────────────────
 
     private void OnBrowseDrive(object sender, RoutedEventArgs e)

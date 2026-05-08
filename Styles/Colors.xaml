@@ -26,6 +26,11 @@
             <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#B45309"/>
             <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#4F2F15"/>
             <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#FBBF77"/>
+            <!-- Nav item active / hover states (Dark) -->
+            <SolidColorBrush x:Key="NavHoverBgBrush"            Color="#1E1E2E"/>
+            <SolidColorBrush x:Key="NavPressedBgBrush"          Color="#252538"/>
+            <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#33A78BFA"/>
+            <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#44A78BFA"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -49,6 +54,11 @@
             <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#F59E0B"/>
             <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#FFE8CC"/>
             <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#9A6300"/>
+            <!-- Nav item active / hover states (Light) -->
+            <SolidColorBrush x:Key="NavHoverBgBrush"            Color="#E0E0EF"/>
+            <SolidColorBrush x:Key="NavPressedBgBrush"          Color="#D4D4E8"/>
+            <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#22A78BFA"/>
+            <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#33A78BFA"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Default">
@@ -73,6 +83,11 @@
             <SolidColorBrush x:Key="SectionHeaderBorderBrush"  Color="#B45309"/>
             <SolidColorBrush x:Key="SectionHeaderHoverBgBrush" Color="#4F2F15"/>
             <SolidColorBrush x:Key="SectionHeaderTextBrush"    Color="#FBBF77"/>
+            <!-- Nav item active / hover states (Default = Dark fallback) -->
+            <SolidColorBrush x:Key="NavHoverBgBrush"            Color="#1E1E2E"/>
+            <SolidColorBrush x:Key="NavPressedBgBrush"          Color="#252538"/>
+            <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#33A78BFA"/>
+            <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#44A78BFA"/>
         </ResourceDictionary>
 
     </ResourceDictionary.ThemeDictionaries>

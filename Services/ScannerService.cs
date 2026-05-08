@@ -20,12 +20,14 @@ public class ScannerService
     public ScannerService(DatabaseService db) => _db = db;
 
     /// <param name="scanFolder">Optional: scan only this subfolder. Paths are still stored relative to driveRoot.</param>
-    public async Task ScanAsync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress = null, CancellationToken ct = default, string? scanFolder = null)
+    /// <param name="incremental">When true, skip movies whose .nfo mtime is older than the row's date_modified —
+    /// MediaElch hasn't touched them since we last scanned, so re-parsing would be wasted work.</param>
+    public async Task ScanAsync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress = null, CancellationToken ct = default, string? scanFolder = null, bool incremental = false)
     {
-        await Task.Run(() => ScanSync(volumeSerial, driveRoot, progress, ct, scanFolder), ct);
+        await Task.Run(() => ScanSync(volumeSerial, driveRoot, progress, ct, scanFolder, incremental), ct);
     }
 
-    private void ScanSync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct, string? scanFolder)
+    private void ScanSync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct, string? scanFolder, bool incremental)
     {
         var conn = _db.GetConnection();
         var dataDir = _db.DataDir;
@@ -57,9 +59,15 @@ public class ScannerService
 
         // Prepare statements — disposed in finally block below
         using var stmtGetId = conn.CreateCommand();
-        stmtGetId.CommandText = "SELECT id FROM movies WHERE volume_serial=@s AND folder_rel_path=@f";
+        stmtGetId.CommandText = "SELECT id, date_modified FROM movies WHERE volume_serial=@s AND folder_rel_path=@f";
         stmtGetId.Parameters.AddWithValue("@s", volumeSerial);
         stmtGetId.Parameters.Add("@f", SqliteType.Text);
+
+        // For incremental rescan: a quick "just clear is_missing" statement
+        // we use when the nfo hasn't been touched since last scan.
+        using var stmtTouch = conn.CreateCommand();
+        stmtTouch.CommandText = "UPDATE movies SET is_missing=0 WHERE id=@id";
+        stmtTouch.Parameters.Add("@id", SqliteType.Integer);
 
         using var stmtUpdate = conn.CreateCommand();
         stmtUpdate.CommandText = @"UPDATE movies SET
@@ -82,6 +90,7 @@ public class ScannerService
         stmtGetId.Transaction = tx;
         stmtUpdate.Transaction = tx;
         stmtInsert.Transaction = tx;
+        stmtTouch.Transaction  = tx;
 
         // Pre-load existing name→id maps once so per-movie related-row work
         // doesn't hammer the DB with redundant SELECTs.
@@ -99,6 +108,39 @@ public class ScannerService
                 // Find NFO
                 var nfoPath = FindNfo(folder);
                 if (nfoPath == null) { skipped++; continue; }
+
+                // Incremental short-circuit: if the row already exists and the
+                // .nfo mtime is older than (or equal to) date_modified, skip
+                // parsing entirely. We just clear is_missing so the row is
+                // marked online again. Cuts a no-op rescan from minutes to
+                // seconds on a large library.
+                if (incremental)
+                {
+                    stmtGetId.Parameters["@f"].Value = folderRelPath;
+                    using (var probe = stmtGetId.ExecuteReader())
+                    {
+                        if (probe.Read())
+                        {
+                            var existingIdProbe = probe.GetInt32(0);
+                            var rowModified = probe.IsDBNull(1) ? 0L : probe.GetInt64(1);
+                            probe.Close();
+                            try
+                            {
+                                var nfoMtime = new DateTimeOffset(File.GetLastWriteTimeUtc(nfoPath)).ToUnixTimeSeconds();
+                                if (nfoMtime <= rowModified)
+                                {
+                                    stmtTouch.Parameters["@id"].Value = existingIdProbe;
+                                    stmtTouch.ExecuteNonQuery();
+                                    found++;
+                                    skipped++; // counted as skipped-because-unchanged
+                                    progress?.Report(new ScanProgress(found, inserted, updated, skipped, folder, false));
+                                    continue;
+                                }
+                            }
+                            catch { /* fall through to full parse if mtime read fails */ }
+                        }
+                    }
+                }
 
                 // Parse NFO
                 var parsed = NfoParser.Parse(nfoPath);
@@ -217,12 +259,41 @@ public class ScannerService
     /// using last_insert_rowid() to extend the cache. Net effect on a
     /// big rescan: typically 5–10× fewer queries on the related-tables.
     /// </summary>
+    /// <summary>
+    /// Trim, collapse whitespace runs to a single space. Returns null when
+    /// the input becomes empty — callers skip null names.
+    /// </summary>
+    private static string? NormalizeName(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var sb = new System.Text.StringBuilder(raw.Length);
+        bool wasWhite = false;
+        foreach (var ch in raw)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (!wasWhite && sb.Length > 0) sb.Append(' ');
+                wasWhite = true;
+            }
+            else
+            {
+                sb.Append(ch);
+                wasWhite = false;
+            }
+        }
+        // strip trailing space
+        while (sb.Length > 0 && sb[^1] == ' ') sb.Length--;
+        return sb.Length == 0 ? null : sb.ToString();
+    }
+
     private sealed class LookupCache
     {
-        public Dictionary<string, int> Genres { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, int> Directors { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, int> Actors { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public Dictionary<string, int> Sets { get; } = new(StringComparer.OrdinalIgnoreCase);
+        // Keyed by lowercased normalized name (so "tom hanks" and "Tom Hanks "
+        // collide on the same cache entry → same DB row).
+        public Dictionary<string, int> Genres { get; } = new();
+        public Dictionary<string, int> Directors { get; } = new();
+        public Dictionary<string, int> Actors { get; } = new();
+        public Dictionary<string, int> Sets { get; } = new();
 
         public static LookupCache Load(SqliteConnection conn, SqliteTransaction tx)
         {
@@ -233,7 +304,11 @@ public class ScannerService
                 cmd.Transaction = tx;
                 cmd.CommandText = sql;
                 using var r = cmd.ExecuteReader();
-                while (r.Read()) dest[r.GetString(1)] = r.GetInt32(0);
+                while (r.Read())
+                {
+                    var key = NormalizeName(r.GetString(1))?.ToLowerInvariant();
+                    if (key != null) dest[key] = r.GetInt32(0);
+                }
             }
             Fill("SELECT id, name FROM genres",    c.Genres);
             Fill("SELECT id, name FROM directors", c.Directors);
@@ -243,20 +318,29 @@ public class ScannerService
         }
     }
 
+    /// <summary>
+    /// Returns id for (table, name). Cache is keyed lowercase to dedupe
+    /// "Tom Hanks" / "tom hanks" / "Tom Hanks ". The DB row stores the
+    /// trimmed/collapsed display form (preserves the user's casing).
+    /// Returns -1 when name is empty/whitespace.
+    /// </summary>
     private static int GetOrInsert(SqliteConnection conn, SqliteTransaction tx,
-        string table, string name, Dictionary<string, int> cache, string? extraCol = null, object? extraVal = null)
+        string table, string rawName, Dictionary<string, int> cache, string? extraCol = null, object? extraVal = null)
     {
-        if (cache.TryGetValue(name, out var id)) return id;
+        var norm = NormalizeName(rawName);
+        if (norm == null) return -1;
+        var key = norm.ToLowerInvariant();
+        if (cache.TryGetValue(key, out var id)) return id;
 
         using var ins = conn.CreateCommand();
         ins.Transaction = tx;
         ins.CommandText = extraCol == null
             ? $"INSERT INTO {table} (name) VALUES (@n); SELECT last_insert_rowid();"
             : $"INSERT INTO {table} (name, {extraCol}) VALUES (@n, @e); SELECT last_insert_rowid();";
-        ins.Parameters.AddWithValue("@n", name);
+        ins.Parameters.AddWithValue("@n", norm);
         if (extraCol != null) ins.Parameters.AddWithValue("@e", extraVal ?? DBNull.Value);
         id = Convert.ToInt32(ins.ExecuteScalar());
-        cache[name] = id;
+        cache[key] = id;
         return id;
     }
 
@@ -278,18 +362,21 @@ public class ScannerService
         foreach (var g in p.Genres)
         {
             var gid = GetOrInsert(conn, tx, "genres", g, cache.Genres);
+            if (gid < 0) continue;
             using var c = Cmd("INSERT OR IGNORE INTO movie_genres VALUES (@m,@g)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@g", gid); c.ExecuteNonQuery();
         }
         foreach (var d in p.Directors)
         {
             var did = GetOrInsert(conn, tx, "directors", d, cache.Directors);
+            if (did < 0) continue;
             using var c = Cmd("INSERT OR IGNORE INTO movie_directors VALUES (@m,@d)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@d", did); c.ExecuteNonQuery();
         }
         foreach (var a in p.Actors)
         {
             var aid = GetOrInsert(conn, tx, "actors", a.Name, cache.Actors, "thumb", a.Thumb);
+            if (aid < 0) continue;
             using var c = Cmd("INSERT OR REPLACE INTO movie_actors VALUES (@m,@a,@r,@o)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@a", aid);
             c.Parameters.AddWithValue("@r", (object?)a.Role ?? DBNull.Value); c.Parameters.AddWithValue("@o", a.Order);
@@ -298,17 +385,67 @@ public class ScannerService
         foreach (var s in p.Sets)
         {
             var sid = GetOrInsert(conn, tx, "sets", s, cache.Sets);
+            if (sid < 0) continue;
             using var c = Cmd("INSERT OR IGNORE INTO movie_sets VALUES (@m,@s)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@s", sid); c.ExecuteNonQuery();
         }
     }
 
+    /// <summary>
+    /// Drive-root subfolders Windows owns and we shouldn't try to read.
+    /// Avoids "Access to the path … is denied" when scanning a drive root.
+    /// Match is case-insensitive on the folder NAME (last segment).
+    /// </summary>
+    private static readonly HashSet<string> ExcludedSystemDirs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "System Volume Information",
+        "$RECYCLE.BIN",
+        "RECYCLER",
+        "Config.Msi",
+        "$WinREAgent",
+        "Recovery",
+    };
+
+    /// <summary>
+    /// Manual recursive walk that:
+    ///   1. Skips well-known Windows system folders by name.
+    ///   2. Swallows UnauthorizedAccessException / IOException per-folder so
+    ///      one denied subdirectory doesn't kill the whole scan.
+    /// </summary>
     private static IEnumerable<string> FindMovieFolders(string root)
     {
         if (!Directory.Exists(root)) yield break;
-        foreach (var dir in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
+
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
         {
+            var dir = stack.Pop();
+
+            // Yield this dir if it's a movie folder
             if (FindNfo(dir) != null) yield return dir;
+
+            // Recurse into children, defensively
+            string[] subs;
+            try { subs = Directory.GetDirectories(dir); }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+
+            foreach (var sub in subs)
+            {
+                var name = Path.GetFileName(sub);
+                if (ExcludedSystemDirs.Contains(name)) continue;
+                // Skip hidden + system attributed folders too (cheap belt-and-braces)
+                try
+                {
+                    var attr = File.GetAttributes(sub);
+                    if ((attr & FileAttributes.System) == FileAttributes.System &&
+                        (attr & FileAttributes.Hidden) == FileAttributes.Hidden)
+                        continue;
+                }
+                catch { /* if we can't stat it, just try to descend */ }
+                stack.Push(sub);
+            }
         }
     }
 

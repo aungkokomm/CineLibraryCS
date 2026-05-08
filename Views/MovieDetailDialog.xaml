@@ -111,6 +111,15 @@
                             Foreground="{ThemeResource TextBrush}"
                             BorderBrush="{ThemeResource BorderBrush}"
                             CornerRadius="8" Padding="12,8"/>
+                    <Button x:Name="ListsBtn" Content="📑 Add to list"
+                            Background="{ThemeResource CardBrush}"
+                            Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            CornerRadius="8" Padding="12,8">
+                        <Button.Flyout>
+                            <MenuFlyout x:Name="ListsFlyout" Placement="Bottom" Opening="OnListsFlyoutOpening"/>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
 
                 <!-- Plot -->

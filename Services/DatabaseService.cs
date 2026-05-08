@@ -128,6 +128,21 @@ CREATE TABLE IF NOT EXISTS preferences (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- v1.9.2 — user-defined custom lists (e.g. ""Date night"", ""80s sci-fi"").
+-- Movies can be in many lists; deleting a list cascades the join rows.
+CREATE TABLE IF NOT EXISTS user_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    sort_order INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS user_list_movies (
+    list_id INTEGER REFERENCES user_lists(id) ON DELETE CASCADE,
+    movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+    added_at INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (list_id, movie_id)
+);
 ");
     }
 
@@ -150,8 +165,166 @@ CREATE TABLE IF NOT EXISTS preferences (
         if (!cols.Contains("note"))
             Exec("ALTER TABLE movies ADD COLUMN note TEXT");
 
+        // v1.9.2 — ensure user_lists tables exist on databases that pre-date them
+        Exec(@"
+CREATE TABLE IF NOT EXISTS user_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    sort_order INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS user_list_movies (
+    list_id INTEGER REFERENCES user_lists(id) ON DELETE CASCADE,
+    movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+    added_at INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (list_id, movie_id)
+);
+");
+
+        // v1.9.2 — one-shot normalization of pre-existing actor/set rows
+        // (whitespace drift made "Tom Hanks" and "Tom Hanks " distinct rows,
+        // which split actor/collection counts in the UI). Migration failures
+        // are logged but never block app launch — user can still use the
+        // catalog even if normalization couldn't complete on their data.
+        var normPrefKey = "_migration_normalize_v192";
+        if (GetPref(normPrefKey) != "done")
+        {
+            try
+            {
+                NormalizeAndMergeNames("actors",   "movie_actors",   "actor_id");
+                NormalizeAndMergeNames("directors","movie_directors","director_id");
+                NormalizeAndMergeNames("genres",   "movie_genres",   "genre_id");
+                NormalizeAndMergeNames("sets",     "movie_sets",     "set_id");
+                SetPref(normPrefKey, "done");
+            }
+            catch (Exception ex)
+            {
+                // Don't mark done — we'll retry next launch with fixed code.
+                System.Diagnostics.Debug.WriteLine($"v1.9.2 normalization skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
+    }
+
+    /// <summary>
+    /// Dedupe + normalize a name table. Order matters:
+    ///   1. Read every row, normalize its name in memory.
+    ///   2. Group by normalized name; pick MIN(id) as keeper per group.
+    ///   3. Merge join rows from other ids → keeper, then delete the other rows.
+    ///   4. UPDATE keepers to the normalized form (now safe — no collisions left).
+    ///
+    /// Doing it in this order matters because the name column has a UNIQUE
+    /// constraint. If we tried to TRIM in place first, "Tom Hanks " collapsing
+    /// to "Tom Hanks" would collide with an existing "Tom Hanks" row and throw,
+    /// killing DB construction and bricking the app at launch (this was the
+    /// v1.9.2 first-cut bug).
+    /// </summary>
+    private void NormalizeAndMergeNames(string nameTable, string joinTable, string fkCol)
+    {
+        // 1. Snapshot all rows
+        var rows = new List<(int id, string raw)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = $"SELECT id, name FROM {nameTable}";
+            using var r = sel.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+        }
+
+        // 2. Group by normalized lowercase name
+        static string Normalize(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return "";
+            var sb = new StringBuilder(s.Length);
+            bool prevWhite = false;
+            foreach (var ch in s)
+            {
+                if (char.IsWhiteSpace(ch))
+                {
+                    if (!prevWhite && sb.Length > 0) sb.Append(' ');
+                    prevWhite = true;
+                }
+                else { sb.Append(ch); prevWhite = false; }
+            }
+            while (sb.Length > 0 && sb[^1] == ' ') sb.Length--;
+            return sb.ToString();
+        }
+
+        var groups = new Dictionary<string, List<(int id, string raw)>>();
+        foreach (var row in rows)
+        {
+            var key = Normalize(row.raw).ToLowerInvariant();
+            if (string.IsNullOrEmpty(key)) continue;
+            if (!groups.TryGetValue(key, out var list))
+                groups[key] = list = new();
+            list.Add(row);
+        }
+
+        // 3 + 4. One transaction for the whole table — large libraries can
+        // produce thousands of UPDATEs, doing it in one tx is much faster
+        // than per-row commits and either succeeds whole or rolls back.
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            foreach (var (key, list) in groups)
+            {
+                if (list.Count == 0) continue;
+                // Keeper = lowest id; rest are duplicates
+                list.Sort((a, b) => a.id.CompareTo(b.id));
+                var keepId = list[0].id;
+                var normalizedDisplay = Normalize(list[0].raw);
+
+                for (int i = 1; i < list.Count; i++)
+                {
+                    var dupId = list[i].id;
+                    // Repoint join rows to the keeper, ignoring those that
+                    // would collide on (movie_id, fk) primary key — those
+                    // are the same association via different ids and one
+                    // row is enough.
+                    using (var upd = _conn.CreateCommand())
+                    {
+                        upd.Transaction = tx;
+                        upd.CommandText = $"UPDATE OR IGNORE {joinTable} SET {fkCol}=@k WHERE {fkCol}=@d";
+                        upd.Parameters.AddWithValue("@k", keepId);
+                        upd.Parameters.AddWithValue("@d", dupId);
+                        upd.ExecuteNonQuery();
+                    }
+                    using (var del = _conn.CreateCommand())
+                    {
+                        del.Transaction = tx;
+                        del.CommandText = $"DELETE FROM {joinTable} WHERE {fkCol}=@d";
+                        del.Parameters.AddWithValue("@d", dupId);
+                        del.ExecuteNonQuery();
+                    }
+                    using (var delName = _conn.CreateCommand())
+                    {
+                        delName.Transaction = tx;
+                        delName.CommandText = $"DELETE FROM {nameTable} WHERE id=@d";
+                        delName.Parameters.AddWithValue("@d", dupId);
+                        delName.ExecuteNonQuery();
+                    }
+                }
+
+                // Now safely update the keeper to its normalized display form
+                // (no more collisions possible — duplicates are gone).
+                if (normalizedDisplay != list[0].raw)
+                {
+                    using var updName = _conn.CreateCommand();
+                    updName.Transaction = tx;
+                    updName.CommandText = $"UPDATE {nameTable} SET name=@n WHERE id=@id";
+                    updName.Parameters.AddWithValue("@n", normalizedDisplay);
+                    updName.Parameters.AddWithValue("@id", keepId);
+                    updName.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
     }
 
     private void CreateIndexes()
@@ -167,6 +340,8 @@ CREATE INDEX IF NOT EXISTS idx_watchlist ON movies(is_watchlist) WHERE is_watchl
 CREATE INDEX IF NOT EXISTS idx_favorite ON movies(is_favorite) WHERE is_favorite = 1;
 CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 1;
 CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_played_at > 0;
+CREATE INDEX IF NOT EXISTS idx_user_list_movies_movie ON user_list_movies(movie_id);
+CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id);
         ");
     }
 
@@ -227,6 +402,59 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
             });
         }
         return list;
+    }
+
+    /// <summary>
+    /// Delete movies whose folder_rel_path isn't under any of the drive's
+    /// configured drive_roots. Used to undo the v1.9.2 "Refresh changes"
+    /// bug that walked the whole drive and inserted episode .nfo files as
+    /// fake movies. Returns count deleted. Also clears their cached artwork.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int RemoveMoviesOutsideDriveRoots(string serial)
+    {
+        var roots = GetDriveRoots(serial);
+        if (roots.Count == 0) return 0;
+
+        // Build the "keep" predicate
+        var keepParts = new List<string>();
+        var pars = new List<(string name, string val)>();
+        for (int i = 0; i < roots.Count; i++)
+        {
+            var r = roots[i].RootPath ?? "";
+            // Empty root_path means "whole drive" — match everything, nothing to remove
+            if (string.IsNullOrEmpty(r)) return 0;
+            keepParts.Add($"(folder_rel_path = @r{i} OR folder_rel_path LIKE @p{i})");
+            pars.Add(($"@r{i}", r));
+            pars.Add(($"@p{i}", r + "/%"));
+        }
+        var keepSql = string.Join(" OR ", keepParts);
+
+        // First, collect cached artwork paths so we can clean them up
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = $"SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND NOT ({keepSql})";
+            sel.Parameters.AddWithValue("@s", serial);
+            foreach (var (n, v) in pars) sel.Parameters.AddWithValue(n, v);
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    if (!r.IsDBNull(i))
+                    {
+                        var p = Path.Combine(_dataDir, r.GetString(i));
+                        if (File.Exists(p)) try { File.Delete(p); } catch { }
+                    }
+                }
+            }
+        }
+
+        using var del = _conn.CreateCommand();
+        del.CommandText = $"DELETE FROM movies WHERE volume_serial=@s AND NOT ({keepSql})";
+        del.Parameters.AddWithValue("@s", serial);
+        foreach (var (n, v) in pars) del.Parameters.AddWithValue(n, v);
+        return del.ExecuteNonQuery();
     }
 
     /// <summary>Purge movies flagged is_missing=1 for this drive (plus their cached artwork). Returns count deleted.</summary>
@@ -436,12 +664,27 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         bool FavoritesOnly = false,
         bool IsWatchlistOnly = false,
         bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
+        int? UserListId = null,
         int Limit = 60,
         int Offset = 0
     );
 
+    /// <summary>
+    /// Total rows that would match these ListOptions ignoring Limit/Offset.
+    /// Used for the "X of Y movies" header so we don't mislead the user
+    /// with the per-page Movies.Count.
+    /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public List<MovieListItem> GetMovies(ListOptions opts, Dictionary<string, string> connected)
+    public int GetMoviesCount(ListOptions opts)
+    {
+        var (whereStr, _) = BuildMovieListWhere(opts);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM movies m {whereStr}";
+        BindMovieListParams(cmd, opts, includePaging: false);
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
+    private (string whereStr, List<string> clauses) BuildMovieListWhere(ListOptions opts)
     {
         var where = new List<string>();
         if (!string.IsNullOrWhiteSpace(opts.Search))
@@ -459,7 +702,32 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
+        if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
+        return (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "", where);
+    }
 
+    private void BindMovieListParams(SqliteCommand cmd, ListOptions opts, bool includePaging)
+    {
+        if (!string.IsNullOrWhiteSpace(opts.Search))
+            cmd.Parameters.AddWithValue("@q", $"%{opts.Search}%");
+        if (opts.DriveSerial != null) cmd.Parameters.AddWithValue("@serial", opts.DriveSerial);
+        if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
+        if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
+        if (opts.Director != null) cmd.Parameters.AddWithValue("@director", opts.Director);
+        if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
+        if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
+        if (opts.UserListId != null) cmd.Parameters.AddWithValue("@listId", opts.UserListId);
+        if (includePaging)
+        {
+            cmd.Parameters.AddWithValue("@lim", opts.Limit);
+            cmd.Parameters.AddWithValue("@off", opts.Offset);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MovieListItem> GetMovies(ListOptions opts, Dictionary<string, string> connected)
+    {
+        var (whereStr, _) = BuildMovieListWhere(opts);
         var sortCol = opts.SortKey switch
         {
             "year" => "m.year",
@@ -471,8 +739,6 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         };
         var sortDir = opts.SortDir == "desc" ? "DESC" : "ASC";
         var nullsLast = sortDir == "ASC" ? "NULLS LAST" : "NULLS FIRST";
-
-        var whereStr = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $@"
@@ -488,16 +754,7 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
             ORDER BY {sortCol} {sortDir} {nullsLast}, m.sort_title ASC
             LIMIT @lim OFFSET @off";
 
-        if (!string.IsNullOrWhiteSpace(opts.Search))
-            cmd.Parameters.AddWithValue("@q", $"%{opts.Search}%");
-        if (opts.DriveSerial != null) cmd.Parameters.AddWithValue("@serial", opts.DriveSerial);
-        if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
-        if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
-        if (opts.Director != null) cmd.Parameters.AddWithValue("@director", opts.Director);
-        if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
-        if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
-        cmd.Parameters.AddWithValue("@lim", opts.Limit);
-        cmd.Parameters.AddWithValue("@off", opts.Offset);
+        BindMovieListParams(cmd, opts, includePaging: true);
 
         var list = new List<MovieListItem>();
         using var r = cmd.ExecuteReader();
@@ -887,6 +1144,122 @@ CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
         return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    // ── User Lists (v1.9.2) ──────────────────────────────────────────────────
+
+    public record UserList(int Id, string Name, int MovieCount);
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<UserList> GetUserLists()
+    {
+        var list = new List<UserList>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT ul.id, ul.name, COUNT(ulm.movie_id)
+                            FROM user_lists ul
+                            LEFT JOIN user_list_movies ulm ON ulm.list_id=ul.id
+                            GROUP BY ul.id
+                            ORDER BY ul.sort_order, ul.name";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new UserList(r.GetInt32(0), r.GetString(1),
+                                  r.IsDBNull(2) ? 0 : r.GetInt32(2)));
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int CreateUserList(string name)
+    {
+        var trimmed = (name ?? "").Trim();
+        if (string.IsNullOrEmpty(trimmed)) throw new ArgumentException("List name is empty");
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO user_lists (name) VALUES (@n); SELECT last_insert_rowid();";
+        cmd.Parameters.AddWithValue("@n", trimmed);
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RenameUserList(int listId, string newName)
+    {
+        var trimmed = (newName ?? "").Trim();
+        if (string.IsNullOrEmpty(trimmed)) return;
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE user_lists SET name=@n WHERE id=@id";
+        cmd.Parameters.AddWithValue("@n", trimmed);
+        cmd.Parameters.AddWithValue("@id", listId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void DeleteUserList(int listId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM user_lists WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", listId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddMovieToUserList(int listId, int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO user_list_movies (list_id, movie_id) VALUES (@l, @m)";
+        cmd.Parameters.AddWithValue("@l", listId);
+        cmd.Parameters.AddWithValue("@m", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemoveMovieFromUserList(int listId, int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM user_list_movies WHERE list_id=@l AND movie_id=@m";
+        cmd.Parameters.AddWithValue("@l", listId);
+        cmd.Parameters.AddWithValue("@m", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Source-folder info for every movie in a user list. Used by the
+    /// "Copy movies to folder" feature (#bucket-style export).
+    /// </summary>
+    public record MovieCopySource(int Id, string Title, string VolumeSerial, string FolderRelPath, int? Year);
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MovieCopySource> GetMoviesForCopy(int listId)
+    {
+        var list = new List<MovieCopySource>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT m.id, m.title, m.volume_serial, m.folder_rel_path, m.year
+                            FROM user_list_movies ulm
+                            JOIN movies m ON m.id = ulm.movie_id
+                            WHERE ulm.list_id = @id AND m.is_missing = 0
+                            ORDER BY m.sort_title";
+        cmd.Parameters.AddWithValue("@id", listId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new MovieCopySource(
+                Id: r.GetInt32(0),
+                Title: r.GetString(1),
+                VolumeSerial: r.GetString(2),
+                FolderRelPath: r.GetString(3),
+                Year: r.IsDBNull(4) ? null : r.GetInt32(4)));
+        }
+        return list;
+    }
+
+    /// <summary>List IDs that already contain this movie. Used for menu state.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public HashSet<int> GetUserListsForMovie(int movieId)
+    {
+        var set = new HashSet<int>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT list_id FROM user_list_movies WHERE movie_id=@m";
+        cmd.Parameters.AddWithValue("@m", movieId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) set.Add(r.GetInt32(0));
+        return set;
     }
 
     /// <summary>

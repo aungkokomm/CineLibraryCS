@@ -12,6 +12,7 @@ public class AppState
 
     public DatabaseService Db { get; private set; } = null!;
     public ScannerService Scanner { get; private set; } = null!;
+    public ListCopyService ListCopy { get; private set; } = null!;
     public string DataDir { get; private set; } = "";
 
     public void Initialize()
@@ -19,6 +20,7 @@ public class AppState
         DataDir = GetDataDir();
         Db = new DatabaseService(DataDir);
         Scanner = new ScannerService(Db);
+        ListCopy = new ListCopyService(Db);
     }
 
     private static string GetDataDir()

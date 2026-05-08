@@ -31,18 +31,117 @@
         <Setter Property="CornerRadius"    Value="6"/>
     </Style>
 
-    <!-- Nav item style -->
+    <!-- Nav item style — full ControlTemplate so we can render an active-state
+         left accent bar, matching Spotify/Notion/Discord conventions. -->
     <Style x:Key="NavItemStyle" TargetType="Button">
         <Setter Property="Background"              Value="Transparent"/>
         <Setter Property="Foreground"              Value="{ThemeResource TextBrush}"/>
         <Setter Property="BorderThickness"         Value="0"/>
         <Setter Property="HorizontalAlignment"     Value="Stretch"/>
-        <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        <!-- v1.5: slimmer — less chunky between items, smaller font -->
-        <Setter Property="Padding"                 Value="10,3"/>
-        <Setter Property="MinHeight"               Value="26"/>
-        <Setter Property="CornerRadius"            Value="5"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding"                 Value="10,5"/>
+        <Setter Property="MinHeight"               Value="30"/>
+        <Setter Property="CornerRadius"            Value="6"/>
         <Setter Property="FontSize"                Value="12"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Active-state accent bar: rendered when Tag="active" via VSM -->
+                        <Border x:Name="AccentBar" Grid.Column="0"
+                                Width="3" Margin="0,4"
+                                CornerRadius="2"
+                                Background="Transparent"/>
+                        <Border x:Name="RootBg" Grid.Column="1"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="RootBg.Background" Value="{ThemeResource NavHoverBgBrush}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="RootBg.Background" Value="{ThemeResource NavPressedBgBrush}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Active variant — purple accent bar + tinted bg + bold -->
+    <Style x:Key="NavItemActiveStyle" TargetType="Button">
+        <Setter Property="Background"              Value="{ThemeResource NavActiveBgBrush}"/>
+        <Setter Property="Foreground"              Value="{ThemeResource TextBrush}"/>
+        <Setter Property="BorderThickness"         Value="0"/>
+        <Setter Property="HorizontalAlignment"     Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding"                 Value="10,5"/>
+        <Setter Property="MinHeight"               Value="30"/>
+        <Setter Property="CornerRadius"            Value="6"/>
+        <Setter Property="FontSize"                Value="12"/>
+        <Setter Property="FontWeight"              Value="SemiBold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="3" Margin="0,4"
+                                CornerRadius="2"
+                                Background="{StaticResource BrandPurpleBrush}"/>
+                        <Border x:Name="RootBg" Grid.Column="1"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="RootBg.Background" Value="{ThemeResource NavActiveHoverBgBrush}"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Sidebar section micro-label — uppercase, muted, small -->
+    <Style x:Key="SidebarGroupLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"        Value="10"/>
+        <Setter Property="FontWeight"      Value="SemiBold"/>
+        <Setter Property="Foreground"      Value="{ThemeResource MutedBrush}"/>
+        <Setter Property="CharacterSpacing" Value="150"/>
+        <Setter Property="Margin"          Value="14,12,10,4"/>
+        <Setter Property="Opacity"         Value="0.65"/>
     </Style>
 
     <!-- Badge -->

@@ -295,6 +295,80 @@ public sealed partial class MovieDetailDialog : Window
              WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
 
+        // ── Lists (v1.9.2) — add/remove this movie to/from any user list ─────
+
+        private void OnListsFlyoutOpening(object sender, object e)
+        {
+            ListsFlyout.Items.Clear();
+            if (_movie == null) return;
+
+            var lists = AppState.Instance.Db.GetUserLists();
+            var membership = AppState.Instance.Db.GetUserListsForMovie(_movie.Id);
+
+            if (lists.Count == 0)
+            {
+                var none = new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false };
+                ListsFlyout.Items.Add(none);
+            }
+            else
+            {
+                foreach (var ul in lists)
+                {
+                    var inList = membership.Contains(ul.Id);
+                    var item = new ToggleMenuFlyoutItem
+                    {
+                        Text = ul.Name,
+                        IsChecked = inList,
+                    };
+                    var capturedUl = ul;
+                    item.Click += (_, _) =>
+                    {
+                        if (item.IsChecked)
+                            AppState.Instance.Db.AddMovieToUserList(capturedUl.Id, _movie.Id);
+                        else
+                            AppState.Instance.Db.RemoveMovieFromUserList(capturedUl.Id, _movie.Id);
+                        // Tell host so MY LISTS counts refresh
+                        WatchlistChanged?.Invoke(this, EventArgs.Empty);
+                    };
+                    ListsFlyout.Items.Add(item);
+                }
+            }
+
+            ListsFlyout.Items.Add(new MenuFlyoutSeparator());
+            var newItem = new MenuFlyoutItem { Text = "+ New list…" };
+            newItem.Click += async (_, _) =>
+            {
+                var name = await PromptNewListName();
+                if (string.IsNullOrWhiteSpace(name) || _movie == null) return;
+                try
+                {
+                    var listId = AppState.Instance.Db.CreateUserList(name.Trim());
+                    AppState.Instance.Db.AddMovieToUserList(listId, _movie.Id);
+                    WatchlistChanged?.Invoke(this, EventArgs.Empty);
+                }
+                catch (Microsoft.Data.Sqlite.SqliteException) { /* dup name */ }
+            };
+            ListsFlyout.Items.Add(newItem);
+        }
+
+        private async Task<string?> PromptNewListName()
+        {
+            var box = new TextBox { PlaceholderText = "List name" };
+            var dlg = new ContentDialog
+            {
+                Title = "New list",
+                Content = box,
+                PrimaryButtonText = "Create",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = RootGrid.XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);
+            var result = await dlg.ShowAsync();
+            return result == ContentDialogResult.Primary ? box.Text : null;
+        }
+
         // ── Notes (v1.9, hybrid DB + sidecar) ────────────────────────────────
 
         /// <summary>

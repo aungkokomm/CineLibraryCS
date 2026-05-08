@@ -38,6 +38,8 @@ public partial class App : Application
         }
     }
 
+    public static void LogStartupCrashStatic(Exception? ex, string source) => LogStartupCrash(ex, source);
+
     private static void LogStartupCrash(Exception? ex, string source)
     {
         if (ex == null) return;
