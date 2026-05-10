@@ -1,4 +1,4 @@
-p# CineLibrary — လက်စွဲစာအုပ်
+# CineLibrary — လက်စွဲစာအုပ်
 
 > Windows အတွက် native ရုပ်ရှင် Library။
 > Hard Drive, SSD အလုံးအရေ အကန့်အသတ်မရှိ ကြည့်ရှု၊ ရှာဖွေ၊ မှတ်တမ်းတင်နိုင်သည်။
@@ -51,7 +51,7 @@ H:\Movies\
 **`.nfo` ဖိုင်များ မရှိသေးလျှင် **MediaElch** ဖြင့် အရင် Scrape ပြုလုပ်ပါ။ 
 သင့် မူဗီဖိုင်များ အထက်ပါအတိုင်း ဖိုင်နာမည် မတည့်၊ မူဗီတခု ဖိုင်တခု အစီအစဉ်တကျ မရှိနေပါက 
 သင့် Movie file နာမည်များ တည့်မတ်စေရန်နှင့် Folder📂 တခုချင်းစီတွင် အထာတကျ စီပေးရန်
-[CineLibraryEssentials] (https://github.com/aungkokomm/CineLibraryEssentials)
+[CineLibraryEssentials](https://github.com/aungkokomm/CineLibraryEssentials)
 ကို အသုံးပြု ရှင်းလင်းပြင်ဆင်ပြီးမှ **MediaElch** ဖြင့် အရင် Scrape ပြုလုပ်ပါ။ ပြီးမှသာ...
  CineLibrary ကိုအသုံးပြုပါရန် အကြံပြုပါသည်။**
 
