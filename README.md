@@ -33,7 +33,8 @@ Built with C# + WinUI 3.
 - **Light / Dark / System themes** with Mica backdrop
 - **Continue Watching**
 - **Surprise me**
-- **Notes in the movie detail dialog.** 
+- **Notes in the movie detail dialog.**
+- **Create your own list add movies > Export movies in the list in one go.** 
 
 ## Download
 
