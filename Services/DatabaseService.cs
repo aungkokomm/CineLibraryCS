@@ -218,6 +218,20 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             }
         }
 
+        // v2.1.1 — re-extract sets from cached .nfo files using the broader
+        // parser (covers <collection>, <sets><set>…, <setname>, etc.).
+        // Cheap targeted re-parse: doesn't re-copy artwork or re-process the
+        // rest of the metadata — just rebuilds movie_sets linkage.
+        var setRescanKey = "_migration_recompute_sets_v211";
+        if (GetPref(setRescanKey) != "done")
+        {
+            try { RecomputeAllSetsFromNfos(); SetPref(setRescanKey, "done"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"sets recompute v2.1.1 skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
     }
@@ -243,6 +257,93 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
     /// canonical names, repoints movie_genres links to the canonical rows,
     /// then deletes the original multi-genre row.
     /// </summary>
+    /// <summary>
+    /// Walks every movie's cached .nfo file, re-parses it for sets only via
+    /// the broadened NfoParser, and rebuilds movie_sets linkage. Used as a
+    /// one-shot v2.1.1 migration so users don't need to do a full rescan to
+    /// pick up collections their nfos always had (in formats we didn't read).
+    /// </summary>
+    private void RecomputeAllSetsFromNfos()
+    {
+        // Snapshot (movie_id, nfo_path) pairs
+        var movies = new List<(int id, string nfoRel)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT id, local_nfo FROM movies WHERE local_nfo IS NOT NULL AND is_missing=0";
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+                movies.Add((r.GetInt32(0), r.GetString(1)));
+        }
+        if (movies.Count == 0) return;
+
+        // Cache existing set names → ids (case-insensitive)
+        var setCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT id, name FROM sets";
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+            {
+                var nm = r.GetString(1).Trim();
+                if (nm.Length > 0) setCache[nm] = r.GetInt32(0);
+            }
+        }
+
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            foreach (var (movieId, nfoRel) in movies)
+            {
+                var nfoPath = Path.Combine(_dataDir, nfoRel);
+                if (!File.Exists(nfoPath)) continue;
+
+                ParsedMovie? parsed;
+                try { parsed = NfoParser.Parse(nfoPath); }
+                catch { continue; }
+                if (parsed == null) continue;
+
+                // Drop existing links, re-insert from the re-parsed list
+                using (var del = _conn.CreateCommand())
+                {
+                    del.Transaction = tx;
+                    del.CommandText = "DELETE FROM movie_sets WHERE movie_id=@m";
+                    del.Parameters.AddWithValue("@m", movieId);
+                    del.ExecuteNonQuery();
+                }
+
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var raw in parsed.Sets)
+                {
+                    var name = (raw ?? "").Trim();
+                    if (string.IsNullOrEmpty(name) || !seen.Add(name)) continue;
+
+                    if (!setCache.TryGetValue(name, out var setId))
+                    {
+                        using var ins = _conn.CreateCommand();
+                        ins.Transaction = tx;
+                        ins.CommandText = "INSERT INTO sets (name) VALUES (@n); SELECT last_insert_rowid();";
+                        ins.Parameters.AddWithValue("@n", name);
+                        setId = Convert.ToInt32(ins.ExecuteScalar());
+                        setCache[name] = setId;
+                    }
+
+                    using var link = _conn.CreateCommand();
+                    link.Transaction = tx;
+                    link.CommandText = "INSERT OR IGNORE INTO movie_sets VALUES (@m, @s)";
+                    link.Parameters.AddWithValue("@m", movieId);
+                    link.Parameters.AddWithValue("@s", setId);
+                    link.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     private void SplitAndAliasGenresMigration()
     {
         // Shared map — single source of truth for alias folding.

@@ -29,11 +29,19 @@ public sealed partial class MovieDetailDialog : Window
         SetTitleBar(AppTitleBar);
         SystemBackdrop = new MicaBackdrop();
 
-        // Default window size — big but not fullscreen; user can resize freely
+        // Window size — restore the last user-resized size if we have one,
+        // otherwise fall back to a comfortable default (1100×800). Saved on
+        // SizeChanged into prefs so resize sticks across sessions.
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
         var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-        appWindow.Resize(new SizeInt32(1100, 800));
+
+        int width = 1100, height = 800;
+        var savedW = AppState.Instance.GetPref("detailDialogW", "");
+        var savedH = AppState.Instance.GetPref("detailDialogH", "");
+        if (int.TryParse(savedW, out var w) && w >= 700) width = w;
+        if (int.TryParse(savedH, out var h) && h >= 500) height = h;
+        appWindow.Resize(new SizeInt32(width, height));
         appWindow.Title = "Movie Details";
 
         // Ensure window is resizable and maximizable
@@ -42,6 +50,19 @@ public sealed partial class MovieDetailDialog : Window
             presenter.IsResizable = true;
             presenter.IsMaximizable = true;
         }
+
+        // Persist size on close — using AppWindow.Changed catches the final
+        // resized state regardless of how the window was dismissed.
+        appWindow.Changed += (s, args) =>
+        {
+            if (!args.DidSizeChange) return;
+            try
+            {
+                AppState.Instance.SetPref("detailDialogW", s.Size.Width.ToString());
+                AppState.Instance.SetPref("detailDialogH", s.Size.Height.ToString());
+            }
+            catch { }
+        };
 
         // Inherit theme from main window
         if (RootGrid is FrameworkElement fe)

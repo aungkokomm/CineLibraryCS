@@ -70,13 +70,47 @@ public static class NfoParser
                 ));
             }
 
+            // Sets / collections — try every shape seen in the wild:
+            //   <set>James Bond</set>
+            //   <set><name>James Bond</name></set>
+            //   <set><name>X</name><overview>...</overview></set>
+            //   <set id="645"><name>James Bond</name></set>
+            //   <sets><set>…</set></sets>                ← wrapper, some MediaElch versions
+            //   <collection>James Bond</collection>      ← Plex / Emby style
+            //   <collections><collection>…</collection></collections>
+            //   <setname>James Bond Collection</setname> ← older Kodi root-level
+            //
+            // Defensive across all of them — Infuse handles more shapes than
+            // our v1 parser did, which left ~half of real collections invisible.
             var sets = new List<string>();
-            foreach (XmlElement s in root.SelectNodes("set") ?? (XmlNodeList)new XmlDocument().CreateDocumentFragment().ChildNodes)
+            void CollectSetsFromXPath(string xpath)
             {
-                // MediaElch can store <set><name>...</name></set> or <set>...</set>
-                var setName = GetChild(s, "name") ?? s.InnerText.Trim();
-                if (!string.IsNullOrEmpty(setName)) sets.Add(setName);
+                XmlNodeList? nodes = null;
+                try { nodes = root.SelectNodes(xpath); } catch { return; }
+                if (nodes == null) return;
+                foreach (XmlNode n in nodes)
+                {
+                    if (n is not XmlElement el) continue;
+                    // Prefer <name> child; fall back to direct text content
+                    var name = GetChild(el, "name");
+                    if (string.IsNullOrWhiteSpace(name))
+                    {
+                        // If element has *only* text (no child elements), use its text
+                        bool hasChildren = false;
+                        foreach (XmlNode c in el.ChildNodes)
+                            if (c is XmlElement) { hasChildren = true; break; }
+                        if (!hasChildren) name = el.InnerText?.Trim();
+                    }
+                    if (!string.IsNullOrWhiteSpace(name)) sets.Add(name);
+                }
             }
+            CollectSetsFromXPath("set");
+            CollectSetsFromXPath("sets/set");
+            CollectSetsFromXPath("collection");
+            CollectSetsFromXPath("collections/collection");
+            // Root-level <setname>
+            var setname = Get(root, "setname");
+            if (!string.IsNullOrWhiteSpace(setname)) sets.Add(setname!);
 
             return new ParsedMovie(
                 Title: title,
