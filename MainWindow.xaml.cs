@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
     private LibraryPage? _libraryPage;
     private DrivesPage? _drivesPage;
     private StatisticsPage? _statisticsPage;
+    private BrowsePage? _browsePage;
+    private CollectionsBrowsePage? _collectionsPage;
     private DeviceChangeWatcher? _deviceWatcher;
 
     public MainWindow()
@@ -237,11 +239,8 @@ public sealed partial class MainWindow : Window
             DrivesRepeater.ItemsSource = _vm.Drives;
             LibrariesHeader.Visibility = _vm.Drives.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            CollectionsRepeater.ItemsSource = _vm.Collections;
-            CollectionsHeader.Visibility = _vm.Collections.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-
-            GenresRepeater.ItemsSource = _vm.TopGenres;
-            GenresHeader.Visibility = _vm.TopGenres.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            // v2.1: COLLECTIONS + TOP GENRES sub-sections removed. Both live
+            // as BROWSE pages now (Collections grid, By Genre banners).
 
             RefreshUserLists();
         });
@@ -599,8 +598,8 @@ public sealed partial class MainWindow : Window
         var (repeater, chevron) = tag switch
         {
             "Libraries"   => ((FrameworkElement)DrivesRepeater,      LibrariesChevron),
-            "Genres"      => (GenresRepeater,                        GenresChevron),
-            "Collections" => (CollectionsRepeater,                   CollectionsChevron),
+            // "Genres" and "Collections" sub-sections removed in v2.1 — their
+            // BROWSE pages replace them. Map kept tolerant of missing keys.
             "UserLists"   => (UserListsItemsPanel,                   UserListsChevron),
             _             => (null!,                                  null!),
         };
@@ -652,6 +651,18 @@ public sealed partial class MainWindow : Window
             _statisticsPage ??= new StatisticsPage();
             _statisticsPage.Refresh();
             ContentFrame.Content = _statisticsPage;
+        }
+        else if (page == "browse" && param is DatabaseService.BrowseFacet facet)
+        {
+            _browsePage ??= new BrowsePage();
+            _browsePage.Load(facet);
+            ContentFrame.Content = _browsePage;
+        }
+        else if (page == "collections")
+        {
+            _collectionsPage ??= new CollectionsBrowsePage();
+            _collectionsPage.Load();
+            ContentFrame.Content = _collectionsPage;
         }
     }
 
@@ -737,6 +748,48 @@ public sealed partial class MainWindow : Window
         _libraryPage?.ViewModel.FilterByStudio(studio);
         _libraryPage?.UpdatePageTitle($"ALL MOVIES › {studio.ToUpper()}");
         if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    public void NavigateLibraryByDecade(int decadeStart, string label)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByDecade(decadeStart, label);
+        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {label.ToUpper()}");
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    public void NavigateLibraryByRatingBand(string key, string label)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByRatingBand(key, label);
+        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {label.ToUpper()}");
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+    }
+
+    public void NavigateLibraryByCollection(int id, string name)
+    {
+        NavigateTo("library", new LibraryNavParam(CollectionId: id, Label: name));
+    }
+
+    private void OnNavBrowseGenre(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("browse", DatabaseService.BrowseFacet.Genre);
+        SetActiveNav(sender as Button ?? BtnBrowseGenre);
+    }
+    private void OnNavBrowseDecade(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("browse", DatabaseService.BrowseFacet.Decade);
+        SetActiveNav(sender as Button ?? BtnBrowseDecade);
+    }
+    private void OnNavBrowseRating(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("browse", DatabaseService.BrowseFacet.Rating);
+        SetActiveNav(sender as Button ?? BtnBrowseRating);
+    }
+    private void OnNavCollections(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("collections");
+        SetActiveNav(sender as Button ?? BtnCollections);
     }
 
     private void OnNavContinueWatching(object sender, RoutedEventArgs e)
@@ -905,7 +958,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.0.1",
+            Title = "CineLibrary v2.1.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

@@ -1,0 +1,57 @@
+<Page
+    x:Class="CineLibraryCS.Views.BrowsePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CineLibraryCS.Views"
+    Background="{ThemeResource BgBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Page header -->
+        <Grid Grid.Row="0" Padding="24,8,24,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="2">
+                <TextBlock x:Name="PageTitleText" Text="BROWSE" FontSize="18" FontWeight="Bold"
+                           Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+                <TextBlock x:Name="PageSubText" Text=""
+                           FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Banner stack -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
+            <Grid>
+                <ItemsRepeater x:Name="BannerRepeater" Margin="24,0,24,24">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" Spacing="12"/>
+                    </ItemsRepeater.Layout>
+                </ItemsRepeater>
+
+                <!-- Empty state -->
+                <StackPanel x:Name="EmptyState" Visibility="Collapsed"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Margin="0,80,0,24" Spacing="8">
+                    <FontIcon Glyph="&#xE7BC;" FontSize="44" Opacity="0.5"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                              Foreground="{ThemeResource MutedBrush}"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="EmptyTitle" Text="Nothing to browse yet"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="EmptyHint"
+                               Text="Add a folder of movies on the Drives page first."
+                               FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -28,6 +28,8 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterActor = null;
     [ObservableProperty] private string? _filterDirector = null;
     [ObservableProperty] private string? _filterStudio = null;
+    [ObservableProperty] private int? _filterDecadeStart = null;
+    [ObservableProperty] private string? _filterRatingBand = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
     [ObservableProperty] private int? _userListId = null;
@@ -127,6 +129,8 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly: IsWatchlistOnly,
         ContinueWatching: IsContinueWatching,
         UserListId: UserListId,
+        DecadeStart: FilterDecadeStart,
+        RatingBand: FilterRatingBand,
         Limit: PageSize,
         Offset: offset
     );
@@ -184,40 +188,32 @@ public partial class LibraryViewModel : ObservableObject
 
     public void SetDriveFilter(string? serial, string? driveLabel = null)
     {
+        ResetAllFilters();
         DriveSerial = serial;
-        Genre = null;
-        CollectionId = null;
-        FavoritesOnly = false;
         PageTitle = driveLabel ?? (serial == null ? "All Movies" : "Drive");
         _ = LoadAsync();
     }
 
     public void SetGenreFilter(string? genre)
     {
+        ResetAllFilters();
         Genre = genre;
-        DriveSerial = null;
-        CollectionId = null;
-        FavoritesOnly = false;
         PageTitle = genre ?? "All Movies";
         _ = LoadAsync();
     }
 
     public void SetCollectionFilter(int? id, string? name)
     {
+        ResetAllFilters();
         CollectionId = id;
-        DriveSerial = null;
-        Genre = null;
-        FavoritesOnly = false;
         PageTitle = name ?? "Collection";
         _ = LoadAsync();
     }
 
     public void SetFavorites()
     {
+        ResetAllFilters();
         FavoritesOnly = true;
-        DriveSerial = null;
-        Genre = null;
-        CollectionId = null;
         PageTitle = "Favorites";
         _ = LoadAsync();
     }
@@ -228,15 +224,7 @@ public partial class LibraryViewModel : ObservableObject
     /// </summary>
     public void ShowRecentlyAdded()
     {
-        DriveSerial = null;
-        Genre = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        FilterActor = null;
-        FilterDirector = null;
-        IsWatchlistOnly = false;
-        IsContinueWatching = false;
-        SearchText = "";
+        ResetAllFilters();
         WatchedFilter = WatchedFilter.All;
         SortKey = SortKey.DateAdded;
         SortDir = SortDir.Desc;
@@ -251,15 +239,8 @@ public partial class LibraryViewModel : ObservableObject
     /// </summary>
     public void ShowContinueWatching()
     {
-        DriveSerial = null;
-        Genre = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        FilterActor = null;
-        FilterDirector = null;
-        IsWatchlistOnly = false;
+        ResetAllFilters();
         IsContinueWatching = true;
-        SearchText = "";
         WatchedFilter = WatchedFilter.All;
         SortKey = SortKey.LastPlayed;
         SortDir = SortDir.Desc;
@@ -269,33 +250,15 @@ public partial class LibraryViewModel : ObservableObject
 
     public void ClearFilters()
     {
-        DriveSerial = null;
-        Genre = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        FilterActor = null;
-        FilterDirector = null;
-        FilterStudio = null;
-        IsWatchlistOnly = false;
-        IsContinueWatching = false;
-        UserListId = null;
+        ResetAllFilters();
         PageTitle = "All Movies";
         _ = LoadAsync();
     }
 
     public void ShowUserList(int listId, string listName)
     {
+        ResetAllFilters();
         UserListId = listId;
-        DriveSerial = null;
-        Genre = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        FilterActor = null;
-        FilterDirector = null;
-        FilterStudio = null;
-        IsWatchlistOnly = false;
-        IsContinueWatching = false;
-        SearchText = "";
         WatchedFilter = WatchedFilter.All;
         PageTitle = $"📑 {listName}";
         _ = LoadAsync();
@@ -305,59 +268,65 @@ public partial class LibraryViewModel : ObservableObject
 
     public void FilterByActor(string actorName)
     {
+        ResetAllFilters();
         FilterActor = actorName;
-        FilterDirector = null;
-        FilterStudio = null;
-        Genre = null;
-        DriveSerial = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        IsWatchlistOnly = false;
-        SearchText = "";
         PageTitle = $"Movies with {actorName}";
         _ = LoadAsync();
     }
 
     public void FilterByDirector(string directorName)
     {
+        ResetAllFilters();
         FilterDirector = directorName;
-        FilterActor = null;
-        FilterStudio = null;
-        Genre = null;
-        DriveSerial = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        IsWatchlistOnly = false;
-        SearchText = "";
         PageTitle = $"Directed by {directorName}";
         _ = LoadAsync();
     }
 
     public void FilterByStudio(string studio)
     {
+        ResetAllFilters();
         FilterStudio = studio;
+        PageTitle = $"Studio: {studio}";
+        _ = LoadAsync();
+    }
+
+    public void FilterByDecade(int decadeStart, string label)
+    {
+        ResetAllFilters();
+        FilterDecadeStart = decadeStart;
+        PageTitle = label;
+        _ = LoadAsync();
+    }
+
+    public void FilterByRatingBand(string key, string label)
+    {
+        ResetAllFilters();
+        FilterRatingBand = key;
+        PageTitle = label;
+        _ = LoadAsync();
+    }
+
+    private void ResetAllFilters()
+    {
         FilterActor = null;
         FilterDirector = null;
+        FilterStudio = null;
         Genre = null;
         DriveSerial = null;
         CollectionId = null;
         FavoritesOnly = false;
         IsWatchlistOnly = false;
+        IsContinueWatching = false;
+        UserListId = null;
+        FilterDecadeStart = null;
+        FilterRatingBand = null;
         SearchText = "";
-        PageTitle = $"Studio: {studio}";
-        _ = LoadAsync();
     }
 
     public void ShowWatchlist()
     {
+        ResetAllFilters();
         IsWatchlistOnly = true;
-        FilterActor = null;
-        FilterDirector = null;
-        Genre = null;
-        DriveSerial = null;
-        CollectionId = null;
-        FavoritesOnly = false;
-        SearchText = "";
         PageTitle = "📋 To Watch";
         RefreshWatchlistCount();
         _ = LoadAsync();

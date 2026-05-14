@@ -204,6 +204,20 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             }
         }
 
+        // v2.1.x — split multi-genre rows and fold aliases into canonical
+        // English names. Migration key tracks the alias map version, so
+        // expanding the alias dictionary (e.g. v2.1.1 adds Arabic, Hindi…)
+        // triggers a re-run automatically — no manual user action needed.
+        var genreSplitKey = $"_migration_split_genres_{GenreAliases.Version}";
+        if (GetPref(genreSplitKey) != "done")
+        {
+            try { SplitAndAliasGenresMigration(); SetPref(genreSplitKey, "done"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"genre split {GenreAliases.Version} skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
     }
@@ -221,6 +235,112 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
     /// killing DB construction and bricking the app at launch (this was the
     /// v1.9.2 first-cut bug).
     /// </summary>
+
+    /// <summary>
+    /// One-shot v2.1.0 fix for genre rows that contain multiple genres in
+    /// one string (e.g. "Action / Adventure / Sci-Fi") plus alias drift
+    /// (Science Fiction → Sci-Fi). For every offender, splits into separate
+    /// canonical names, repoints movie_genres links to the canonical rows,
+    /// then deletes the original multi-genre row.
+    /// </summary>
+    private void SplitAndAliasGenresMigration()
+    {
+        // Shared map — single source of truth for alias folding.
+        var aliases = GenreAliases.Map;
+        static string CanonicalSeg(string s)
+        {
+            var n = s.Trim();
+            n = System.Text.RegularExpressions.Regex.Replace(n, @"\s+", " ");
+            return n;
+        }
+
+        var rows = new List<(int id, string name)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT id, name FROM genres";
+            using var r = sel.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+        }
+
+        var canon = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (id, name) in rows) canon[name] = id;
+
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            foreach (var (id, name) in rows)
+            {
+                var parts = name.Split(new[] { '/', ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                                .Select(CanonicalSeg)
+                                .Where(s => s.Length > 0)
+                                .Select(s => aliases.TryGetValue(s, out var c) ? c : s)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .ToList();
+
+                if (parts.Count == 1 && string.Equals(parts[0], name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (parts.Count == 0) continue;
+
+                var partIds = new List<int>();
+                foreach (var part in parts)
+                {
+                    if (!canon.TryGetValue(part, out var pid))
+                    {
+                        using var ins = _conn.CreateCommand();
+                        ins.Transaction = tx;
+                        ins.CommandText = "INSERT INTO genres (name) VALUES (@n); SELECT last_insert_rowid();";
+                        ins.Parameters.AddWithValue("@n", part);
+                        pid = Convert.ToInt32(ins.ExecuteScalar());
+                        canon[part] = pid;
+                    }
+                    if (pid != id) partIds.Add(pid);
+                }
+                if (partIds.Count == 0) continue;
+
+                var linkedMovies = new List<int>();
+                using (var s2 = _conn.CreateCommand())
+                {
+                    s2.Transaction = tx;
+                    s2.CommandText = "SELECT movie_id FROM movie_genres WHERE genre_id=@id";
+                    s2.Parameters.AddWithValue("@id", id);
+                    using var rr = s2.ExecuteReader();
+                    while (rr.Read()) linkedMovies.Add(rr.GetInt32(0));
+                }
+                foreach (var mid in linkedMovies)
+                    foreach (var pid in partIds)
+                    {
+                        using var link = _conn.CreateCommand();
+                        link.Transaction = tx;
+                        link.CommandText = "INSERT OR IGNORE INTO movie_genres VALUES (@m, @g)";
+                        link.Parameters.AddWithValue("@m", mid);
+                        link.Parameters.AddWithValue("@g", pid);
+                        link.ExecuteNonQuery();
+                    }
+
+                using (var del1 = _conn.CreateCommand())
+                {
+                    del1.Transaction = tx;
+                    del1.CommandText = "DELETE FROM movie_genres WHERE genre_id=@id";
+                    del1.Parameters.AddWithValue("@id", id);
+                    del1.ExecuteNonQuery();
+                }
+                using (var del2 = _conn.CreateCommand())
+                {
+                    del2.Transaction = tx;
+                    del2.CommandText = "DELETE FROM genres WHERE id=@id";
+                    del2.Parameters.AddWithValue("@id", id);
+                    del2.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
     private void NormalizeAndMergeNames(string nameTable, string joinTable, string fkCol)
     {
         // 1. Snapshot all rows
@@ -665,6 +785,8 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         bool IsWatchlistOnly = false,
         bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
         int? UserListId = null,
+        int? DecadeStart = null,        // e.g. 1980 → year in [1980..1989]
+        string? RatingBand = null,      // bucket key: "9","8","7","6","5","0"
         int Limit = 60,
         int Offset = 0
     );
@@ -703,6 +825,10 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
         if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
+        if (opts.DecadeStart != null)
+            where.Add("m.year >= @decLo AND m.year <= @decHi");
+        if (opts.RatingBand != null)
+            where.Add("m.rating >= @ratLo AND m.rating < @ratHi");
         return (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "", where);
     }
 
@@ -717,6 +843,25 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
         if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
         if (opts.UserListId != null) cmd.Parameters.AddWithValue("@listId", opts.UserListId);
+        if (opts.DecadeStart != null)
+        {
+            cmd.Parameters.AddWithValue("@decLo", opts.DecadeStart.Value);
+            cmd.Parameters.AddWithValue("@decHi", opts.DecadeStart.Value + 9);
+        }
+        if (opts.RatingBand != null)
+        {
+            var (lo, hi) = opts.RatingBand switch
+            {
+                "9" => (9.0, 10.1),
+                "8" => (8.0, 9.0),
+                "7" => (7.0, 8.0),
+                "6" => (6.0, 7.0),
+                "5" => (5.0, 6.0),
+                _   => (0.0, 5.0),
+            };
+            cmd.Parameters.AddWithValue("@ratLo", lo);
+            cmd.Parameters.AddWithValue("@ratHi", hi);
+        }
         if (includePaging)
         {
             cmd.Parameters.AddWithValue("@lim", opts.Limit);
@@ -1165,6 +1310,197 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
         return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    // ── Browse pages (v2.1.0) ────────────────────────────────────────────────
+
+    /// <summary>One entry in a browse-by-X grid: a category label, how
+    /// many movies it has, and a representative fanart for the banner.</summary>
+    public record BrowseEntry(string Key, string Label, int Count, string? SampleFanart, string? SamplePoster);
+
+    public enum BrowseFacet { Genre, Decade, Rating, Studio }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<BrowseEntry> GetBrowseEntries(BrowseFacet facet)
+    {
+        return facet switch
+        {
+            BrowseFacet.Genre   => BrowseByGenre(),
+            BrowseFacet.Decade  => BrowseByDecade(),
+            BrowseFacet.Rating  => BrowseByRating(),
+            BrowseFacet.Studio  => BrowseByStudio(),
+            _ => new()
+        };
+    }
+
+    private List<BrowseEntry> BrowseByGenre()
+    {
+        var list = new List<BrowseEntry>();
+        using var cmd = _conn.CreateCommand();
+        // For each genre: count + a representative fanart from a high-rated member.
+        cmd.CommandText = @"
+            SELECT g.name,
+                   COUNT(DISTINCT m.id) c,
+                   (SELECT m2.local_fanart FROM movies m2
+                    JOIN movie_genres mg2 ON mg2.movie_id=m2.id
+                    WHERE mg2.genre_id=g.id AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                    ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1) AS fanart,
+                   (SELECT m3.local_poster FROM movies m3
+                    JOIN movie_genres mg3 ON mg3.movie_id=m3.id
+                    WHERE mg3.genre_id=g.id AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                    ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster
+            FROM genres g
+            JOIN movie_genres mg ON mg.genre_id=g.id
+            JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0
+            GROUP BY g.id
+            HAVING c > 0
+            ORDER BY c DESC, g.name ASC";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new BrowseEntry(
+                Key: r.GetString(0),
+                Label: r.GetString(0),
+                Count: r.GetInt32(1),
+                SampleFanart: r.IsDBNull(2) ? null : r.GetString(2),
+                SamplePoster: r.IsDBNull(3) ? null : r.GetString(3)));
+        }
+        return list;
+    }
+
+    private List<BrowseEntry> BrowseByDecade()
+    {
+        var list = new List<BrowseEntry>();
+        using var cmd = _conn.CreateCommand();
+        // Group by decade = (year/10)*10 — e.g. 2024 → 2020
+        cmd.CommandText = @"
+            SELECT (m.year/10)*10 AS decade,
+                   COUNT(*) c,
+                   (SELECT local_fanart FROM movies m2
+                    WHERE (m2.year/10)*10 = (m.year/10)*10 AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                    ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1) AS fanart,
+                   (SELECT local_poster FROM movies m3
+                    WHERE (m3.year/10)*10 = (m.year/10)*10 AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                    ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster
+            FROM movies m
+            WHERE m.year IS NOT NULL AND m.is_missing=0
+            GROUP BY decade
+            ORDER BY decade DESC";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var dec = r.GetInt32(0);
+            list.Add(new BrowseEntry(
+                Key: dec.ToString(),
+                Label: $"{dec}s",
+                Count: r.GetInt32(1),
+                SampleFanart: r.IsDBNull(2) ? null : r.GetString(2),
+                SamplePoster: r.IsDBNull(3) ? null : r.GetString(3)));
+        }
+        return list;
+    }
+
+    private List<BrowseEntry> BrowseByRating()
+    {
+        // Buckets: 9+, 8–9, 7–8, 6–7, 5–6, <5
+        var bands = new (string key, string label, double lo, double hi)[]
+        {
+            ("9",  "9+ Stars",   9.0, 10.1),
+            ("8",  "8–9 Stars",  8.0, 9.0),
+            ("7",  "7–8 Stars",  7.0, 8.0),
+            ("6",  "6–7 Stars",  6.0, 7.0),
+            ("5",  "5–6 Stars",  5.0, 6.0),
+            ("0",  "Under 5",    0.0, 5.0),
+        };
+        var list = new List<BrowseEntry>();
+        foreach (var b in bands)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(*),
+                       (SELECT local_fanart FROM movies WHERE rating >= @lo AND rating < @hi AND local_fanart IS NOT NULL AND is_missing=0
+                        ORDER BY rating DESC LIMIT 1),
+                       (SELECT local_poster FROM movies WHERE rating >= @lo AND rating < @hi AND local_poster IS NOT NULL AND is_missing=0
+                        ORDER BY rating DESC LIMIT 1)
+                FROM movies WHERE rating >= @lo AND rating < @hi AND is_missing=0";
+            cmd.Parameters.AddWithValue("@lo", b.lo);
+            cmd.Parameters.AddWithValue("@hi", b.hi);
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) continue;
+            var count = r.GetInt32(0);
+            if (count == 0) continue;
+            list.Add(new BrowseEntry(
+                Key: b.key, Label: b.label, Count: count,
+                SampleFanart: r.IsDBNull(1) ? null : r.GetString(1),
+                SamplePoster: r.IsDBNull(2) ? null : r.GetString(2)));
+        }
+        return list;
+    }
+
+    private List<BrowseEntry> BrowseByStudio()
+    {
+        var list = new List<BrowseEntry>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT studio,
+                   COUNT(*),
+                   (SELECT local_fanart FROM movies m2 WHERE m2.studio=m.studio AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                    ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1),
+                   (SELECT local_poster FROM movies m3 WHERE m3.studio=m.studio AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                    ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1)
+            FROM movies m
+            WHERE m.studio IS NOT NULL AND m.studio <> '' AND m.is_missing=0
+            GROUP BY m.studio
+            HAVING COUNT(*) > 1
+            ORDER BY COUNT(*) DESC, m.studio ASC
+            LIMIT 60";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new BrowseEntry(
+                Key: r.GetString(0),
+                Label: r.GetString(0),
+                Count: r.GetInt32(1),
+                SampleFanart: r.IsDBNull(2) ? null : r.GetString(2),
+                SamplePoster: r.IsDBNull(3) ? null : r.GetString(3)));
+        }
+        return list;
+    }
+
+    /// <summary>Collection grid entries — uses each set's highest-rated
+    /// member's poster as the cover.</summary>
+    public record CollectionEntry(int Id, string Name, int Count, string? CoverPoster);
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<CollectionEntry> GetCollectionGrid()
+    {
+        var list = new List<CollectionEntry>();
+        using var cmd = _conn.CreateCommand();
+        // Only real franchises: at least 2 online movies in the same set.
+        // (A "set" with one member is just MediaElch noise — TMDB sometimes
+        // assigns single films to a one-entry collection.)
+        cmd.CommandText = @"
+            SELECT s.id, s.name, COUNT(DISTINCT m2.id) c,
+                   (SELECT local_poster FROM movies m
+                    JOIN movie_sets ms2 ON ms2.movie_id=m.id
+                    WHERE ms2.set_id=s.id AND m.local_poster IS NOT NULL AND m.is_missing=0
+                    ORDER BY COALESCE(m.rating,0) DESC LIMIT 1) AS cover
+            FROM sets s
+            JOIN movie_sets ms ON ms.set_id=s.id
+            JOIN movies m2 ON m2.id=ms.movie_id AND m2.is_missing=0
+            GROUP BY s.id
+            HAVING c >= 2
+            ORDER BY s.name ASC";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new CollectionEntry(
+                Id: r.GetInt32(0),
+                Name: r.GetString(1),
+                Count: r.GetInt32(2),
+                CoverPoster: r.IsDBNull(3) ? null : r.GetString(3)));
+        }
+        return list;
     }
 
     // ── User Lists (v1.9.2) ──────────────────────────────────────────────────

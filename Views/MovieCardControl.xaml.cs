@@ -54,13 +54,15 @@ public sealed partial class MovieCardControl : UserControl
         {
             HoverOverlay.Visibility = Visibility.Visible;
             HoverOverlay.Opacity = 1;
-            CardLift.Y = -3;
+            CardLift.Y = -4;
+            CardScale.ScaleX = 1.025; CardScale.ScaleY = 1.025;
         };
         PointerExited += (_, _) =>
         {
             HoverOverlay.Opacity = 0;
             HoverOverlay.Visibility = Visibility.Collapsed;
             CardLift.Y = 0;
+            CardScale.ScaleX = 1; CardScale.ScaleY = 1;
         };
         Tapped += (_, e) =>
         {

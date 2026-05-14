@@ -167,6 +167,46 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- BROWSE group (v2.1) — banner-style category pages -->
+                        <TextBlock Text="BROWSE" Style="{StaticResource SidebarGroupLabelStyle}"/>
+
+                        <Button x:Name="BtnBrowseGenre" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseGenre">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE8EC;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Genre" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnBrowseDecade" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseDecade">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE787;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Decade" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnBrowseRating" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseRating">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE735;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Rating" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnCollections" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavCollections">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE8B7;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Collections" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- TOOLS group (v1.9.3) -->
                         <TextBlock Text="TOOLS" Style="{StaticResource SidebarGroupLabelStyle}"/>
 
@@ -282,97 +322,10 @@
                             </ItemsRepeater>
                         </StackPanel>
 
-                        <!-- Top Genres section (collapsible) — order: Libraries → Top Genres → Collections. -->
-                        <StackPanel x:Name="GenresHeader" Visibility="Collapsed" Margin="0,4,0,0">
-                            <Button Tag="Genres" Click="OnSidebarSectionToggle"
-                                    Style="{StaticResource SidebarSectionHeaderStyle}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="TOP GENRES" CharacterSpacing="100"/>
-                                    <TextBlock x:Name="GenresChevron" Grid.Column="1"
-                                               Text="⌃" FontSize="12"/>
-                                </Grid>
-                            </Button>
-                            <ItemsRepeater x:Name="GenresRepeater">
-                                <ItemsRepeater.Layout>
-                                    <StackLayout Orientation="Vertical"/>
-                                </ItemsRepeater.Layout>
-                                <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="models:GenreFacet">
-                                        <Button Style="{StaticResource NavItemStyle}"
-                                                Tag="{Binding Name}"
-                                                Click="OnNavGenre">
-                                            <Grid HorizontalAlignment="Stretch">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <TextBlock Text="🏷" VerticalAlignment="Center"
-                                                               Foreground="{ThemeResource MutedBrush}"/>
-                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
-                                                    <TextBlock Text="{Binding Count}" FontSize="11"
-                                                               Foreground="{ThemeResource MutedBrush}"
-                                                               HorizontalAlignment="Center"/>
-                                                </Border>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsRepeater.ItemTemplate>
-                            </ItemsRepeater>
-                        </StackPanel>
-
-                        <!-- Collections section (collapsible) — last per v1.5 reorder. -->
-                        <StackPanel x:Name="CollectionsHeader" Visibility="Collapsed" Margin="0,4,0,8">
-                            <Button Tag="Collections" Click="OnSidebarSectionToggle"
-                                    Style="{StaticResource SidebarSectionHeaderStyle}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="COLLECTIONS" CharacterSpacing="100"/>
-                                    <TextBlock x:Name="CollectionsChevron" Grid.Column="1"
-                                               Text="⌄" FontSize="12"/>
-                                </Grid>
-                            </Button>
-                            <ItemsRepeater x:Name="CollectionsRepeater"
-                                           Visibility="Collapsed">
-                                <ItemsRepeater.Layout>
-                                    <StackLayout Orientation="Vertical"/>
-                                </ItemsRepeater.Layout>
-                                <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="models:Collection">
-                                        <Button Style="{StaticResource NavItemStyle}"
-                                                Tag="{Binding Id}"
-                                                Click="OnNavCollection">
-                                            <Grid HorizontalAlignment="Stretch">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <TextBlock Text="⊞" VerticalAlignment="Center"
-                                                               Foreground="{ThemeResource MutedBrush}"/>
-                                                    <TextBlock Text="{Binding Name}"
-                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
-                                                    <TextBlock Text="{Binding MovieCount}" FontSize="11"
-                                                               Foreground="{ThemeResource MutedBrush}"
-                                                               HorizontalAlignment="Center"/>
-                                                </Border>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsRepeater.ItemTemplate>
-                            </ItemsRepeater>
-                        </StackPanel>
+                        <!-- v2.1: TOP GENRES + COLLECTIONS sub-sections removed.
+                             Both are now first-class pages under the BROWSE section
+                             (By Genre, Collections), which is richer (banner cards,
+                             poster grid) than the previous flat sidebar list. -->
 
                     </StackPanel>
                 </ScrollViewer>

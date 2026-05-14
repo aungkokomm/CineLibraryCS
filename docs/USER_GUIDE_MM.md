@@ -106,10 +106,14 @@ Density picker ဘေးရှိ **☰** toggle နှိပ်လျှင် 
 
 ### Sidebar ဖြတ်လမ်းများ
 
+- **LIBRARY** — All Movies, Favorites, To Watch
+- **DISCOVER** — Continue Watching, Recently Added, Surprise me
+- **BROWSE** — *By Genre*, *By Decade*, *By Rating*, *Collections* —
+  banner ပုံစံ စာမျက်နှာများ၊ category တစ်ခုနှိပ်လျှင် library ကို
+  ထို category ဖြင့် filter ပြုလုပ်သည်
+- **TOOLS** — Statistics, Drives
+- **MY LISTS** — ကိုယ်ပိုင် list ဖန်တီးနိုင်သည် (**+** ဖြင့်)
 - **LIBRARIES** — Drive root တစ်ခုစီ၊ အွန်လိုင်း/အော့ဖ်လိုင်း dot နှင့် ရုပ်ရှင်အရေအတွက်
-- **TOP GENRES** — အများဆုံးပါဝင်သော genre 8 ခု
-- **MY LIST** ကိုယ်ပိုင် list ဖန်တီးပြီး Movie များ Add နိုင်ပါသည်။ 
-- **COLLECTIONS** — `.nfo` ဖိုင်များမှ ရရှိသော MediaElch collection (franchise, saga)
 
 Header တစ်ခုစီကို နှိပ်၍ ချုံ့/ချဲ့နိုင်သည်။
 

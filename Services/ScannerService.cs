@@ -266,6 +266,26 @@ public class ScannerService
     /// big rescan: typically 5–10× fewer queries on the related-tables.
     /// </summary>
     /// <summary>
+    /// Some scrapers / older nfos write multiple genres in a single
+    /// &lt;genre&gt; element, separated by /, comma, semicolon or pipe.
+    /// Split them out so each becomes its own row, then normalize each.
+    /// Also folds well-known aliases ("Science Fiction" → "Sci-Fi").
+    /// </summary>
+    private static IEnumerable<string> SplitAndAliasGenres(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) yield break;
+        foreach (var part in raw.Split(new[] { '/', ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var n = NormalizeName(part);
+            if (n == null) continue;
+            yield return GenreAlias(n);
+        }
+    }
+
+
+    private static string GenreAlias(string name) => GenreAliases.Fold(name);
+
+    /// <summary>
     /// Trim, collapse whitespace runs to a single space. Returns null when
     /// the input becomes empty — callers skip null names.
     /// </summary>
@@ -365,12 +385,21 @@ public class ScannerService
         using (var d = Cmd("DELETE FROM movie_actors    WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
         using (var d = Cmd("DELETE FROM movie_sets      WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
 
-        foreach (var g in p.Genres)
+        // Split multi-genre strings ("Action / Adventure / Sci-Fi") into
+        // separate rows, and fold common aliases. Dedupe via HashSet so a
+        // duplicate after splitting (e.g. "Sci-Fi" already from a separate
+        // <genre>) inserts the link only once.
+        var seenGenres = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in p.Genres)
         {
-            var gid = GetOrInsert(conn, tx, "genres", g, cache.Genres);
-            if (gid < 0) continue;
-            using var c = Cmd("INSERT OR IGNORE INTO movie_genres VALUES (@m,@g)");
-            c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@g", gid); c.ExecuteNonQuery();
+            foreach (var g in SplitAndAliasGenres(raw))
+            {
+                if (!seenGenres.Add(g)) continue;
+                var gid = GetOrInsert(conn, tx, "genres", g, cache.Genres);
+                if (gid < 0) continue;
+                using var c = Cmd("INSERT OR IGNORE INTO movie_genres VALUES (@m,@g)");
+                c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@g", gid); c.ExecuteNonQuery();
+            }
         }
         foreach (var d in p.Directors)
         {

@@ -126,15 +126,19 @@ scanning hundreds of titles at once.
 
 ### Sidebar shortcuts
 
-The sidebar groups your library three ways:
+The sidebar is grouped into four sections:
 
+- **LIBRARY** — All Movies, Favorites, To Watch.
+- **DISCOVER** — Continue Watching, Recently Added, Surprise me.
+- **BROWSE** — banner-style pages: *By Genre*, *By Decade*, *By Rating*,
+  *Collections*. Each entry shows count and a representative cover; click
+  to filter your library to that slice.
+- **TOOLS** — Statistics, Drives.
+- **MY LISTS** — your custom lists. Click **+** to add one.
 - **LIBRARIES** — one entry per drive root, with a live online/offline
   dot and a count.
-- **TOP GENRES** — your most-populated genres, top 8.
-- **COLLECTIONS** — MediaElch collections (franchises, sagas, etc.)
-  detected from your `.nfo` files.
 
-Each section can be collapsed by clicking its orange header.
+Each collapsible section can be collapsed by clicking its header.
 
 ---
 

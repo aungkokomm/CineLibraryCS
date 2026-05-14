@@ -1,0 +1,93 @@
+<Page
+    x:Class="CineLibraryCS.Views.CollectionsBrowsePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CineLibraryCS.Views"
+    Background="{ThemeResource BgBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Padding="24,8,24,12" Spacing="2">
+            <TextBlock Text="COLLECTIONS" FontSize="18" FontWeight="Bold"
+                       Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+            <TextBlock x:Name="CountText" Text=""
+                       FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid>
+                <ItemsRepeater x:Name="GridRepeater" Margin="24,0,24,24">
+                    <ItemsRepeater.Layout>
+                        <!-- Match All Movies card size (M density = 150×280)
+                             so collections feel consistent across the app. -->
+                        <UniformGridLayout MinItemWidth="150" MinItemHeight="280"
+                                           MinColumnSpacing="12" MinRowSpacing="14"
+                                           ItemsStretch="Fill"/>
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="local:CollectionTileVm">
+                            <Button Background="Transparent" BorderThickness="0"
+                                    Padding="0" CornerRadius="10"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Top"
+                                    HorizontalContentAlignment="Stretch"
+                                    Click="OnTileClick"
+                                    Tag="{x:Bind Id}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- Poster: 2:3 standard movie aspect, ~220 tall on a 150-wide tile -->
+                                    <Border Grid.Row="0"
+                                            CornerRadius="10"
+                                            Height="220"
+                                            Background="{ThemeResource PlaceholderBgBrush}"
+                                            HorizontalAlignment="Stretch">
+                                        <Image Stretch="UniformToFill"
+                                               Source="{x:Bind CoverImage, Mode=OneWay}"/>
+                                    </Border>
+                                    <TextBlock Grid.Row="1"
+                                               Text="{x:Bind Name}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="WrapWholeWords"
+                                               MaxLines="2"
+                                               Margin="2,6,2,2"/>
+                                    <TextBlock Grid.Row="2"
+                                               Text="{x:Bind CountText}"
+                                               FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}"
+                                               Margin="2,0,2,4"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <StackPanel x:Name="EmptyState" Visibility="Collapsed"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Margin="0,80,0,24" Spacing="8">
+                    <FontIcon Glyph="&#xE8B7;" FontSize="44" Opacity="0.5"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                              Foreground="{ThemeResource MutedBrush}"
+                              HorizontalAlignment="Center"/>
+                    <TextBlock Text="No collections yet"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="MediaElch collections (franchises, sagas) appear here once at least two of their movies are in your library and tagged in their .nfo files."
+                               FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="380"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>
