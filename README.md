@@ -8,7 +8,8 @@ A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, 
 ***CineLibrary: where your movies stop hiding and start shining.***
 
 
-(This is constantly evolving my personal passion project, so always be sure to check latest releases)
+**Constantly evolving passion project! Always check the latest releases for updates.**
+
 
 
 
