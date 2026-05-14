@@ -3,6 +3,23 @@
 All notable changes to CineLibrary are documented here.
 Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.0.1] — 2026-05-09
+
+### Fixed
+- Rare *"Execute requires the command to have a transaction object…"*
+  crash during **Refresh changes**. Scanner now opens its own SQLite
+  connection so its long-running transaction can't taint concurrent
+  sidebar reads on the shared connection. WAL mode handles the
+  multi-connection safety at the SQLite level.
+
+### Added
+- Keyboard navigation in the library view:
+  - **PgDn / PgUp** scroll one viewport.
+  - **Home / End** jump to top / bottom (End loads remaining pages first).
+  - **↑ / ↓** scroll by one card row (grid) or one list row.
+  Gated on focus — when the search box has focus, these keys do their
+  normal text-editing thing.
+
 ## [2.0.0] — 2026-05-08
 
 A big visual + feature refresh. The headline things you'll notice:

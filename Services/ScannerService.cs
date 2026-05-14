@@ -29,7 +29,13 @@ public class ScannerService
 
     private void ScanSync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct, string? scanFolder, bool incremental)
     {
-        var conn = _db.GetConnection();
+        // Use a dedicated connection so our long-lived scan transaction
+        // doesn't taint the main DB connection used by sidebar refresh and
+        // other UI reads. Microsoft.Data.Sqlite raises InvalidOperationException
+        // ("Execute requires the command to have a transaction object…") if any
+        // command runs against a connection with a pending tx and that command
+        // doesn't carry the tx reference — easy to hit on rescans.
+        using var conn = _db.OpenNewConnection();
         var dataDir = _db.DataDir;
         var walkFrom = scanFolder ?? driveRoot;
 

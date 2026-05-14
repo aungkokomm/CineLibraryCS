@@ -234,13 +234,19 @@ small displays.
 
 ## Keyboard shortcuts
 
-| Shortcut         | Action                            |
-|------------------|-----------------------------------|
-| `Ctrl+F`         | Focus the search box              |
-| `Esc`            | Clear search                      |
-| `Ctrl+B`         | Toggle sidebar                    |
-| `Ctrl+Q`         | Quit                              |
-| `Ctrl+Shift+/`   | Show this shortcuts list in-app   |
+| Shortcut         | Action                                       |
+|------------------|----------------------------------------------|
+| `Ctrl+F`         | Focus the search box                         |
+| `Esc`            | Clear search                                 |
+| `Ctrl+B`         | Toggle sidebar                               |
+| `Ctrl+Q`         | Quit                                         |
+| `Ctrl+Shift+/`   | Show this shortcuts list in-app              |
+| `PgDn` / `PgUp`  | Scroll the movie grid one viewport up/down   |
+| `Home` / `End`   | Jump to the top / bottom of the movie list   |
+| `↑` / `↓`        | Scroll by one row of cards                   |
+
+Navigation shortcuts skip themselves when the search box has focus, so
+typing in the search field still works normally.
 
 ---
 

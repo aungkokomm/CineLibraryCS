@@ -1019,6 +1019,27 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     // ── Scanner support ──────────────────────────────────────────────────────
 
     public SqliteConnection GetConnection() => _conn;
+
+    /// <summary>
+    /// Opens a fresh connection to the same DB file, fully independent of the
+    /// shared <see cref="_conn"/>. Used by long-running write paths
+    /// (scanner, copy export) so a transaction on their connection doesn't
+    /// poison concurrent reads on the main connection — Microsoft.Data.Sqlite
+    /// throws "Execute requires the command to have a transaction object …"
+    /// when a connection has a pending local transaction and a command run
+    /// against it doesn't carry that same transaction reference.
+    /// WAL mode (set on _conn) is per-DB, so a second connection is safe.
+    /// </summary>
+    public SqliteConnection OpenNewConnection()
+    {
+        var dbPath = Path.Combine(_dataDir, "cinelibrary.db");
+        var c = new SqliteConnection($"Data Source={dbPath}");
+        c.Open();
+        using var pr = c.CreateCommand();
+        pr.CommandText = "PRAGMA foreign_keys=ON;";
+        pr.ExecuteNonQuery();
+        return c;
+    }
     public string DataDir => _dataDir;
 
     // ── Statistics (v1.3) ───────────────────────────────────────────────────

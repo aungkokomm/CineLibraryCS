@@ -58,6 +58,23 @@ public sealed partial class LibraryPage : Page
             }
         });
 
+        // Navigation shortcuts (v2.0.1) — PgDn/PgUp scroll one viewport,
+        // Home/End jump to top/bottom, ↑/↓ scroll by a card-row. All gated
+        // on focus: when the search box is editing text, these keys do
+        // their default text-cursor thing and we leave them alone.
+        AddAccelerator(VirtualKey.PageDown, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollByViewport(+1)) a.Handled = true; });
+        AddAccelerator(VirtualKey.PageUp, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollByViewport(-1)) a.Handled = true; });
+        AddAccelerator(VirtualKey.Home, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollTo(0)) a.Handled = true; });
+        AddAccelerator(VirtualKey.End, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollToEnd()) a.Handled = true; });
+        AddAccelerator(VirtualKey.Down, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollByRow(+1)) a.Handled = true; });
+        AddAccelerator(VirtualKey.Up, VirtualKeyModifiers.None,
+            (_, a) => { if (TryScrollByRow(-1)) a.Handled = true; });
+
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.Movies.CollectionChanged += (_, _) => UpdateEmptyState();
 
@@ -141,6 +158,78 @@ public sealed partial class LibraryPage : Page
     public void FocusSearchBox()
     {
         SearchBox.Focus(FocusState.Programmatic);
+    }
+
+    // ── Keyboard navigation (v2.0.1) ──────────────────────────────────────
+    // All return true when they handled the keypress so the accelerator
+    // can swallow it; false when focus is in a text input (let the user
+    // navigate the text cursor instead) or scroll can't happen.
+
+    /// <summary>
+    /// True when the focused element is a text-editing surface (search box,
+    /// notes editor, etc.). In that case we don't steal PgDn / arrow keys.
+    /// </summary>
+    private bool IsTextEditFocused()
+    {
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot);
+        return focused is TextBox or AutoSuggestBox || (
+            focused is FrameworkElement fe &&
+            (fe.Parent is AutoSuggestBox || fe.Parent is TextBox));
+    }
+
+    private bool TryScrollByViewport(int direction)
+    {
+        if (IsTextEditFocused()) return false;
+        var target = MainScroller.VerticalOffset + direction * MainScroller.ViewportHeight;
+        MainScroller.ChangeView(null, target, null);
+        return true;
+    }
+
+    /// <summary>
+    /// Scroll by roughly one row of cards/list-rows. Grid view: a row is
+    /// the current card height + spacing. List view: a fixed ~44 px row.
+    /// </summary>
+    private bool TryScrollByRow(int direction)
+    {
+        if (IsTextEditFocused()) return false;
+        double rowPx = _vm.ViewMode == ViewMode.Grid
+            ? MovieCardControl.GlobalCardHeight + 12
+            : 44;
+        MainScroller.ChangeView(null, MainScroller.VerticalOffset + direction * rowPx, null);
+        return true;
+    }
+
+    private bool TryScrollTo(double offset)
+    {
+        if (IsTextEditFocused()) return false;
+        MainScroller.ChangeView(null, offset, null);
+        return true;
+    }
+
+    /// <summary>
+    /// End-of-list jump. Library uses 60-per-page lazy loading so we
+    /// first drain remaining pages until everything's loaded, then scroll
+    /// to the bottom. Small libraries finish instantly.
+    /// </summary>
+    private bool TryScrollToEnd()
+    {
+        if (IsTextEditFocused()) return false;
+        _ = ScrollToEndAsync();
+        return true;
+    }
+
+    private async Task ScrollToEndAsync()
+    {
+        // Drain remaining pages first so ScrollableHeight reflects the real end.
+        int guard = 0;
+        while (_vm.HasMore && !_vm.IsLoading && guard < 200)
+        {
+            await _vm.LoadMoreAsync();
+            guard++;
+        }
+        // Layout pass needed before ScrollableHeight is final
+        MainScroller.UpdateLayout();
+        MainScroller.ChangeView(null, MainScroller.ScrollableHeight, null);
     }
 
     public void UpdatePageTitle(string title) => PageTitleText.Text = title;
