@@ -14,7 +14,8 @@ A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, 
 
 
 Built with C# + WinUI 3.
-<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/08ec7274-eb2d-4d54-bc80-4b7913805bc8" />
+<img width="958" height="509" alt="Screenshot 2026-05-14 194041" src="https://github.com/user-attachments/assets/82ab1734-2046-4b73-b29c-4d33dbe1ef0a" />
+
 
 
 ![Stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge&color=blue)
