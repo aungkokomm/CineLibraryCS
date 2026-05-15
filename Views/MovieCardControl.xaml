@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:CineLibraryCS.Views">
 
-    <Grid x:Name="CardRoot" Width="150" Height="280" RenderTransformOrigin="0.5,0.5">
+    <Grid x:Name="CardRoot" Width="150" Height="280" RenderTransformOrigin="0.5,0.5"
+          ToolTipService.ToolTip="Click for details · Double-click to play">
         <Grid.RenderTransform>
             <TransformGroup>
                 <TranslateTransform x:Name="CardLift" Y="0"/>

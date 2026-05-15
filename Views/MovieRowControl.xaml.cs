@@ -177,19 +177,100 @@ public sealed partial class MovieRowControl : UserControl
 
     private void OnTapped(object sender, TappedRoutedEventArgs e)
     {
-        // Ignore taps that originated inside any Button on the row (Watched / Fav toggles,
-        // or any future overlay buttons) — their own Click handlers do the work; bubbling
-        // up to OpenDetail would cause a double-action (e.g. toggle fav + open dialog).
-        if (e.OriginalSource is DependencyObject src)
+        if (TapOriginatedInButton(e.OriginalSource as DependencyObject))
         {
-            DependencyObject? cur = src;
-            while (cur != null)
-            {
-                if (cur is Button) { e.Handled = true; return; }
-                cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
-            }
+            e.Handled = true; return;
         }
-        OpenDetail();
+        ScheduleSingleTapAction();
+    }
+
+    private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (TapOriginatedInButton(e.OriginalSource as DependencyObject))
+        {
+            e.Handled = true; return;
+        }
+        _pendingSingleTap?.Cancel();
+        _pendingSingleTap = null;
+        _ = PlayMovieOrPromptOfflineAsync();
+    }
+
+    private static bool TapOriginatedInButton(DependencyObject? src)
+    {
+        var cur = src;
+        while (cur != null)
+        {
+            if (cur is Button) return true;
+            cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
+        }
+        return false;
+    }
+
+    private CancellationTokenSource? _pendingSingleTap;
+
+    private void ScheduleSingleTapAction()
+    {
+        _pendingSingleTap?.Cancel();
+        var cts = new CancellationTokenSource();
+        _pendingSingleTap = cts;
+        var dq = DispatcherQueue;
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(220, cts.Token); }
+            catch (OperationCanceledException) { return; }
+            if (cts.IsCancellationRequested) return;
+            dq.TryEnqueue(() =>
+            {
+                if (cts.IsCancellationRequested) return;
+                OpenDetail();
+            });
+        });
+    }
+
+    private async Task PlayMovieOrPromptOfflineAsync()
+    {
+        if (Movie == null) return;
+        var connected = AppState.Instance.Connected;
+        if (!connected.TryGetValue(Movie.VolumeSerial, out var letter))
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        var detail = AppState.Instance.Db.GetMovieDetail(Movie.Id, connected);
+        if (detail == null || detail.VideoFileRelPath == null || !detail.IsOnline)
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        var videoPath = Path.Combine($"{letter}:\\",
+            detail.VideoFileRelPath.Replace('/', '\\'));
+        if (!File.Exists(videoPath))
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        try
+        {
+            AppState.Instance.Db.MarkPlayed(Movie.Id);
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(videoPath));
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch { }
+    }
+
+    private async Task ShowOfflineDialog(string title, string? driveLabel)
+    {
+        var dlg = new ContentDialog
+        {
+            Title = "Can't play yet",
+            Content = string.IsNullOrEmpty(driveLabel)
+                ? $"\"{title}\" lives on a drive that isn't connected. Plug it in and try again."
+                : $"\"{title}\" lives on \"{driveLabel}\", which isn't connected. Plug it in and try again.",
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        try { await dlg.ShowAsync(); } catch { }
     }
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e)

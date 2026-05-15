@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Border Background="Transparent" Padding="0,1"
-            Tapped="OnTapped" PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
+            Tapped="OnTapped" DoubleTapped="OnDoubleTapped"
+            PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
         <Border x:Name="RowBorder" Background="{ThemeResource CardBrush}"
                 CornerRadius="8" Padding="12,10">
             <Grid>

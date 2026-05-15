@@ -64,23 +64,25 @@ public sealed partial class MovieCardControl : UserControl
             CardLift.Y = 0;
             CardScale.ScaleX = 1; CardScale.ScaleY = 1;
         };
+        // Single tap → open details after a short delay (so a double-tap
+        // gets a chance to suppress it). Double tap → play directly.
         Tapped += (_, e) =>
         {
-            // Don't re-open if the tap originated inside the "View Details" button
-            // (its Click already opens the dialog — without this guard we'd get two windows).
-            // NOTE: we must walk the VISUAL tree (VisualTreeHelper.GetParent), not the logical
-            // tree (.Parent). The TextBlock inside Button's ContentPresenter has Parent = null
-            // across the template boundary, so .Parent-walking missed the Button.
-            if (e.OriginalSource is DependencyObject src)
+            if (TapOriginatedInButton(e.OriginalSource as DependencyObject))
             {
-                DependencyObject? cur = src;
-                while (cur != null)
-                {
-                    if (cur is Button) { e.Handled = true; return; }
-                    cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
-                }
+                e.Handled = true; return;
             }
-            OpenDetail();
+            ScheduleSingleTapAction();
+        };
+        DoubleTapped += (_, e) =>
+        {
+            if (TapOriginatedInButton(e.OriginalSource as DependencyObject))
+            {
+                e.Handled = true; return;
+            }
+            _pendingSingleTap?.Cancel();
+            _pendingSingleTap = null;
+            _ = PlayMovieOrPromptOfflineAsync();
         };
     }
 
@@ -237,6 +239,98 @@ public sealed partial class MovieCardControl : UserControl
         var win = new MovieDetailDialog(Movie.Id);
         win.WatchlistChanged += (s, e) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         win.Activate();
+    }
+
+    /// <summary>
+    /// Check if a routed tap origin is inside any Button — used to avoid
+    /// double-open when the user clicks the embedded "View Details" etc.
+    /// </summary>
+    private static bool TapOriginatedInButton(DependencyObject? src)
+    {
+        var cur = src;
+        while (cur != null)
+        {
+            if (cur is Button) return true;
+            cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
+        }
+        return false;
+    }
+
+    // Single-tap deferral so a double-tap can cancel it before details open.
+    // 220 ms matches Windows' default double-click threshold closely enough
+    // that intentional double-taps reliably suppress the single-tap action,
+    // while single-tap latency stays imperceptible.
+    private CancellationTokenSource? _pendingSingleTap;
+
+    private void ScheduleSingleTapAction()
+    {
+        _pendingSingleTap?.Cancel();
+        var cts = new CancellationTokenSource();
+        _pendingSingleTap = cts;
+        var dq = DispatcherQueue;
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(220, cts.Token); }
+            catch (OperationCanceledException) { return; }
+            if (cts.IsCancellationRequested) return;
+            dq.TryEnqueue(() =>
+            {
+                if (cts.IsCancellationRequested) return;
+                OpenDetail();
+            });
+        });
+    }
+
+    /// <summary>
+    /// Play the movie via the OS default player. Offline → friendly dialog
+    /// telling the user which drive to plug in.
+    /// </summary>
+    private async Task PlayMovieOrPromptOfflineAsync()
+    {
+        if (Movie == null) return;
+        var connected = AppState.Instance.Connected;
+        if (!connected.TryGetValue(Movie.VolumeSerial, out var letter))
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        // Fetch detail row for video path
+        var detail = AppState.Instance.Db.GetMovieDetail(Movie.Id, connected);
+        if (detail == null || detail.VideoFileRelPath == null || !detail.IsOnline)
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        var videoPath = System.IO.Path.Combine($"{letter}:\\",
+            detail.VideoFileRelPath.Replace('/', '\\'));
+        if (!System.IO.File.Exists(videoPath))
+        {
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            return;
+        }
+        try
+        {
+            AppState.Instance.Db.MarkPlayed(Movie.Id);
+            await Windows.System.Launcher.LaunchUriAsync(new Uri(videoPath));
+            // Bubble so sidebar Continue Watching count refreshes
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch { /* OS player launch failed — silent */ }
+    }
+
+    private async Task ShowOfflineDialog(string title, string? driveLabel)
+    {
+        var dlg = new ContentDialog
+        {
+            Title = "Can't play yet",
+            Content = string.IsNullOrEmpty(driveLabel)
+                ? $"\"{title}\" lives on a drive that isn't connected. Plug it in and try again."
+                : $"\"{title}\" lives on \"{driveLabel}\", which isn't connected. Plug it in and try again.",
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        try { await dlg.ShowAsync(); } catch { }
     }
 
     /// <summary>

@@ -114,9 +114,13 @@ Posters laid out in a fluid grid that auto-fits the window. Use the
 The grid stretches to fill the available width — bigger window means
 more columns, automatically.
 
-Click any poster to open the **movie detail** dialog: cast, crew,
+**Click** any poster to open the **movie detail** dialog: cast, crew,
 ratings, runtime, plot, file path on disk, and quick toggles for
 watched / favorite / watchlist.
+
+**Double-click** a poster to play the movie immediately via your default
+video player. If the movie's drive isn't connected, CineLibrary tells
+you which drive to plug in.
 
 ### List view
 

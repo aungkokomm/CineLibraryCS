@@ -958,7 +958,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.1.1",
+            Title = "CineLibrary v2.1.2",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
