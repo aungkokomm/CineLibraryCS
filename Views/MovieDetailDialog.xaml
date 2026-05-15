@@ -19,58 +19,154 @@
                        VerticalAlignment="Center" Margin="14,0,0,0"/>
         </Grid>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled" Padding="24">
+        <!-- Scroll area + sticky action bar overlay (v2.3) -->
+        <Grid Grid.Row="1">
+            <ScrollViewer x:Name="ContentScroller" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled" Padding="24"
+                          ViewChanged="OnContentScrolled">
             <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch">
 
-                <!-- Hero fanart -->
-                <Border x:Name="HeroBorder" Height="260" CornerRadius="10"
+                <!-- Hero fanart (v2.3 — taller, layered gradient, vignette, IMDb/TMDb pills) -->
+                <Border x:Name="HeroBorder" Height="340" CornerRadius="12"
                         Background="{ThemeResource HeroBgBrush}"
                         HorizontalAlignment="Stretch">
                     <Grid>
                         <Image x:Name="HeroImage" Stretch="UniformToFill"/>
-                        <!-- Gradient overlay so posters/titles remain readable -->
+                        <!-- Vertical gradient — strong on the bottom so titles stay readable -->
                         <Border>
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Offset="0" Color="#00000000"/>
-                                    <GradientStop Offset="1" Color="#99000000"/>
+                                    <GradientStop Offset="0"    Color="#33000000"/>
+                                    <GradientStop Offset="0.55" Color="#22000000"/>
+                                    <GradientStop Offset="1"    Color="#E6000000"/>
                                 </LinearGradientBrush>
                             </Border.Background>
                         </Border>
+                        <!-- Horizontal vignette — subtle edge darkening -->
+                        <Border>
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Offset="0"    Color="#55000000"/>
+                                    <GradientStop Offset="0.5"  Color="#00000000"/>
+                                    <GradientStop Offset="1"    Color="#55000000"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <!-- IMDb / TMDb badge pills, top-right -->
+                        <StackPanel x:Name="ExternalLinksPanel" Orientation="Horizontal"
+                                    Spacing="6" Margin="14"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top">
+                            <Button x:Name="ImdbLinkBtn" Visibility="Collapsed"
+                                    Click="OnOpenImdb"
+                                    Background="#F5C518" Foreground="#000000"
+                                    BorderThickness="0" CornerRadius="4"
+                                    Padding="8,3" FontSize="11" FontWeight="Bold"
+                                    Content="IMDb"/>
+                            <Button x:Name="TmdbLinkBtn" Visibility="Collapsed"
+                                    Click="OnOpenTmdb"
+                                    Background="#01D277" Foreground="#000000"
+                                    BorderThickness="0" CornerRadius="4"
+                                    Padding="8,3" FontSize="11" FontWeight="Bold"
+                                    Content="TMDb"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
                 <!-- Poster + Meta row -->
-                <Grid Margin="0,-90,0,0">
+                <Grid Margin="0,-120,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Poster -->
-                    <Border Grid.Column="0" Width="180" Height="260" CornerRadius="10"
-                            Margin="16,0,20,0" VerticalAlignment="Top"
-                            Background="{ThemeResource PlaceholderBgBrush}">
-                        <Grid>
-                            <TextBlock x:Name="PosterPlaceholder" Text="🎬" FontSize="56"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image x:Name="PosterImage" Stretch="UniformToFill"/>
-                        </Grid>
-                    </Border>
+                    <!-- Poster column: poster card + below-poster info card -->
+                    <StackPanel Grid.Column="0" Margin="16,0,24,0" VerticalAlignment="Top"
+                                Spacing="12">
+                        <!-- Poster — drop shadow + thin border for depth -->
+                        <Border Width="200" Height="290" CornerRadius="12"
+                                BorderBrush="#33FFFFFF" BorderThickness="1"
+                                Background="{ThemeResource PlaceholderBgBrush}">
+                            <Border.Shadow>
+                                <ThemeShadow/>
+                            </Border.Shadow>
+                            <Border.Translation>0,0,32</Border.Translation>
+                            <Grid>
+                                <TextBlock x:Name="PosterPlaceholder" Text="🎬" FontSize="56"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Image x:Name="PosterImage" Stretch="UniformToFill"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Below-poster info card (v2.3): Runtime / Release / MPAA stacked -->
+                        <Border x:Name="PosterInfoCard" Visibility="Collapsed"
+                                Width="200"
+                                Background="{ThemeResource CardBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="10"
+                                Padding="14,12">
+                            <StackPanel Spacing="10">
+                                <StackPanel x:Name="PiRuntimeBlock" Visibility="Collapsed" Spacing="2">
+                                    <TextBlock Text="RUNTIME" FontSize="9" FontWeight="SemiBold"
+                                               CharacterSpacing="150" Opacity="0.65"
+                                               Foreground="{ThemeResource MutedBrush}"/>
+                                    <TextBlock x:Name="PiRuntime" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}"/>
+                                </StackPanel>
+                                <StackPanel x:Name="PiReleaseBlock" Visibility="Collapsed" Spacing="2">
+                                    <TextBlock Text="RELEASED" FontSize="9" FontWeight="SemiBold"
+                                               CharacterSpacing="150" Opacity="0.65"
+                                               Foreground="{ThemeResource MutedBrush}"/>
+                                    <TextBlock x:Name="PiRelease" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}"/>
+                                </StackPanel>
+                                <StackPanel x:Name="PiMpaaBlock" Visibility="Collapsed" Spacing="2">
+                                    <TextBlock Text="RATED" FontSize="9" FontWeight="SemiBold"
+                                               CharacterSpacing="150" Opacity="0.65"
+                                               Foreground="{ThemeResource MutedBrush}"/>
+                                    <TextBlock x:Name="PiMpaa" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}"/>
+                                </StackPanel>
+                                <StackPanel x:Name="PiCountryBlock" Visibility="Collapsed" Spacing="2">
+                                    <TextBlock Text="COUNTRY" FontSize="9" FontWeight="SemiBold"
+                                               CharacterSpacing="150" Opacity="0.65"
+                                               Foreground="{ThemeResource MutedBrush}"/>
+                                    <TextBlock x:Name="PiCountry" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Meta -->
-                    <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Bottom"
-                                Margin="0,0,0,10">
-                        <TextBlock x:Name="DetailTitle" FontSize="28" FontWeight="Bold"
-                                   Foreground="White" TextWrapping="Wrap"/>
-                        <TextBlock x:Name="OriginalTitle" FontSize="14"
-                                   Foreground="#E0E0E0" Visibility="Collapsed"
+                    <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Top"
+                                Margin="0,140,0,0">
+                        <TextBlock x:Name="DetailTitle" FontSize="34" FontWeight="Bold"
+                                   Foreground="White" TextWrapping="Wrap" LineHeight="40"/>
+                        <TextBlock x:Name="OriginalTitle" FontSize="14" FontStyle="Italic"
+                                   Foreground="#C8C8D8" Visibility="Collapsed"
                                    TextWrapping="Wrap"/>
-                        <TextBlock x:Name="Tagline" FontStyle="Italic" FontSize="13"
-                                   Foreground="#D8B4FE" Visibility="Collapsed"
-                                   TextWrapping="Wrap"/>
-                        <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6"/>
+                        <!-- Tagline with a thin colored accent bar -->
+                        <Grid x:Name="TaglineWrap" Visibility="Collapsed" Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{StaticResource BrandPurpleBrush}"
+                                    CornerRadius="2" Margin="0,2,8,2"/>
+                            <TextBlock x:Name="Tagline" Grid.Column="1"
+                                       FontStyle="Italic" FontSize="14"
+                                       Foreground="#E2D6FA"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+                        <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0"/>
+                        <ItemsControl x:Name="TechBadges" Margin="0,4,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="4"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
                     </StackPanel>
                 </Grid>
 
@@ -122,10 +218,63 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Plot -->
-                <TextBlock x:Name="PlotText" FontSize="14" Foreground="{ThemeResource TextBrush}"
-                           TextWrapping="Wrap" Margin="0,20,0,0" Visibility="Collapsed"
-                           LineHeight="22"/>
+                <!-- File info panel (v2.2.2) — sits right under the action row -->
+                <Border x:Name="FileInfoPanel" Visibility="Collapsed"
+                        Margin="0,12,0,0" Padding="12,8"
+                        Background="{ThemeResource CardBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <StackPanel x:Name="FiSizeBlock" Visibility="Collapsed">
+                            <TextBlock Text="FILE SIZE" FontSize="9" FontWeight="SemiBold"
+                                       CharacterSpacing="150" Opacity="0.65"
+                                       Foreground="{ThemeResource MutedBrush}"/>
+                            <TextBlock x:Name="FiSize" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </StackPanel>
+                        <StackPanel x:Name="FiDurBlock" Visibility="Collapsed">
+                            <TextBlock Text="DURATION" FontSize="9" FontWeight="SemiBold"
+                                       CharacterSpacing="150" Opacity="0.65"
+                                       Foreground="{ThemeResource MutedBrush}"/>
+                            <TextBlock x:Name="FiDur" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </StackPanel>
+                        <StackPanel x:Name="FiContainerBlock" Visibility="Collapsed">
+                            <TextBlock Text="CONTAINER" FontSize="9" FontWeight="SemiBold"
+                                       CharacterSpacing="150" Opacity="0.65"
+                                       Foreground="{ThemeResource MutedBrush}"/>
+                            <TextBlock x:Name="FiContainer" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </StackPanel>
+                        <StackPanel x:Name="FiLangBlock" Visibility="Collapsed">
+                            <TextBlock Text="AUDIO" FontSize="9" FontWeight="SemiBold"
+                                       CharacterSpacing="150" Opacity="0.65"
+                                       Foreground="{ThemeResource MutedBrush}"/>
+                            <TextBlock x:Name="FiLangs" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </StackPanel>
+                        <StackPanel x:Name="FiSubsBlock" Visibility="Collapsed">
+                            <TextBlock Text="SUBTITLES" FontSize="9" FontWeight="SemiBold"
+                                       CharacterSpacing="150" Opacity="0.65"
+                                       Foreground="{ThemeResource MutedBrush}"/>
+                            <TextBlock x:Name="FiSubs" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Plot — with section header + capped width for readability -->
+                <Border x:Name="PlotDivider" Visibility="Collapsed"
+                        Height="1" Background="{ThemeResource BorderBrush}"
+                        Margin="0,24,0,0" Opacity="0.5"/>
+                <StackPanel x:Name="PlotSection" Visibility="Collapsed" Margin="0,20,0,0" Spacing="8">
+                    <TextBlock Text="PLOT" FontSize="10" FontWeight="SemiBold"
+                               CharacterSpacing="150" Opacity="0.65"
+                               Foreground="{ThemeResource MutedBrush}"/>
+                    <TextBlock x:Name="PlotText" FontSize="14" Foreground="{ThemeResource TextBrush}"
+                               TextWrapping="Wrap" LineHeight="22" MaxWidth="780"
+                               HorizontalAlignment="Left"/>
+                </StackPanel>
 
                 <!-- Notes (v1.9) -->
                 <Border Margin="0,20,0,0" Padding="14,12"
@@ -184,6 +333,10 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Subtle section divider before fields grid -->
+                <Border Height="1" Background="{ThemeResource BorderBrush}"
+                        Margin="0,24,0,0" Opacity="0.5"/>
+
                 <!-- Fields grid -->
                 <Grid Margin="0,20,0,0">
                     <Grid.ColumnDefinitions>
@@ -210,44 +363,104 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- Cast -->
-                <StackPanel x:Name="CastSection" Margin="0,24,0,0" Visibility="Collapsed">
+                <!-- Divider + Ratings panel -->
+                <Border x:Name="RatingsDivider" Visibility="Collapsed"
+                        Height="1" Background="{ThemeResource BorderBrush}"
+                        Margin="0,24,0,0" Opacity="0.5"/>
+                <StackPanel x:Name="RatingsPanel" Orientation="Horizontal" Spacing="28"
+                            Margin="0,16,0,0" Visibility="Collapsed"/>
+
+                <!-- Divider above Cast -->
+                <Border x:Name="CastDivider" Visibility="Collapsed"
+                        Height="1" Background="{ThemeResource BorderBrush}"
+                        Margin="0,24,0,0" Opacity="0.5"/>
+                <!-- Cast — wraps to multiple rows, no side-scroll -->
+                <StackPanel x:Name="CastSection" Margin="0,20,0,0" Visibility="Collapsed">
                     <TextBlock Text="Cast" FontSize="16" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" Margin="0,0,0,10"/>
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
                         <ItemsRepeater x:Name="CastRepeater">
                             <ItemsRepeater.Layout>
-                                <StackLayout Orientation="Horizontal" Spacing="8"/>
+                                <UniformGridLayout MinItemWidth="200" MinItemHeight="64"
+                                                   MinColumnSpacing="8" MinRowSpacing="8"
+                                                   ItemsStretch="Fill"
+                                                   Orientation="Horizontal"/>
                             </ItemsRepeater.Layout>
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="models:Actor">
                                     <Button Background="{ThemeResource CardBrush}"
                                             BorderBrush="{ThemeResource BorderBrush}"
                                             BorderThickness="1"
-                                            CornerRadius="8" Padding="12,8"
-                                            MinWidth="120" MaxWidth="160"
+                                            CornerRadius="10" Padding="8"
                                             HorizontalContentAlignment="Left"
                                             Tag="{x:Bind Name}"
                                             Click="OnActorClick">
-                                        <StackPanel>
-                                            <TextBlock Text="{x:Bind Name}"
-                                                       FontSize="12" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}"
-                                                       TextWrapping="Wrap"/>
-                                            <TextBlock Text="{x:Bind Role, TargetNullValue=''}"
-                                                       FontSize="11"
-                                                       Foreground="{ThemeResource MutedBrush}"
-                                                       TextWrapping="Wrap"/>
-                                        </StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <!-- Circular avatar (v2.3) -->
+                                            <Border Grid.Column="0" Width="44" Height="44"
+                                                    CornerRadius="22"
+                                                    Background="{ThemeResource PlaceholderBgBrush}"
+                                                    Margin="0,0,10,0">
+                                                <Image Stretch="UniformToFill"
+                                                       Source="{x:Bind ThumbBitmap, Mode=OneWay}"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Name}"
+                                                           FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="WrapWholeWords"
+                                                           MaxLines="2"/>
+                                                <TextBlock Text="{x:Bind Role, TargetNullValue=''}"
+                                                           FontSize="11"
+                                                           Foreground="{ThemeResource MutedBrush}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="WrapWholeWords"
+                                                           MaxLines="2"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
-                    </ScrollViewer>
                 </StackPanel>
 
             </StackPanel>
         </ScrollViewer>
+
+        <!-- Sticky action bar (v2.3) — appears once you scroll past the hero -->
+        <Border x:Name="StickyBar" Visibility="Collapsed"
+                Background="{ThemeResource SidebarBrush}"
+                BorderBrush="{ThemeResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Height="52" VerticalAlignment="Top" Opacity="0.96">
+            <Grid Padding="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StickyTitle" Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontSize="14" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}"
+                           TextTrimming="CharacterEllipsis"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button x:Name="StickyPlayBtn" Click="OnPlay"
+                            Background="#A78BFA" Foreground="White"
+                            BorderThickness="0" CornerRadius="6" Padding="14,5">
+                        <TextBlock Text="▶ Play"/>
+                    </Button>
+                    <Button Click="OnStickyClose"
+                            Background="Transparent"
+                            Foreground="{ThemeResource MutedBrush}"
+                            BorderThickness="0" CornerRadius="6" Padding="10,5"
+                            Content="✕"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+        </Grid>
     </Grid>
 </Window>

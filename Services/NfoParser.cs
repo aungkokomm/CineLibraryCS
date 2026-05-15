@@ -4,6 +4,25 @@ namespace CineLibraryCS.Services;
 
 public record ParsedActor(string Name, string? Role, string? Thumb, int Order);
 
+/// <summary>
+/// Stream-info from `<fileinfo>/<streamdetails>` — width/height, codec,
+/// channels, languages, HDR. Fields may be null on older or sparse nfos.
+/// </summary>
+public record ParsedStreamDetails(
+    int? VideoWidth,
+    int? VideoHeight,
+    string? VideoCodec,
+    string? VideoAspect,
+    string? HdrType,
+    string? AudioCodec,
+    string? AudioChannels,
+    string? AudioLanguages,
+    string? SubtitleLanguages,
+    int? DurationSeconds
+);
+
+public record ParsedRating(string Source, double Value, int? Votes);
+
 public record ParsedMovie(
     string Title,
     string? OriginalTitle,
@@ -24,8 +43,11 @@ public record ParsedMovie(
     string? Trailer,
     List<string> Genres,
     List<string> Directors,
+    List<string> Writers,
     List<ParsedActor> Actors,
-    List<string> Sets
+    List<string> Sets,
+    List<ParsedRating> Ratings,
+    ParsedStreamDetails? Stream
 );
 
 public static class NfoParser
@@ -42,23 +64,14 @@ public static class NfoParser
             string? title = Get(root, "title");
             if (string.IsNullOrWhiteSpace(title)) return null;
 
-            var genres = new List<string>();
-            foreach (XmlElement g in root.SelectNodes("genre") ?? (XmlNodeList)new XmlDocument().CreateDocumentFragment().ChildNodes)
-            {
-                var t = g.InnerText.Trim();
-                if (!string.IsNullOrEmpty(t)) genres.Add(t);
-            }
-
-            var directors = new List<string>();
-            foreach (XmlElement d in root.SelectNodes("director") ?? (XmlNodeList)new XmlDocument().CreateDocumentFragment().ChildNodes)
-            {
-                var t = d.InnerText.Trim();
-                if (!string.IsNullOrEmpty(t)) directors.Add(t);
-            }
+            var genres = ReadList(root, "genre");
+            var directors = ReadList(root, "director");
+            // <credits> and <writer> both exist in the wild — merge dedup'd
+            var writers = MergeLists(ReadList(root, "credits"), ReadList(root, "writer"));
 
             var actors = new List<ParsedActor>();
             int order = 0;
-            foreach (XmlElement a in root.SelectNodes("actor") ?? (XmlNodeList)new XmlDocument().CreateDocumentFragment().ChildNodes)
+            foreach (XmlElement a in SelectElements(root, "actor"))
             {
                 var name = GetChild(a, "name");
                 if (string.IsNullOrEmpty(name)) continue;
@@ -70,18 +83,7 @@ public static class NfoParser
                 ));
             }
 
-            // Sets / collections — try every shape seen in the wild:
-            //   <set>James Bond</set>
-            //   <set><name>James Bond</name></set>
-            //   <set><name>X</name><overview>...</overview></set>
-            //   <set id="645"><name>James Bond</name></set>
-            //   <sets><set>…</set></sets>                ← wrapper, some MediaElch versions
-            //   <collection>James Bond</collection>      ← Plex / Emby style
-            //   <collections><collection>…</collection></collections>
-            //   <setname>James Bond Collection</setname> ← older Kodi root-level
-            //
-            // Defensive across all of them — Infuse handles more shapes than
-            // our v1 parser did, which left ~half of real collections invisible.
+            // Sets / collections — every shape seen in the wild
             var sets = new List<string>();
             void CollectSetsFromXPath(string xpath)
             {
@@ -91,11 +93,9 @@ public static class NfoParser
                 foreach (XmlNode n in nodes)
                 {
                     if (n is not XmlElement el) continue;
-                    // Prefer <name> child; fall back to direct text content
                     var name = GetChild(el, "name");
                     if (string.IsNullOrWhiteSpace(name))
                     {
-                        // If element has *only* text (no child elements), use its text
                         bool hasChildren = false;
                         foreach (XmlNode c in el.ChildNodes)
                             if (c is XmlElement) { hasChildren = true; break; }
@@ -108,17 +108,39 @@ public static class NfoParser
             CollectSetsFromXPath("sets/set");
             CollectSetsFromXPath("collection");
             CollectSetsFromXPath("collections/collection");
-            // Root-level <setname>
             var setname = Get(root, "setname");
             if (!string.IsNullOrWhiteSpace(setname)) sets.Add(setname!);
+
+            // Multiple ratings: <ratings><rating name="imdb" default="true">value/votes</rating>…
+            var ratings = new List<ParsedRating>();
+            foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
+            {
+                var src = rt.GetAttribute("name");
+                if (string.IsNullOrEmpty(src)) src = rt.GetAttribute("moviedb");
+                if (string.IsNullOrEmpty(src)) src = "unknown";
+                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+                if (v == null) continue;
+                var votes = TryInt(GetChild(rt, "votes"));
+                ratings.Add(new ParsedRating(src, v.Value, votes));
+            }
+
+            var streamDetails = ParseStreamDetails(root);
+
+            // Primary rating: first from <ratings> if present, else <rating>.
+            double? primaryRating = ratings.Count > 0
+                ? ratings[0].Value
+                : TryDouble(Get(root, "rating"));
+            int? primaryVotes = ratings.Count > 0
+                ? ratings[0].Votes
+                : TryInt(Get(root, "votes"));
 
             return new ParsedMovie(
                 Title: title,
                 OriginalTitle: Get(root, "originaltitle"),
                 SortTitle: Get(root, "sorttitle"),
                 Year: TryInt(Get(root, "year")),
-                Rating: TryDouble(Get(root, "rating") ?? Get(root, "ratings/rating/value")),
-                Votes: TryInt(Get(root, "votes") ?? Get(root, "ratings/rating/votes")),
+                Rating: primaryRating,
+                Votes: primaryVotes,
                 Runtime: TryInt(Get(root, "runtime")),
                 Plot: Get(root, "plot"),
                 Outline: Get(root, "outline"),
@@ -132,14 +154,109 @@ public static class NfoParser
                 Trailer: Get(root, "trailer"),
                 Genres: genres,
                 Directors: directors,
+                Writers: writers,
                 Actors: actors,
-                Sets: sets
+                Sets: sets,
+                Ratings: ratings,
+                Stream: streamDetails
             );
         }
         catch
         {
             return null;
         }
+    }
+
+    private static ParsedStreamDetails? ParseStreamDetails(XmlElement root)
+    {
+        var sd = root.SelectSingleNode("fileinfo/streamdetails")
+               ?? root.SelectSingleNode("streamdetails");
+        if (sd == null) return null;
+
+        int? vw = null, vh = null, dur = null;
+        string? vcodec = null, vaspect = null, hdr = null;
+        string? acodec = null, achan = null;
+        var audioLangs = new List<string>();
+        var subLangs = new List<string>();
+
+        if (sd.SelectSingleNode("video") is XmlElement video)
+        {
+            vw = TryInt(GetChild(video, "width"));
+            vh = TryInt(GetChild(video, "height"));
+            vcodec = GetChild(video, "codec");
+            vaspect = GetChild(video, "aspect");
+            hdr = GetChild(video, "hdrtype");
+            dur = TryInt(GetChild(video, "durationinseconds"));
+            if (dur == null)
+            {
+                var mins = TryInt(GetChild(video, "duration"));
+                if (mins != null) dur = mins * 60;
+            }
+        }
+
+        var audioNodes = sd.SelectNodes("audio");
+        if (audioNodes != null)
+        {
+            foreach (XmlElement au in audioNodes)
+            {
+                if (acodec == null) acodec = GetChild(au, "codec");
+                if (achan == null) achan = GetChild(au, "channels");
+                var lang = GetChild(au, "language");
+                if (!string.IsNullOrEmpty(lang)) audioLangs.Add(lang);
+            }
+        }
+
+        var subNodes = sd.SelectNodes("subtitle");
+        if (subNodes != null)
+        {
+            foreach (XmlElement sub in subNodes)
+            {
+                var lang = GetChild(sub, "language");
+                if (!string.IsNullOrEmpty(lang)) subLangs.Add(lang);
+            }
+        }
+
+        return new ParsedStreamDetails(
+            VideoWidth: vw,
+            VideoHeight: vh,
+            VideoCodec: vcodec,
+            VideoAspect: vaspect,
+            HdrType: hdr,
+            AudioCodec: acodec,
+            AudioChannels: achan,
+            AudioLanguages: audioLangs.Count > 0 ? string.Join(",", audioLangs.Distinct()) : null,
+            SubtitleLanguages: subLangs.Count > 0 ? string.Join(",", subLangs.Distinct()) : null,
+            DurationSeconds: dur
+        );
+    }
+
+    private static List<string> ReadList(XmlElement root, string xpath)
+    {
+        var list = new List<string>();
+        foreach (XmlElement el in SelectElements(root, xpath))
+        {
+            var t = el.InnerText.Trim();
+            if (!string.IsNullOrEmpty(t)) list.Add(t);
+        }
+        return list;
+    }
+
+    private static List<string> MergeLists(params List<string>[] lists)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var l in lists)
+            foreach (var s in l)
+                if (seen.Add(s)) result.Add(s);
+        return result;
+    }
+
+    private static IEnumerable<XmlElement> SelectElements(XmlElement root, string xpath)
+    {
+        XmlNodeList? nodes = null;
+        try { nodes = root.SelectNodes(xpath); } catch { yield break; }
+        if (nodes == null) yield break;
+        foreach (var n in nodes) if (n is XmlElement el) yield return el;
     }
 
     private static string? Get(XmlElement root, string xpath)

@@ -81,15 +81,24 @@ public class ScannerService
             year=@y, rating=@ra, votes=@vo, runtime=@ru, plot=@pl, outline=@ou,
             tagline=@tg, mpaa=@mp, imdb_id=@im, tmdb_id=@tm, premiered=@pr,
             studio=@su, country=@co, trailer=@tr, local_poster=@lp, local_fanart=@lf,
-            local_nfo=@ln, is_missing=0, date_modified=strftime('%s','now')
+            local_nfo=@ln,
+            video_width=@vw, video_height=@vh, video_codec=@vc, video_aspect=@va,
+            hdr_type=@hdr, audio_codec=@ac, audio_channels=@ach,
+            audio_languages=@al, subtitle_languages=@sl, duration_seconds=@dur,
+            container_ext=@cx, file_size_bytes=@fs,
+            is_missing=0, date_modified=strftime('%s','now')
             WHERE id=@id";
 
         using var stmtInsert = conn.CreateCommand();
         stmtInsert.CommandText = @"INSERT INTO movies (
             volume_serial, folder_rel_path, video_file_rel_path, title, original_title, sort_title,
             year, rating, votes, runtime, plot, outline, tagline, mpaa, imdb_id, tmdb_id,
-            premiered, studio, country, trailer, local_poster, local_fanart, local_nfo)
-            VALUES (@vs,@fr,@vfr,@t,@ot,@st,@y,@ra,@vo,@ru,@pl,@ou,@tg,@mp,@im,@tm,@pr,@su,@co,@tr,@lp,@lf,@ln)";
+            premiered, studio, country, trailer, local_poster, local_fanart, local_nfo,
+            video_width, video_height, video_codec, video_aspect, hdr_type,
+            audio_codec, audio_channels, audio_languages, subtitle_languages,
+            duration_seconds, container_ext, file_size_bytes)
+            VALUES (@vs,@fr,@vfr,@t,@ot,@st,@y,@ra,@vo,@ru,@pl,@ou,@tg,@mp,@im,@tm,@pr,@su,@co,@tr,@lp,@lf,@ln,
+                    @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs)";
 
         using var tx = conn.BeginTransaction();
         // All commands on this connection must carry the active transaction
@@ -155,13 +164,17 @@ public class ScannerService
                 found++;
                 progress?.Report(new ScanProgress(found, inserted, updated, skipped, folder, false));
 
-                // Find video file
+                // Find video file + grab size and container for the file-info panel
                 string? videoRelPath = null;
+                string? containerExt = null;
+                long? fileSize = null;
                 foreach (var f in Directory.EnumerateFiles(folder))
                 {
                     if (VideoExts.Contains(Path.GetExtension(f)))
                     {
                         videoRelPath = Path.GetRelativePath(driveRoot, f).Replace('\\', '/');
+                        containerExt = Path.GetExtension(f).TrimStart('.').ToLowerInvariant();
+                        try { fileSize = new FileInfo(f).Length; } catch { }
                         break;
                     }
                 }
@@ -184,7 +197,7 @@ public class ScannerService
                     // Clear params from any previous iteration before re-binding
                     stmtUpdate.Parameters.Clear();
                     rowId = Convert.ToInt32(existingId);
-                    BindMovieParams(stmtUpdate, parsed, videoRelPath, localPoster, localFanart, localNfo);
+                    BindMovieParams(stmtUpdate, parsed, videoRelPath, localPoster, localFanart, localNfo, containerExt, fileSize);
                     stmtUpdate.Parameters.AddWithValue("@id", rowId);
                     stmtUpdate.ExecuteNonQuery();
                     UpsertRelated(conn, tx, rowId, parsed, lookup);
@@ -195,7 +208,7 @@ public class ScannerService
                     stmtInsert.Parameters.Clear();
                     stmtInsert.Parameters.AddWithValue("@vs", volumeSerial);
                     stmtInsert.Parameters.AddWithValue("@fr", folderRelPath);
-                    BindMovieParams(stmtInsert, parsed, videoRelPath, localPoster, localFanart, localNfo);
+                    BindMovieParams(stmtInsert, parsed, videoRelPath, localPoster, localFanart, localNfo, containerExt, fileSize);
                     stmtInsert.ExecuteNonQuery();
                     // Retrieve the inserted row ID
                     using var lastId = conn.CreateCommand();
@@ -225,7 +238,8 @@ public class ScannerService
         progress?.Report(new ScanProgress(found, inserted, updated, skipped, "", true));
     }
 
-    private static void BindMovieParams(SqliteCommand cmd, ParsedMovie p, string? vfr, string? lp, string? lf, string? ln)
+    private static void BindMovieParams(SqliteCommand cmd, ParsedMovie p, string? vfr, string? lp, string? lf, string? ln,
+        string? containerExt = null, long? fileSize = null)
     {
         cmd.Parameters.AddWithValue("@vfr", (object?)vfr ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@t", p.Title);
@@ -248,6 +262,20 @@ public class ScannerService
         cmd.Parameters.AddWithValue("@lp", (object?)lp ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lf", (object?)lf ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ln", (object?)ln ?? DBNull.Value);
+        // v2.2 stream + file info
+        var sd = p.Stream;
+        cmd.Parameters.AddWithValue("@vw",  (object?)sd?.VideoWidth        ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vh",  (object?)sd?.VideoHeight       ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vc",  (object?)sd?.VideoCodec        ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@va",  (object?)sd?.VideoAspect       ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@hdr", (object?)sd?.HdrType           ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ac",  (object?)sd?.AudioCodec        ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ach", (object?)sd?.AudioChannels     ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@al",  (object?)sd?.AudioLanguages    ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sl",  (object?)sd?.SubtitleLanguages ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@dur", (object?)sd?.DurationSeconds   ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@cx",  (object?)containerExt          ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@fs",  (object?)fileSize              ?? DBNull.Value);
     }
 
     /// <summary>
@@ -314,10 +342,9 @@ public class ScannerService
 
     private sealed class LookupCache
     {
-        // Keyed by lowercased normalized name (so "tom hanks" and "Tom Hanks "
-        // collide on the same cache entry → same DB row).
         public Dictionary<string, int> Genres { get; } = new();
         public Dictionary<string, int> Directors { get; } = new();
+        public Dictionary<string, int> Writers { get; } = new();
         public Dictionary<string, int> Actors { get; } = new();
         public Dictionary<string, int> Sets { get; } = new();
 
@@ -338,6 +365,7 @@ public class ScannerService
             }
             Fill("SELECT id, name FROM genres",    c.Genres);
             Fill("SELECT id, name FROM directors", c.Directors);
+            try { Fill("SELECT id, name FROM writers",   c.Writers); } catch { /* table may not exist on very old DBs */ }
             Fill("SELECT id, name FROM actors",    c.Actors);
             Fill("SELECT id, name FROM sets",      c.Sets);
             return c;
@@ -382,8 +410,10 @@ public class ScannerService
 
         using (var d = Cmd("DELETE FROM movie_genres    WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
         using (var d = Cmd("DELETE FROM movie_directors WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
+        using (var d = Cmd("DELETE FROM movie_writers   WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
         using (var d = Cmd("DELETE FROM movie_actors    WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
         using (var d = Cmd("DELETE FROM movie_sets      WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
+        using (var d = Cmd("DELETE FROM movie_ratings   WHERE movie_id=@id")) { d.Parameters.AddWithValue("@id", movieId); d.ExecuteNonQuery(); }
 
         // Split multi-genre strings ("Action / Adventure / Sci-Fi") into
         // separate rows, and fold common aliases. Dedupe via HashSet so a
@@ -407,6 +437,22 @@ public class ScannerService
             if (did < 0) continue;
             using var c = Cmd("INSERT OR IGNORE INTO movie_directors VALUES (@m,@d)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@d", did); c.ExecuteNonQuery();
+        }
+        foreach (var w in p.Writers)
+        {
+            var wid = GetOrInsert(conn, tx, "writers", w, cache.Writers);
+            if (wid < 0) continue;
+            using var c = Cmd("INSERT OR IGNORE INTO movie_writers VALUES (@m,@w)");
+            c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@w", wid); c.ExecuteNonQuery();
+        }
+        foreach (var rt in p.Ratings)
+        {
+            using var c = Cmd("INSERT OR REPLACE INTO movie_ratings VALUES (@m,@s,@v,@vt)");
+            c.Parameters.AddWithValue("@m", movieId);
+            c.Parameters.AddWithValue("@s", rt.Source);
+            c.Parameters.AddWithValue("@v", rt.Value);
+            c.Parameters.AddWithValue("@vt", (object?)rt.Votes ?? DBNull.Value);
+            c.ExecuteNonQuery();
         }
         foreach (var a in p.Actors)
         {

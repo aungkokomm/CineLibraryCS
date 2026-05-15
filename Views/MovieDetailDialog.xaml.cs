@@ -16,6 +16,7 @@ public sealed partial class MovieDetailDialog : Window
 {
     private readonly int _movieId;
     private MovieDetail? _movie;
+    private bool _closed;
 
     public event EventHandler? WatchlistChanged;
 
@@ -44,12 +45,21 @@ public sealed partial class MovieDetailDialog : Window
         appWindow.Resize(new SizeInt32(width, height));
         appWindow.Title = "Movie Details";
 
-        // Ensure window is resizable and maximizable
+        // Ensure window is resizable and maximizable, then open maximized
         if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
         {
             presenter.IsResizable = true;
             presenter.IsMaximizable = true;
+            presenter.Maximize();
         }
+
+        // Esc closes the dialog
+        var escAcc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
+        {
+            Key = Windows.System.VirtualKey.Escape
+        };
+        escAcc.Invoked += (_, a) => { a.Handled = true; Close(); };
+        RootGrid.KeyboardAccelerators.Add(escAcc);
 
         // Persist size on close — using AppWindow.Changed catches the final
         // resized state regardless of how the window was dismissed.
@@ -68,10 +78,15 @@ public sealed partial class MovieDetailDialog : Window
         if (RootGrid is FrameworkElement fe)
             fe.RequestedTheme = MainWindow.CurrentTheme;
 
-        Activated += async (_, _) =>
-        {
-            if (_movie == null) await LoadAsync();
-        };
+        // Track close so async load that finishes after Esc doesn't try to
+        // touch the destroyed window (COMException "operation identifier is
+        // not valid").
+        Closed += (_, _) => _closed = true;
+
+        // Start DB load IMMEDIATELY (don't wait for Activated). Overlapping
+        // with the window animation eliminates the visible "empty window"
+        // delay that made the dialog feel slow.
+        _ = LoadAsync();
     }
 
     private async Task LoadAsync()
@@ -79,8 +94,12 @@ public sealed partial class MovieDetailDialog : Window
         _movie = await Task.Run(() =>
             AppState.Instance.Db.GetMovieDetail(_movieId, AppState.Instance.Connected));
 
-        if (_movie == null) return;
-        PopulateUi(_movie);
+        if (_movie == null || _closed) return;
+        try { PopulateUi(_movie); }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            // Window was closed mid-populate — silently bail.
+        }
     }
 
     private void PopulateUi(MovieDetail m)
@@ -96,9 +115,19 @@ public sealed partial class MovieDetailDialog : Window
         }
         if (m.Tagline != null)
         {
-            Tagline.Text = $"\"{m.Tagline}\"";
-            Tagline.Visibility = Visibility.Visible;
+            Tagline.Text = m.Tagline;
+            TaglineWrap.Visibility = Visibility.Visible;
         }
+
+        // Sticky bar title (v2.3) — shown when scrolled past hero
+        StickyTitle.Text = m.Title;
+
+        // IMDb / TMDb top-right pill buttons (v2.3)
+        ImdbLinkBtn.Visibility = !string.IsNullOrWhiteSpace(m.ImdbId) ? Visibility.Visible : Visibility.Collapsed;
+        TmdbLinkBtn.Visibility = !string.IsNullOrWhiteSpace(m.TmdbId) ? Visibility.Visible : Visibility.Collapsed;
+
+        // Below-poster info card (v2.3)
+        PopulatePosterInfoCard(m);
 
         // Chips
         ChipsPanel.Children.Clear();
@@ -167,7 +196,8 @@ public sealed partial class MovieDetailDialog : Window
         if (!string.IsNullOrWhiteSpace(plotText))
         {
             PlotText.Text = plotText;
-            PlotText.Visibility = Visibility.Visible;
+            PlotSection.Visibility = Visibility.Visible;
+            PlotDivider.Visibility = Visibility.Visible;
         }
 
         // Genres — clickable, filters library on click
@@ -198,6 +228,11 @@ public sealed partial class MovieDetailDialog : Window
             }
         }
 
+        // Tech badges + ratings + file info (v2.2)
+        PopulateTechBadges(m);
+        PopulateRatingsPanel(m);
+        PopulateFileInfo(m);
+
         // Studio — clickable HyperlinkButton (was a plain TextBlock)
         if (m.Studio != null)
         {
@@ -210,16 +245,61 @@ public sealed partial class MovieDetailDialog : Window
             StudioLink.Click += OnStudioClick;
         }
 
-        // Cast
+        // Cast — show the list right away; trickle thumbnail loads in
+        // batches so the first paint isn't blocked by 30+ HTTP requests.
         if (m.Actors.Count > 0)
         {
             CastSection.Visibility = Visibility.Visible;
+            CastDivider.Visibility = Visibility.Visible;
             CastRepeater.ItemsSource = m.Actors;
+            _ = LoadCastThumbsAsync(m.Actors);
         }
 
         // Images
         LoadImageAsync(m.LocalPoster, PosterImage, PosterPlaceholder, 220);
         LoadImageAsync(m.LocalFanart, HeroImage, null, 1200);
+    }
+
+    /// <summary>
+    /// Resolves the actor's Thumb (URL or local path) into a BitmapImage.
+    /// Most MediaElch nfos write a TMDb http URL — BitmapImage handles HTTP
+    /// natively. Local file paths also work via the file:// scheme.
+    /// </summary>
+    private static void LoadActorThumb(Models.Actor a)
+    {
+        if (string.IsNullOrWhiteSpace(a.Thumb)) return;
+        try
+        {
+            var raw = a.Thumb!.Trim();
+            Uri? uri = null;
+            if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                uri = new Uri(raw);
+            else if (File.Exists(raw))
+                uri = new Uri(raw);
+            if (uri == null) return;
+            var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 88 };
+            bmp.UriSource = uri;
+            a.ThumbBitmap = bmp;
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Trickle-loads actor thumbnails in small batches with a yield between
+    /// each batch. Prevents 30+ parallel HTTP requests + BitmapImage
+    /// initializations from blocking the first paint of the dialog.
+    /// </summary>
+    private async Task LoadCastThumbsAsync(IReadOnlyList<Models.Actor> actors)
+    {
+        const int batchSize = 6;
+        for (int i = 0; i < actors.Count; i++)
+        {
+            if (_closed) return;
+            LoadActorThumb(actors[i]);
+            if ((i + 1) % batchSize == 0)
+                await Task.Delay(30);   // give the UI thread air to render
+        }
     }
 
     private async void LoadImageAsync(string? relPath, Image imgControl, FrameworkElement? placeholder, int decodeWidth)
@@ -264,6 +344,330 @@ public sealed partial class MovieDetailDialog : Window
     {
         if (App.MainWindow is MainWindow mw) nav(mw);
         Close();
+    }
+
+    // ── Tech badges, ratings, trailer, file info (v2.2) ──────────────────────
+
+    private void PopulateTechBadges(MovieDetail m)
+    {
+        TechBadges.Items.Clear();
+        // Resolution
+        var resLabel = ResolutionLabel(m.VideoWidth, m.VideoHeight);
+        if (resLabel != null) AddTechBadge(resLabel, "#3B82F6"); // blue
+        // Aspect ratio
+        var aspLabel = NormalizeAspect(m.VideoAspect);
+        if (aspLabel != null) AddTechBadge(aspLabel, "#475569"); // slate
+        // Video codec
+        if (!string.IsNullOrWhiteSpace(m.VideoCodec))
+            AddTechBadge(m.VideoCodec.ToUpperInvariant(), "#7C3AED"); // violet
+        // HDR
+        if (!string.IsNullOrWhiteSpace(m.HdrType))
+            AddTechBadge(m.HdrType.ToUpperInvariant(), "#EAB308"); // amber
+        // Audio codec + channels
+        var aud = AudioLabel(m.AudioCodec, m.AudioChannels);
+        if (aud != null) AddTechBadge(aud, "#10B981"); // emerald
+    }
+
+    private void AddTechBadge(string text, string hex)
+    {
+        // Gradient + thin top-highlight border for a polished embossed look
+        var topColor = HexColor(hex);
+        var bottomColor = DarkenColor(topColor, 0.85);
+        var bg = new Microsoft.UI.Xaml.Media.LinearGradientBrush
+        {
+            StartPoint = new Windows.Foundation.Point(0, 0),
+            EndPoint = new Windows.Foundation.Point(0, 1),
+        };
+        bg.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = topColor, Offset = 0 });
+        bg.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Color = bottomColor, Offset = 1 });
+
+        var border = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Background = bg,
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(8, 3, 8, 3),
+        };
+        border.Child = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+        };
+        TechBadges.Items.Add(border);
+    }
+
+    private static Windows.UI.Color HexColor(string hex)
+    {
+        if (hex.StartsWith("#")) hex = hex[1..];
+        if (hex.Length == 6) hex = "FF" + hex;
+        var a = Convert.ToByte(hex[..2], 16);
+        var r = Convert.ToByte(hex.Substring(2, 2), 16);
+        var g = Convert.ToByte(hex.Substring(4, 2), 16);
+        var b = Convert.ToByte(hex.Substring(6, 2), 16);
+        return Windows.UI.Color.FromArgb(a, r, g, b);
+    }
+
+    private static Windows.UI.Color DarkenColor(Windows.UI.Color c, double factor)
+    {
+        return Windows.UI.Color.FromArgb(c.A,
+            (byte)(c.R * factor), (byte)(c.G * factor), (byte)(c.B * factor));
+    }
+
+    private static SolidColorBrush HexBrush(string hex)
+    {
+        if (hex.StartsWith("#")) hex = hex[1..];
+        if (hex.Length == 6) hex = "FF" + hex;
+        var a = Convert.ToByte(hex[..2], 16);
+        var r = Convert.ToByte(hex.Substring(2, 2), 16);
+        var g = Convert.ToByte(hex.Substring(4, 2), 16);
+        var b = Convert.ToByte(hex.Substring(6, 2), 16);
+        return new SolidColorBrush(Windows.UI.Color.FromArgb(a, r, g, b));
+    }
+
+    private static string? ResolutionLabel(int? w, int? h)
+    {
+        if (w == null && h == null) return null;
+        // Some nfos record wrong values in <height> (especially for older
+        // MediaElch scrapes). Use the larger dimension as the resolution
+        // signal — for a landscape 1080p video, width=1920 is the source
+        // of truth even if height got logged incorrectly.
+        var px = Math.Max(w ?? 0, h ?? 0);
+        // Width-based thresholds: 4K=3840, 1080p=1920, 720p=1280, SD<800
+        return px switch
+        {
+            >= 3000 => "4K",
+            >= 1700 => "HD 1080",
+            >= 1100 => "HD 720",
+            >= 600  => "SD",
+            _       => null,
+        };
+    }
+
+    private static string? NormalizeAspect(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (!double.TryParse(raw, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v)) return raw;
+        // Match well-known aspect ratios
+        return v switch
+        {
+            >= 2.30 and <= 2.45 => "2.39:1",
+            >= 2.20 and <= 2.30 => "2.21:1",
+            >= 1.80 and <= 1.90 => "1.85:1",
+            >= 1.75 and <= 1.80 => "16:9",
+            >= 1.30 and <= 1.40 => "4:3",
+            _ => $"{v:F2}:1",
+        };
+    }
+
+    private static string? AudioLabel(string? codec, string? channels)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(codec)) parts.Add(codec.ToUpperInvariant());
+        if (!string.IsNullOrWhiteSpace(channels))
+        {
+            var lbl = channels switch
+            {
+                "8" => "7.1",
+                "7" => "6.1",
+                "6" => "5.1",
+                "2" => "Stereo",
+                "1" => "Mono",
+                _ => $"{channels} ch",
+            };
+            parts.Add(lbl);
+        }
+        return parts.Count == 0 ? null : string.Join(" ", parts);
+    }
+
+    private void PopulateRatingsPanel(MovieDetail m)
+    {
+        RatingsPanel.Children.Clear();
+        if (m.AllRatings.Count == 0)
+        {
+            RatingsPanel.Visibility = Visibility.Collapsed;
+            RatingsDivider.Visibility = Visibility.Collapsed;
+            return;
+        }
+        RatingsPanel.Visibility = Visibility.Visible;
+        RatingsDivider.Visibility = Visibility.Visible;
+        foreach (var rt in m.AllRatings)
+        {
+            var sourceLabel = PrettySource(rt.Source);
+            var stack = new StackPanel { Spacing = 2 };
+            stack.Children.Add(new TextBlock
+            {
+                Text = sourceLabel.ToUpperInvariant(),
+                FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                CharacterSpacing = 150, Opacity = 0.65,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                       + (rt.Source.Equals("rottentomatoes", StringComparison.OrdinalIgnoreCase) ? "%" : ""),
+                FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+            });
+            if (rt.Votes.HasValue && rt.Votes.Value > 0)
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = FormatVotes(rt.Votes.Value),
+                    FontSize = 10,
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                });
+            }
+            RatingsPanel.Children.Add(stack);
+        }
+    }
+
+    private static string PrettySource(string src) => src.ToLowerInvariant() switch
+    {
+        "imdb" => "IMDb",
+        "themoviedb" or "tmdb" => "TMDb",
+        "rottentomatoes" => "Rotten Tomatoes",
+        "metacritic" => "Metacritic",
+        "default" => "Rating",
+        _ => char.ToUpper(src[0]) + src.Substring(1),
+    };
+
+    private static string FormatVotes(int votes) => votes switch
+    {
+        >= 1_000_000 => $"{votes / 1_000_000.0:F1}M votes",
+        >= 1_000     => $"{votes / 1_000.0:F1}K votes",
+        _            => $"{votes} votes",
+    };
+
+    private void PopulateFileInfo(MovieDetail m)
+    {
+        bool any = false;
+        if (m.FileSizeBytes.HasValue && m.FileSizeBytes.Value > 0)
+        {
+            FiSize.Text = FormatBytes(m.FileSizeBytes.Value);
+            FiSizeBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (m.DurationSeconds.HasValue && m.DurationSeconds.Value > 0)
+        {
+            FiDur.Text = FormatDuration(m.DurationSeconds.Value);
+            FiDurBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.ContainerExt))
+        {
+            FiContainer.Text = m.ContainerExt.ToUpperInvariant();
+            FiContainerBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.AudioLanguages))
+        {
+            FiLangs.Text = m.AudioLanguages.Replace(",", " · ");
+            FiLangBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.SubtitleLanguages))
+        {
+            var subs = m.SubtitleLanguages.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            FiSubs.Text = subs.Length switch
+            {
+                0 => "—",
+                1 => subs[0],
+                <= 3 => string.Join(" · ", subs),
+                _ => $"{subs.Length} tracks",
+            };
+            FiSubsBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        FileInfoPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string FormatBytes(long b)
+    {
+        const long KB = 1024L, MB = KB * 1024, GB = MB * 1024;
+        if (b >= GB) return $"{b / (double)GB:F2} GB";
+        if (b >= MB) return $"{b / (double)MB:F0} MB";
+        if (b >= KB) return $"{b / (double)KB:F0} KB";
+        return $"{b} B";
+    }
+
+    private static string FormatDuration(int seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}h {t.Minutes:D2}m"
+            : $"{t.Minutes}m {t.Seconds:D2}s";
+    }
+
+    /// <summary>
+    /// Fills the small card that sits under the poster — Runtime, Release
+    /// date, MPAA rating, Country. Blocks hide themselves when their field
+    /// is empty so the card shrinks to fit.
+    /// </summary>
+    private void PopulatePosterInfoCard(MovieDetail m)
+    {
+        bool any = false;
+        if (m.Runtime.HasValue && m.Runtime.Value > 0)
+        {
+            PiRuntime.Text = $"{m.Runtime.Value} min";
+            PiRuntimeBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Premiered))
+        {
+            // Premiered usually 2026-12-12 — display friendlier date
+            PiRelease.Text = DateTime.TryParse(m.Premiered, out var dt)
+                ? dt.ToString("MMM d, yyyy")
+                : m.Premiered!;
+            PiReleaseBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        else if (m.Year.HasValue)
+        {
+            PiRelease.Text = m.Year.Value.ToString();
+            PiReleaseBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Mpaa))
+        {
+            PiMpaa.Text = m.Mpaa!;
+            PiMpaaBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Country))
+        {
+            PiCountry.Text = m.Country!;
+            PiCountryBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        PosterInfoCard.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ── Sticky action bar + external link buttons (v2.3) ─────────────────
+
+    private void OnContentScrolled(object sender, ScrollViewerViewChangedEventArgs e)
+    {
+        // Bar appears once the user is past the hero block (~340 px tall)
+        StickyBar.Visibility = ContentScroller.VerticalOffset > 280
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void OnStickyClose(object sender, RoutedEventArgs e) => Close();
+
+    private async void OnOpenImdb(object sender, RoutedEventArgs e)
+    {
+        if (_movie?.ImdbId == null) return;
+        try { await Launcher.LaunchUriAsync(new Uri($"https://www.imdb.com/title/{_movie.ImdbId}/")); } catch { }
+    }
+
+    private async void OnOpenTmdb(object sender, RoutedEventArgs e)
+    {
+        if (_movie?.TmdbId == null) return;
+        try { await Launcher.LaunchUriAsync(new Uri($"https://www.themoviedb.org/movie/{_movie.TmdbId}")); } catch { }
     }
 
     private async void OnPlay(object sender, RoutedEventArgs e)

@@ -164,6 +164,43 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             Exec("ALTER TABLE movies ADD COLUMN last_played_at INTEGER DEFAULT 0");
         if (!cols.Contains("note"))
             Exec("ALTER TABLE movies ADD COLUMN note TEXT");
+        // v2.2 — stream details + file info + writers fields
+        if (!cols.Contains("video_width"))      Exec("ALTER TABLE movies ADD COLUMN video_width INTEGER");
+        if (!cols.Contains("video_height"))     Exec("ALTER TABLE movies ADD COLUMN video_height INTEGER");
+        if (!cols.Contains("video_codec"))      Exec("ALTER TABLE movies ADD COLUMN video_codec TEXT");
+        if (!cols.Contains("video_aspect"))     Exec("ALTER TABLE movies ADD COLUMN video_aspect TEXT");
+        if (!cols.Contains("hdr_type"))         Exec("ALTER TABLE movies ADD COLUMN hdr_type TEXT");
+        if (!cols.Contains("audio_codec"))      Exec("ALTER TABLE movies ADD COLUMN audio_codec TEXT");
+        if (!cols.Contains("audio_channels"))   Exec("ALTER TABLE movies ADD COLUMN audio_channels TEXT");
+        if (!cols.Contains("audio_languages"))  Exec("ALTER TABLE movies ADD COLUMN audio_languages TEXT");
+        if (!cols.Contains("subtitle_languages"))Exec("ALTER TABLE movies ADD COLUMN subtitle_languages TEXT");
+        if (!cols.Contains("duration_seconds")) Exec("ALTER TABLE movies ADD COLUMN duration_seconds INTEGER");
+        if (!cols.Contains("container_ext"))    Exec("ALTER TABLE movies ADD COLUMN container_ext TEXT");
+        if (!cols.Contains("file_size_bytes"))  Exec("ALTER TABLE movies ADD COLUMN file_size_bytes INTEGER");
+
+        // Multi-source ratings table (TMDb / IMDb / Rotten Tomatoes / …)
+        Exec(@"
+CREATE TABLE IF NOT EXISTS movie_ratings (
+    movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+    source   TEXT NOT NULL,
+    value    REAL NOT NULL,
+    votes    INTEGER,
+    PRIMARY KEY (movie_id, source)
+);
+");
+
+        // Writers (separate table to mirror directors)
+        Exec(@"
+CREATE TABLE IF NOT EXISTS writers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL
+);
+CREATE TABLE IF NOT EXISTS movie_writers (
+    movie_id  INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+    writer_id INTEGER REFERENCES writers(id) ON DELETE CASCADE,
+    PRIMARY KEY (movie_id, writer_id)
+);
+");
 
         // v1.9.2 — ensure user_lists tables exist on databases that pre-date them
         Exec(@"
@@ -229,6 +266,19 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"sets recompute v2.1.1 skipped: {ex.Message}");
+            }
+        }
+
+        // v2.2 — re-extract stream details, multiple ratings, writers, trailer
+        // from cached .nfo files. Same approach as the v2.1.1 sets migration —
+        // user doesn't need to do a full rescan to gain the new fields.
+        var richNfoKey = "_migration_rich_nfo_v220";
+        if (GetPref(richNfoKey) != "done")
+        {
+            try { RecomputeRichNfoFields(); SetPref(richNfoKey, "done"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"rich nfo recompute v2.2 skipped: {ex.Message}");
             }
         }
 
@@ -332,6 +382,156 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
                     link.CommandText = "INSERT OR IGNORE INTO movie_sets VALUES (@m, @s)";
                     link.Parameters.AddWithValue("@m", movieId);
                     link.Parameters.AddWithValue("@s", setId);
+                    link.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// v2.2 one-shot: walks every cached .nfo and refreshes the new fields
+    /// (stream details, multi-source ratings, writers, trailer) without
+    /// touching artwork or other already-correct metadata.
+    /// </summary>
+    private void RecomputeRichNfoFields()
+    {
+        var rows = new List<(int id, string nfoRel, string? videoRel, string letter, string serial)>();
+        var connected = GetConnectedDrives();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = @"SELECT id, local_nfo, video_file_rel_path, volume_serial
+                                FROM movies WHERE local_nfo IS NOT NULL AND is_missing=0";
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+            {
+                var serial = r.GetString(3);
+                connected.TryGetValue(serial, out var letter);
+                rows.Add((r.GetInt32(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), letter ?? "", serial));
+            }
+        }
+        if (rows.Count == 0) return;
+
+        var writerCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var preload = _conn.CreateCommand();
+            preload.CommandText = "SELECT id, name FROM writers";
+            using var r = preload.ExecuteReader();
+            while (r.Read()) writerCache[r.GetString(1)] = r.GetInt32(0);
+        }
+        catch { }
+
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            foreach (var row in rows)
+            {
+                var nfoPath = Path.Combine(_dataDir, row.nfoRel);
+                if (!File.Exists(nfoPath)) continue;
+
+                ParsedMovie? p;
+                try { p = NfoParser.Parse(nfoPath); }
+                catch { continue; }
+                if (p == null) continue;
+
+                var sd = p.Stream;
+
+                // Update stream + trailer columns
+                using (var upd = _conn.CreateCommand())
+                {
+                    upd.Transaction = tx;
+                    upd.CommandText = @"UPDATE movies SET
+                        trailer=@tr,
+                        video_width=@vw, video_height=@vh, video_codec=@vc, video_aspect=@va,
+                        hdr_type=@hdr, audio_codec=@ac, audio_channels=@ach,
+                        audio_languages=@al, subtitle_languages=@sl, duration_seconds=@dur
+                        WHERE id=@id";
+                    upd.Parameters.AddWithValue("@id", row.id);
+                    upd.Parameters.AddWithValue("@tr",  (object?)p.Trailer ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@vw",  (object?)sd?.VideoWidth        ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@vh",  (object?)sd?.VideoHeight       ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@vc",  (object?)sd?.VideoCodec        ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@va",  (object?)sd?.VideoAspect       ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@hdr", (object?)sd?.HdrType           ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@ac",  (object?)sd?.AudioCodec        ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@ach", (object?)sd?.AudioChannels     ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@al",  (object?)sd?.AudioLanguages    ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@sl",  (object?)sd?.SubtitleLanguages ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@dur", (object?)sd?.DurationSeconds   ?? DBNull.Value);
+                    upd.ExecuteNonQuery();
+                }
+
+                // File size + container — only if drive online + file present
+                if (!string.IsNullOrEmpty(row.letter) && row.videoRel != null)
+                {
+                    var full = Path.Combine($"{row.letter}:\\", row.videoRel.Replace('/', '\\'));
+                    if (File.Exists(full))
+                    {
+                        long size = 0;
+                        try { size = new FileInfo(full).Length; } catch { }
+                        var ext = Path.GetExtension(full).TrimStart('.').ToLowerInvariant();
+                        using var upd = _conn.CreateCommand();
+                        upd.Transaction = tx;
+                        upd.CommandText = "UPDATE movies SET file_size_bytes=@s, container_ext=@x WHERE id=@id";
+                        upd.Parameters.AddWithValue("@s", size);
+                        upd.Parameters.AddWithValue("@x", ext);
+                        upd.Parameters.AddWithValue("@id", row.id);
+                        upd.ExecuteNonQuery();
+                    }
+                }
+
+                // Ratings — rebuild
+                using (var del = _conn.CreateCommand())
+                {
+                    del.Transaction = tx;
+                    del.CommandText = "DELETE FROM movie_ratings WHERE movie_id=@id";
+                    del.Parameters.AddWithValue("@id", row.id);
+                    del.ExecuteNonQuery();
+                }
+                foreach (var rt in p.Ratings)
+                {
+                    using var ins = _conn.CreateCommand();
+                    ins.Transaction = tx;
+                    ins.CommandText = "INSERT OR REPLACE INTO movie_ratings VALUES (@m,@s,@v,@vt)";
+                    ins.Parameters.AddWithValue("@m", row.id);
+                    ins.Parameters.AddWithValue("@s", rt.Source);
+                    ins.Parameters.AddWithValue("@v", rt.Value);
+                    ins.Parameters.AddWithValue("@vt", (object?)rt.Votes ?? DBNull.Value);
+                    ins.ExecuteNonQuery();
+                }
+
+                // Writers — rebuild
+                using (var del = _conn.CreateCommand())
+                {
+                    del.Transaction = tx;
+                    del.CommandText = "DELETE FROM movie_writers WHERE movie_id=@id";
+                    del.Parameters.AddWithValue("@id", row.id);
+                    del.ExecuteNonQuery();
+                }
+                foreach (var name in p.Writers)
+                {
+                    var clean = name.Trim();
+                    if (clean.Length == 0) continue;
+                    if (!writerCache.TryGetValue(clean, out var wid))
+                    {
+                        using var ins = _conn.CreateCommand();
+                        ins.Transaction = tx;
+                        ins.CommandText = "INSERT INTO writers (name) VALUES (@n); SELECT last_insert_rowid();";
+                        ins.Parameters.AddWithValue("@n", clean);
+                        wid = Convert.ToInt32(ins.ExecuteScalar());
+                        writerCache[clean] = wid;
+                    }
+                    using var link = _conn.CreateCommand();
+                    link.Transaction = tx;
+                    link.CommandText = "INSERT OR IGNORE INTO movie_writers VALUES (@m,@w)";
+                    link.Parameters.AddWithValue("@m", row.id);
+                    link.Parameters.AddWithValue("@w", wid);
                     link.ExecuteNonQuery();
                 }
             }
@@ -1039,7 +1239,11 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
                    m.plot, m.tagline, m.mpaa, m.imdb_id, m.premiered, m.studio, m.country,
                    m.local_poster, m.local_fanart, m.is_missing, m.is_favorite, m.is_watched,
                    m.is_watchlist, m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
-                   m.outline, m.note
+                   m.outline, m.note, m.trailer,
+                   m.video_width, m.video_height, m.video_codec, m.video_aspect, m.hdr_type,
+                   m.audio_codec, m.audio_channels, m.audio_languages, m.subtitle_languages,
+                   m.duration_seconds, m.container_ext, m.file_size_bytes,
+                   m.tmdb_id
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -1084,15 +1288,54 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
                 VideoFileRelPath = videoRel,
                 Outline = r.IsDBNull(23) ? null : r.GetString(23),
                 Note = r.IsDBNull(24) ? null : r.GetString(24),
+                Trailer = r.IsDBNull(25) ? null : r.GetString(25),
+                VideoWidth        = r.IsDBNull(26) ? null : r.GetInt32(26),
+                VideoHeight       = r.IsDBNull(27) ? null : r.GetInt32(27),
+                VideoCodec        = r.IsDBNull(28) ? null : r.GetString(28),
+                VideoAspect       = r.IsDBNull(29) ? null : r.GetString(29),
+                HdrType           = r.IsDBNull(30) ? null : r.GetString(30),
+                AudioCodec        = r.IsDBNull(31) ? null : r.GetString(31),
+                AudioChannels     = r.IsDBNull(32) ? null : r.GetString(32),
+                AudioLanguages    = r.IsDBNull(33) ? null : r.GetString(33),
+                SubtitleLanguages = r.IsDBNull(34) ? null : r.GetString(34),
+                DurationSeconds   = r.IsDBNull(35) ? null : r.GetInt32(35),
+                ContainerExt      = r.IsDBNull(36) ? null : r.GetString(36),
+                FileSizeBytes     = r.IsDBNull(37) ? null : r.GetInt64(37),
+                TmdbId            = r.IsDBNull(38) ? null : r.GetString(38),
             };
         }
 
         // Load related data
         movie.Genres = GetMovieGenres(id);
         movie.Directors = GetMovieDirectors(id);
+        movie.Writers = GetMovieWriters(id);
         movie.Actors = GetMovieActors(id);
         movie.Sets = GetMovieSets(id);
+        movie.AllRatings = GetMovieRatings(id);
         return movie;
+    }
+
+    private List<string> GetMovieWriters(int id)
+    {
+        var list = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT w.name FROM movie_writers mw JOIN writers w ON w.id=mw.writer_id WHERE mw.movie_id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(r.GetString(0));
+        return list;
+    }
+
+    private List<(string Source, double Value, int? Votes)> GetMovieRatings(int id)
+    {
+        var list = new List<(string, double, int?)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT source, value, votes FROM movie_ratings WHERE movie_id=@id ORDER BY value DESC";
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add((r.GetString(0), r.GetDouble(1), r.IsDBNull(2) ? (int?)null : r.GetInt32(2)));
+        return list;
     }
 
     private List<string> GetMovieGenres(int id)

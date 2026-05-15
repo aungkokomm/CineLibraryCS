@@ -114,9 +114,12 @@ Posters laid out in a fluid grid that auto-fits the window. Use the
 The grid stretches to fill the available width — bigger window means
 more columns, automatically.
 
-**Click** any poster to open the **movie detail** dialog: cast, crew,
-ratings, runtime, plot, file path on disk, and quick toggles for
-watched / favorite / watchlist.
+**Click** any poster to open the **movie detail** dialog. It opens
+maximized and shows cast, ratings from multiple sources (IMDb / TMDb /
+Rotten Tomatoes if your nfo has them), tech badges (resolution, codec,
+audio), file size and duration, and quick toggles for watched /
+favorite / watchlist. Press **Esc** to close, or use the close button
+in the sticky bar that appears as you scroll.
 
 **Double-click** a poster to play the movie immediately via your default
 video player. If the movie's drive isn't connected, CineLibrary tells
