@@ -282,7 +282,7 @@ CineLibrary ပိတ်ပါ။ Exe ဘေးရှိ `CineLibrary-Data\` ဖ
 
 ## နောက်ထပ် ဘာလုပ်မလဲ
 
-- **Bug တွေ့လား? Idea ရှိလား?**
+- **Bug တွေ့လား? အကြံပေးချင်တာ ထပ်ဖြည့်စေချင်တာတွေ ရှိလား?**
   [Issue တင်ပါ။](https://github.com/aungkokomm/CineLibraryCS/issues)
 - **Latest ဆွဲချင်သလား?**
   [Releases page](https://github.com/aungkokomm/CineLibraryCS/releases) တွင် changelog စစ်ပါ။
