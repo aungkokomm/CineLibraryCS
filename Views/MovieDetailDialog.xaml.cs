@@ -126,9 +126,6 @@ public sealed partial class MovieDetailDialog : Window
         ImdbLinkBtn.Visibility = !string.IsNullOrWhiteSpace(m.ImdbId) ? Visibility.Visible : Visibility.Collapsed;
         TmdbLinkBtn.Visibility = !string.IsNullOrWhiteSpace(m.TmdbId) ? Visibility.Visible : Visibility.Collapsed;
 
-        // Below-poster info card (v2.3)
-        PopulatePosterInfoCard(m);
-
         // Chips
         ChipsPanel.Children.Clear();
         void AddChip(string text, string? bg = null)
@@ -246,13 +243,19 @@ public sealed partial class MovieDetailDialog : Window
         }
 
         // Cast — show the list right away; trickle thumbnail loads in
-        // batches so the first paint isn't blocked by 30+ HTTP requests.
+        // batches so the first paint isn't blocked by many parallel image
+        // resolves. Pass the absolute movie folder so .actors/ thumbs are
+        // discovered for online drives.
         if (m.Actors.Count > 0)
         {
             CastSection.Visibility = Visibility.Visible;
             CastDivider.Visibility = Visibility.Visible;
             CastRepeater.ItemsSource = m.Actors;
-            _ = LoadCastThumbsAsync(m.Actors);
+            string? movieFolderAbs = null;
+            if (m.IsOnline && m.CurrentLetter != null && m.FolderRelPath != null)
+                movieFolderAbs = Path.Combine($"{m.CurrentLetter}:\\",
+                    m.FolderRelPath.Replace('/', '\\'));
+            _ = LoadCastThumbsAsync(m.Actors, movieFolderAbs);
         }
 
         // Images
@@ -260,45 +263,79 @@ public sealed partial class MovieDetailDialog : Window
         LoadImageAsync(m.LocalFanart, HeroImage, null, 1200);
     }
 
+    private static readonly string[] ActorThumbExts = { ".jpg", ".jpeg", ".png", ".tbn", ".webp" };
+
     /// <summary>
-    /// Resolves the actor's Thumb (URL or local path) into a BitmapImage.
-    /// Most MediaElch nfos write a TMDb http URL — BitmapImage handles HTTP
-    /// natively. Local file paths also work via the file:// scheme.
+    /// Resolves an actor's thumbnail in priority order:
+    ///   1. The movie folder's `.actors/` folder — MediaElch's standard
+    ///      cache, named `First_Last.jpg` (underscores for spaces).
+    ///   2. Inline `<thumb>` URL from the nfo (TMDb http URL or local path).
+    /// Falls back to the initials TextBlock behind the Image when both miss.
     /// </summary>
-    private static void LoadActorThumb(Models.Actor a)
+    private static void LoadActorThumb(Models.Actor a, string? movieFolderAbs)
     {
-        if (string.IsNullOrWhiteSpace(a.Thumb)) return;
         try
         {
-            var raw = a.Thumb!.Trim();
-            Uri? uri = null;
-            if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                uri = new Uri(raw);
-            else if (File.Exists(raw))
-                uri = new Uri(raw);
-            if (uri == null) return;
-            var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 88 };
-            bmp.UriSource = uri;
-            a.ThumbBitmap = bmp;
+            // 1) Local .actors folder
+            if (!string.IsNullOrEmpty(movieFolderAbs))
+            {
+                var actorsDir = Path.Combine(movieFolderAbs, ".actors");
+                if (Directory.Exists(actorsDir))
+                {
+                    var candidates = new[]
+                    {
+                        a.Name.Replace(' ', '_'),
+                        a.Name,
+                    };
+                    foreach (var stem in candidates)
+                    {
+                        foreach (var ext in ActorThumbExts)
+                        {
+                            var p = Path.Combine(actorsDir, stem + ext);
+                            if (File.Exists(p)) { ApplyBitmap(a, new Uri(p)); return; }
+                        }
+                    }
+                }
+            }
+
+            // 2) Inline thumb (URL or absolute file path)
+            if (!string.IsNullOrWhiteSpace(a.Thumb))
+            {
+                var raw = a.Thumb!.Trim();
+                Uri? uri = null;
+                if (raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    uri = new Uri(raw);
+                else if (File.Exists(raw))
+                    uri = new Uri(raw);
+                if (uri != null) ApplyBitmap(a, uri);
+            }
         }
         catch { }
     }
 
+    private static void ApplyBitmap(Models.Actor a, Uri uri)
+    {
+        // 280 px decode = ~2× the 140-wide rendered slot for HiDPI crispness
+        var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 280 };
+        bmp.UriSource = uri;
+        a.ThumbBitmap = bmp;
+    }
+
     /// <summary>
     /// Trickle-loads actor thumbnails in small batches with a yield between
-    /// each batch. Prevents 30+ parallel HTTP requests + BitmapImage
-    /// initializations from blocking the first paint of the dialog.
+    /// each batch. Prevents many parallel image loads from blocking the
+    /// first paint of the dialog.
     /// </summary>
-    private async Task LoadCastThumbsAsync(IReadOnlyList<Models.Actor> actors)
+    private async Task LoadCastThumbsAsync(IReadOnlyList<Models.Actor> actors, string? movieFolderAbs)
     {
         const int batchSize = 6;
         for (int i = 0; i < actors.Count; i++)
         {
             if (_closed) return;
-            LoadActorThumb(actors[i]);
+            LoadActorThumb(actors[i], movieFolderAbs);
             if ((i + 1) % batchSize == 0)
-                await Task.Delay(30);   // give the UI thread air to render
+                await Task.Delay(30);
         }
     }
 
@@ -489,11 +526,9 @@ public sealed partial class MovieDetailDialog : Window
         if (m.AllRatings.Count == 0)
         {
             RatingsPanel.Visibility = Visibility.Collapsed;
-            RatingsDivider.Visibility = Visibility.Collapsed;
             return;
         }
         RatingsPanel.Visibility = Visibility.Visible;
-        RatingsDivider.Visibility = Visibility.Visible;
         foreach (var rt in m.AllRatings)
         {
             var sourceLabel = PrettySource(rt.Source);
@@ -545,6 +580,40 @@ public sealed partial class MovieDetailDialog : Window
     private void PopulateFileInfo(MovieDetail m)
     {
         bool any = false;
+        // Runtime / Released / Rated / Country — folded in from the old
+        // below-poster column so the row stays compact (v2.3.x).
+        if (m.Runtime.HasValue && m.Runtime.Value > 0)
+        {
+            FiRuntime.Text = $"{m.Runtime.Value} min";
+            FiRuntimeBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Premiered))
+        {
+            FiRelease.Text = DateTime.TryParse(m.Premiered, out var dt)
+                ? dt.ToString("MMM d, yyyy")
+                : m.Premiered!;
+            FiReleaseBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        else if (m.Year.HasValue)
+        {
+            FiRelease.Text = m.Year.Value.ToString();
+            FiReleaseBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Mpaa))
+        {
+            FiMpaa.Text = m.Mpaa!;
+            FiMpaaBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
+        if (!string.IsNullOrWhiteSpace(m.Country))
+        {
+            FiCountry.Text = m.Country!;
+            FiCountryBlock.Visibility = Visibility.Visible;
+            any = true;
+        }
         if (m.FileSizeBytes.HasValue && m.FileSizeBytes.Value > 0)
         {
             FiSize.Text = FormatBytes(m.FileSizeBytes.Value);
@@ -600,50 +669,6 @@ public sealed partial class MovieDetailDialog : Window
         return t.TotalHours >= 1
             ? $"{(int)t.TotalHours}h {t.Minutes:D2}m"
             : $"{t.Minutes}m {t.Seconds:D2}s";
-    }
-
-    /// <summary>
-    /// Fills the small card that sits under the poster — Runtime, Release
-    /// date, MPAA rating, Country. Blocks hide themselves when their field
-    /// is empty so the card shrinks to fit.
-    /// </summary>
-    private void PopulatePosterInfoCard(MovieDetail m)
-    {
-        bool any = false;
-        if (m.Runtime.HasValue && m.Runtime.Value > 0)
-        {
-            PiRuntime.Text = $"{m.Runtime.Value} min";
-            PiRuntimeBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.Premiered))
-        {
-            // Premiered usually 2026-12-12 — display friendlier date
-            PiRelease.Text = DateTime.TryParse(m.Premiered, out var dt)
-                ? dt.ToString("MMM d, yyyy")
-                : m.Premiered!;
-            PiReleaseBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        else if (m.Year.HasValue)
-        {
-            PiRelease.Text = m.Year.Value.ToString();
-            PiReleaseBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.Mpaa))
-        {
-            PiMpaa.Text = m.Mpaa!;
-            PiMpaaBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.Country))
-        {
-            PiCountry.Text = m.Country!;
-            PiCountryBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        PosterInfoCard.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Sticky action bar + external link buttons (v2.3) ─────────────────

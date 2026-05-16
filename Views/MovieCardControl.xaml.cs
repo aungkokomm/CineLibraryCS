@@ -197,7 +197,12 @@ public sealed partial class MovieCardControl : UserControl
                 return;
             }
 
-            var bmp = new BitmapImage { DecodePixelWidth = (int)Math.Max(120, GlobalCardWidth) };
+            // Decode at ~2× card width so the poster stays crisp on
+            // HiDPI displays (150 / 175 / 200% scaling) without bloating
+            // memory — we cap at 500 px which is well under typical
+            // cached poster source size (~780).
+            var decodeW = (int)Math.Min(500, Math.Max(240, GlobalCardWidth * 2));
+            var bmp = new BitmapImage { DecodePixelWidth = decodeW };
             var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             if (myToken != _posterLoadToken) return;

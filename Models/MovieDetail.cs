@@ -12,6 +12,22 @@ public partial class Actor : ObservableObject
     // Loaded lazily by the detail dialog if Thumb is a valid http(s) URL or
     // local path. Bound x:Bind OneWay so the avatar appears once decoded.
     [ObservableProperty] private BitmapImage? _thumbBitmap;
+
+    /// <summary>
+    /// First letter of first + last name (or just the first letter if one
+    /// name). Used as the fallback shown behind the avatar Image — visible
+    /// when Thumb is missing or fails to load.
+    /// </summary>
+    public string Initials
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Name)) return "?";
+            var parts = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1) return parts[0].Substring(0, 1).ToUpperInvariant();
+            return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
+        }
+    }
 }
 
 public class MovieDetail
