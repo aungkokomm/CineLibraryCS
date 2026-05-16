@@ -121,5 +121,24 @@
                 </Border>
             </Grid>
         </Border>
+
+        <!-- v2.5 — selection outline + corner ✓ chip. Shown when the card is
+             part of the current multi-select set. Sits above CardBorder so it
+             overlays the poster but underneath the right-click flyout. -->
+        <Border x:Name="SelectedOutline" CornerRadius="10"
+                BorderBrush="{StaticResource BrandPurpleBrush}"
+                BorderThickness="2"
+                IsHitTestVisible="False"
+                Visibility="Collapsed"/>
+        <Border x:Name="SelectedTick" CornerRadius="10"
+                Background="{StaticResource BrandPurpleBrush}"
+                Width="22" Height="22"
+                VerticalAlignment="Top" HorizontalAlignment="Right"
+                Margin="0,8,8,0"
+                IsHitTestVisible="False"
+                Visibility="Collapsed">
+            <TextBlock Text="✓" FontSize="13" FontWeight="Bold" Foreground="White"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
     </Grid>
 </UserControl>

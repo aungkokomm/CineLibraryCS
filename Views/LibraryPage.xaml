@@ -237,5 +237,66 @@
                       HorizontalAlignment="Center" VerticalAlignment="Bottom"
                       Margin="0,0,0,20"
                       IsActive="False" Visibility="Collapsed"/>
+
+        <!-- ═══ MULTI-SELECT BOTTOM ACTION BAR (v2.5) ═══ -->
+        <!-- Appears the moment ≥1 cards are selected. Floats centered above
+             the bottom edge so it never blocks scrolling/clicking. -->
+        <Border x:Name="SelectionBar" Grid.Row="2"
+                Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                Margin="0,0,0,18" Padding="14,8"
+                Background="{ThemeResource CardBrush}"
+                BorderBrush="{StaticResource BrandPurpleBrush}"
+                BorderThickness="1" CornerRadius="22">
+            <Border.Shadow>
+                <ThemeShadow/>
+            </Border.Shadow>
+            <Border.Translation>0,0,32</Border.Translation>
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock x:Name="SelectionCountText"
+                           Foreground="{ThemeResource TextBrush}"
+                           FontWeight="SemiBold" FontSize="13"
+                           VerticalAlignment="Center" Margin="4,0,4,0"/>
+                <Button x:Name="SelAddToListBtn" Content="📑 Add to list ▾"
+                        Background="{StaticResource BrandPurpleBrush}"
+                        Foreground="White" BorderThickness="0"
+                        CornerRadius="8" Padding="12,6" FontSize="12">
+                    <Button.Flyout>
+                        <MenuFlyout x:Name="SelListsFlyout" Placement="Top"
+                                    Opening="OnSelListsFlyoutOpening"/>
+                    </Button.Flyout>
+                </Button>
+                <Button x:Name="SelWatchedBtn" Click="OnSelToggleWatched"
+                        Content="✓ Watched"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <Button x:Name="SelWatchlistBtn" Click="OnSelToggleWatchlist"
+                        Content="📌 Watchlist"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <Button x:Name="SelFavBtn" Click="OnSelToggleFav"
+                        Content="★ Favorite"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <Button x:Name="SelRemoveFromListBtn" Click="OnSelRemoveFromCurrentList"
+                        Content="🗑 Remove from list"
+                        Visibility="Collapsed"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <Button Click="OnSelClear" Content="✕"
+                        Background="Transparent"
+                        Foreground="{ThemeResource MutedBrush}"
+                        BorderThickness="0" CornerRadius="8" Padding="8,6" FontSize="12"
+                        ToolTipService.ToolTip="Clear selection (Esc)"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Page>

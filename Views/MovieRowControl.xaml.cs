@@ -6,7 +6,9 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using CineLibraryCS.Models;
 using CineLibraryCS.Services;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace CineLibraryCS.Views;
 
@@ -24,12 +26,34 @@ public sealed partial class MovieRowControl : UserControl
 
     public event EventHandler? SidebarRefreshRequested;
 
+    [DllImport("user32.dll")] private static extern short GetKeyState(int nVirtKey);
+    private const int VK_CONTROL = 0x11, VK_SHIFT = 0x10;
+    private static bool IsCtrlDown() => (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    private static bool IsShiftDown() => (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+
     public MovieRowControl()
     {
         InitializeComponent();
         var flyout = new MenuFlyout();
         flyout.Opening += (_, _) => RebuildContextFlyout(flyout);
         ContextFlyout = flyout;
+
+        // v2.5 — draggable for bulk add-to-list (matches MovieCardControl).
+        CanDrag = true;
+        DragStarting += OnRowDragStarting;
+    }
+
+    private void OnRowDragStarting(UIElement sender, DragStartingEventArgs args)
+    {
+        if (Movie == null) { args.Cancel = true; return; }
+        var ids = MovieCardControl.ResolveSelectionForDrag?.Invoke(Movie)?.ToList()
+                  ?? new List<int> { Movie.Id };
+        if (ids.Count == 0) { args.Cancel = true; return; }
+        args.Data.SetText(string.Join(",", ids));
+        args.Data.Properties["cinelibrary/movie-ids"] = string.Join(",", ids);
+        args.Data.RequestedOperation = DataPackageOperation.Link;
+        args.AllowedOperations = DataPackageOperation.Link | DataPackageOperation.Copy;
+        args.Data.Properties.Title = ids.Count == 1 ? Movie.Title : $"{ids.Count} movies";
     }
 
     private void RebuildContextFlyout(MenuFlyout flyout)
@@ -94,6 +118,18 @@ public sealed partial class MovieRowControl : UserControl
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
         }
+        else if (e.PropertyName == nameof(MovieListItem.IsSelected))
+        {
+            ApplySelectionVisual();
+        }
+    }
+
+    private void ApplySelectionVisual()
+    {
+        bool on = Movie?.IsSelected == true;
+        RowBorder.BorderBrush = on
+            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"]
+            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 
     private void Populate(MovieListItem m)
@@ -137,6 +173,7 @@ public sealed partial class MovieRowControl : UserControl
             ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
 
+        ApplySelectionVisual();
         LoadThumbAsync(m.LocalPoster);
     }
 
@@ -181,7 +218,19 @@ public sealed partial class MovieRowControl : UserControl
         {
             e.Handled = true; return;
         }
-        ScheduleSingleTapAction();
+        if (Movie == null) return;
+        bool ctrl = IsCtrlDown(), shift = IsShiftDown();
+        if (ctrl || shift)
+        {
+            _pendingSingleTap?.Cancel();
+            _pendingSingleTap = null;
+            MovieCardControl.RaiseSelectionFromRow(Movie, ctrl, shift);
+            e.Handled = true;
+            return;
+        }
+        bool wasSelecting = MovieCardControl.CurrentSelectionCount > 0;
+        MovieCardControl.RaiseSelectionFromRow(Movie, false, false);
+        if (!wasSelecting) ScheduleSingleTapAction();
     }
 
     private void OnDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

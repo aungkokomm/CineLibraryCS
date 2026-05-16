@@ -8,6 +8,11 @@ of movies in under five minutes.
 
 ---
 
+> **What's new in v2.5.0** — Multi-select (Ctrl/Shift+click, Ctrl+A) with
+> a bottom action bar for bulk add-to-list / watched / favorite / watchlist,
+> drag-and-drop from cards onto sidebar lists, and per-list ✕ chips in the
+> movie detail dialog. See *My Lists* and *Multi-select* below.
+
 ## Contents
 
 1. [Before you start](#before-you-start)
@@ -16,14 +21,16 @@ of movies in under five minutes.
 4. [Browsing your library](#browsing-your-library)
 5. [Search, filter, and sort](#search-filter-and-sort)
 6. [Tracking what you've watched](#tracking-what-youve-watched)
-7. [Statistics](#statistics)
-8. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-9. [Themes and sidebar](#themes-and-sidebar)
-10. [Keyboard shortcuts](#keyboard-shortcuts)
-11. [Exporting your catalog](#exporting-your-catalog)
-12. [Updates](#updates)
-13. [Where your data lives](#where-your-data-lives)
-14. [Troubleshooting](#troubleshooting)
+7. [My Lists — group movies your way](#my-lists--group-movies-your-way)
+8. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+9. [Statistics](#statistics)
+10. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+11. [Themes and sidebar](#themes-and-sidebar)
+12. [Keyboard shortcuts](#keyboard-shortcuts)
+13. [Exporting your catalog](#exporting-your-catalog)
+14. [Updates](#updates)
+15. [Where your data lives](#where-your-data-lives)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -191,6 +198,115 @@ back to your `.nfo` files, so MediaElch re-scrapes won't disturb them.
 
 ---
 
+## My Lists — group movies your way
+
+Built-in flags (Favorites / Watchlist) are just on/off. For everything
+in between — *"Marvel chronological"*, *"Date-night picks"*, *"Top 10
+of 2024"*, *"Movies I lent to Sai"* — make your own list under **MY
+LISTS** in the sidebar.
+
+### Creating a list
+
+Two ways:
+
+1. **From any movie** — right-click a poster (or open the detail
+   dialog) → **📑 Add to list → + New list…** → type a name → Create.
+   The movie is added to the new list automatically.
+2. **Empty list first** — open the detail dialog of any movie, click
+   **📑 Add to list → + New list…**, then immediately remove that
+   movie if you only wanted the list itself.
+
+A new entry appears under **MY LISTS** in the sidebar with a 📑 icon
+and a count badge.
+
+### Adding a movie to one or more lists
+
+Right-click any poster (or open its detail dialog) → **📑 Add to list**.
+The submenu shows every list you have, with a ✓ next to the ones the
+movie is already in. Click a list to add; click a checked list to
+remove. The movie can belong to as many lists as you like.
+
+The detail dialog also shows a row of **📑 chips** under the action
+buttons — one chip per list this movie is on. Tap the **✕** on any
+chip to remove the movie from that list instantly.
+
+### Renaming or deleting a list
+
+Right-click the list in the sidebar:
+
+- **Rename** — type a new name; the count and contents stay intact.
+- **Delete list** — removes the list. Your movies are *not* deleted —
+  they just leave that list.
+- **📂 Copy movies to folder…** — bucket-export every online movie's
+  source folder to a destination you pick. Useful for handing a
+  curated set to a friend on a thumb drive.
+
+### Viewing and editing a list
+
+Click a list in the sidebar to switch the main view to just its
+movies. From there you can:
+
+- Right-click any poster → **Remove from this list** (via the same
+  Add-to-list submenu — the list is already checked, click it to
+  uncheck).
+- Multi-select and bulk-remove (see next section).
+
+---
+
+## Multi-select — pick many, act once
+
+Lots of common chores (mark 12 movies as watched, add a director's
+filmography to a list, favorite a whole decade) are tedious one card
+at a time. CineLibrary's multi-select fixes that.
+
+### Selecting cards
+
+- **Ctrl+click** a card → toggle it into the selection. Selected cards
+  show a purple outline + a corner ✓.
+- **Shift+click** → range-select from your last clicked card to this
+  one.
+- **Ctrl+A** → select every card currently visible.
+- **Esc** → clear the selection.
+- **Plain click** while a selection is active just clears it (so you
+  don't accidentally open a detail dialog when trying to escape
+  select-mode). With no active selection, plain click opens details
+  as usual.
+
+### The action bar
+
+As soon as one or more cards are selected, a purple pill bar appears
+at the bottom of the library:
+
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ★ Favorite · 🗑 Remove from list · ✕
+
+- **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
+  Picking one adds *every* selected movie to that list.
+- **✓ Watched / 📌 Watchlist / ★ Favorite** are smart toggles — if
+  *any* selected movie doesn't yet have the flag, the action sets it
+  on all of them; if every selected movie already has it, the action
+  removes it from all of them.
+- **🗑 Remove from list** only shows when you're currently viewing one
+  of your lists. It removes the selected movies from *that* list (the
+  movies themselves stay in your library and any other lists).
+- Every bulk action shows a toast with an **Undo** button for ~6
+  seconds. Click Undo to put everything back exactly as it was.
+
+### Drag-and-drop
+
+You don't even have to use the action bar — just **drag any selected
+card onto a sidebar entry**:
+
+- Drop on a **user list** → adds the whole selection to that list.
+- Drop on **Favorites** → favorites everything in the selection.
+- Drop on **To Watch** → adds everything to your watchlist.
+
+The target row lights up purple while you hover over it. If you drag
+a card that isn't part of the current selection, only that one card
+gets added (and other selected cards stay selected — your selection
+isn't disturbed).
+
+---
+
 ## Statistics
 
 The **Statistics** page (sidebar) is a single-page view of your
@@ -248,7 +364,10 @@ small displays.
 | Shortcut         | Action                                       |
 |------------------|----------------------------------------------|
 | `Ctrl+F`         | Focus the search box                         |
-| `Esc`            | Clear search                                 |
+| `Esc`            | Clear search, then clear multi-select        |
+| `Ctrl+A`         | Select every card currently visible          |
+| `Ctrl+click`     | Toggle a single card into the selection      |
+| `Shift+click`    | Range-select from the last clicked card      |
 | `Ctrl+B`         | Toggle sidebar                               |
 | `Ctrl+Q`         | Quit                                         |
 | `Ctrl+Shift+/`   | Show this shortcuts list in-app              |

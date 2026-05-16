@@ -186,6 +186,17 @@
                     </Button>
                 </StackPanel>
 
+                <!-- v2.5 — Lists this movie is on. Each chip has a ✕ that
+                     removes the movie from that list immediately (with Undo
+                     in the toast). The whole row hides when there are none. -->
+                <ItemsControl x:Name="ListChipsRepeater" Margin="0,10,0,0" Visibility="Collapsed">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
                 <!-- File info panel (v2.2.2) — sits right under the action row -->
                 <Border x:Name="FileInfoPanel" Visibility="Collapsed"
                         Margin="0,12,0,0" Padding="12,8"

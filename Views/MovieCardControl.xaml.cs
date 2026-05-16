@@ -5,7 +5,9 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using CineLibraryCS.Models;
 using CineLibraryCS.Services;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace CineLibraryCS.Views;
 
@@ -24,6 +26,37 @@ public sealed partial class MovieCardControl : UserControl
     public event EventHandler? SidebarRefreshRequested;
     public event EventHandler<MovieListItem>? WatchedToggleRequested;
     public event EventHandler<MovieListItem>? WatchlistToggleRequested;
+
+    // ── Multi-select (v2.5) ────────────────────────────────────────────────
+    // LibraryPage subscribes to these statics so it doesn't have to wire up
+    // every recycled card. Same pattern as GlobalSizeChanged above.
+
+    public record SelectionInteractionArgs(MovieListItem Movie, bool Ctrl, bool Shift);
+    public static event EventHandler<SelectionInteractionArgs>? AnyCardSelectionInteraction;
+
+    /// <summary>List view rows fire the same event so LibraryPage has one
+    /// place to manage selection regardless of grid vs list mode.</summary>
+    public static void RaiseSelectionFromRow(MovieListItem m, bool ctrl, bool shift)
+        => AnyCardSelectionInteraction?.Invoke(null, new SelectionInteractionArgs(m, ctrl, shift));
+
+    /// <summary>
+    /// LibraryPage installs this so a drag carries every selected card's id
+    /// (and selects the dragged card if it wasn't already selected). Falls
+    /// back to a single-id drag when the host doesn't override.
+    /// </summary>
+    public static Func<MovieListItem, IEnumerable<int>>? ResolveSelectionForDrag;
+
+    /// <summary>
+    /// Host (LibraryPage) updates this whenever the selection set changes.
+    /// Cards read it so a plain click in selection mode clears the set
+    /// without also opening the detail dialog.
+    /// </summary>
+    public static int CurrentSelectionCount;
+
+    [DllImport("user32.dll")] private static extern short GetKeyState(int nVirtKey);
+    private const int VK_CONTROL = 0x11, VK_SHIFT = 0x10;
+    private static bool IsCtrlDown() => (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    private static bool IsShiftDown() => (GetKeyState(VK_SHIFT) & 0x8000) != 0;
 
     // ── Global card size (all cards resize together when density changes) ──
 
@@ -66,13 +99,31 @@ public sealed partial class MovieCardControl : UserControl
         };
         // Single tap → open details after a short delay (so a double-tap
         // gets a chance to suppress it). Double tap → play directly.
+        // Ctrl/Shift+tap → route to LibraryPage for multi-select.
         Tapped += (_, e) =>
         {
             if (TapOriginatedInButton(e.OriginalSource as DependencyObject))
             {
                 e.Handled = true; return;
             }
-            ScheduleSingleTapAction();
+            if (Movie == null) return;
+            bool ctrl = IsCtrlDown(), shift = IsShiftDown();
+            if (ctrl || shift)
+            {
+                _pendingSingleTap?.Cancel();
+                _pendingSingleTap = null;
+                AnyCardSelectionInteraction?.Invoke(this,
+                    new SelectionInteractionArgs(Movie, ctrl, shift));
+                e.Handled = true;
+                return;
+            }
+            // Plain tap. If a selection is active, exit selection mode
+            // instead of opening details — user typically wants to "get
+            // out of multi-select", not jump into a single movie.
+            bool wasSelecting = CurrentSelectionCount > 0;
+            AnyCardSelectionInteraction?.Invoke(this,
+                new SelectionInteractionArgs(Movie, false, false));
+            if (!wasSelecting) ScheduleSingleTapAction();
         };
         DoubleTapped += (_, e) =>
         {
@@ -84,6 +135,29 @@ public sealed partial class MovieCardControl : UserControl
             _pendingSingleTap = null;
             _ = PlayMovieOrPromptOfflineAsync();
         };
+
+        // Drag-and-drop source — every card is draggable so the user can
+        // throw selected movies onto a sidebar list or onto Favorites /
+        // Watchlist / Watched. Data payload is a comma-separated movie-id
+        // list; LibraryPage decides whether to drag just this card or the
+        // whole selected set via ResolveSelectionForDrag.
+        CanDrag = true;
+        DragStarting += OnCardDragStarting;
+    }
+
+    private void OnCardDragStarting(UIElement sender, DragStartingEventArgs args)
+    {
+        if (Movie == null) { args.Cancel = true; return; }
+        var ids = ResolveSelectionForDrag?.Invoke(Movie)?.ToList() ?? new List<int> { Movie.Id };
+        if (ids.Count == 0) { args.Cancel = true; return; }
+        args.Data.SetText(string.Join(",", ids));
+        args.Data.Properties["cinelibrary/movie-ids"] = string.Join(",", ids);
+        args.Data.RequestedOperation = DataPackageOperation.Link;
+        args.AllowedOperations = DataPackageOperation.Link | DataPackageOperation.Copy;
+        // Friendly drag glyph caption — "3 movies" when bulk, title when one.
+        args.Data.Properties.Title = ids.Count == 1
+            ? Movie.Title
+            : $"{ids.Count} movies";
     }
 
     private void OnGlobalSizeChanged(object? s, EventArgs e) => ApplySize();
@@ -123,6 +197,17 @@ public sealed partial class MovieCardControl : UserControl
         {
             WatchlistToggleBtn.Content = Movie.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
         }
+        else if (e.PropertyName == nameof(MovieListItem.IsSelected))
+        {
+            ApplySelectionVisual();
+        }
+    }
+
+    private void ApplySelectionVisual()
+    {
+        bool on = Movie?.IsSelected == true;
+        SelectedOutline.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        SelectedTick.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void Populate(MovieListItem m)
@@ -170,6 +255,7 @@ public sealed partial class MovieCardControl : UserControl
         GenresText.Text = string.Join(" · ",
             (m.GenresCsv ?? "").Split(',').Select(g => g.Trim()).Where(g => g.Length > 0).Take(3));
 
+        ApplySelectionVisual();
         LoadPosterAsync(m.LocalPoster);
     }
 

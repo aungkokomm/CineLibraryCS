@@ -229,6 +229,8 @@ public sealed partial class MovieDetailDialog : Window
         PopulateTechBadges(m);
         PopulateRatingsPanel(m);
         PopulateFileInfo(m);
+        // Lists this movie is on (v2.5) — chip row with per-list ✕.
+        RefreshListChips();
 
         // Studio — clickable HyperlinkButton (was a plain TextBlock)
         if (m.Studio != null)
@@ -745,6 +747,74 @@ public sealed partial class MovieDetailDialog : Window
              WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
 
+        // ── Lists chips (v2.5) — chip-per-list with ✕ to remove. Rebuilt
+        //   on every list-membership change (flyout toggle / chip remove). ─
+
+        private void RefreshListChips()
+        {
+            ListChipsRepeater.Items.Clear();
+            if (_movie == null)
+            {
+                ListChipsRepeater.Visibility = Visibility.Collapsed;
+                return;
+            }
+            var all = AppState.Instance.Db.GetUserLists().ToDictionary(u => u.Id, u => u.Name);
+            var membership = AppState.Instance.Db.GetUserListsForMovie(_movie.Id);
+            if (membership.Count == 0)
+            {
+                ListChipsRepeater.Visibility = Visibility.Collapsed;
+                return;
+            }
+            ListChipsRepeater.Visibility = Visibility.Visible;
+            foreach (var listId in membership)
+            {
+                if (!all.TryGetValue(listId, out var listName)) continue;
+                ListChipsRepeater.Items.Add(BuildListChip(listId, listName));
+            }
+        }
+
+        private UIElement BuildListChip(int listId, string listName)
+        {
+            var border = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 4, 6, 4),
+            };
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            sp.Children.Add(new TextBlock
+            {
+                Text = $"📑 {listName}",
+                FontSize = 12,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var x = new Button
+            {
+                Content = "✕",
+                FontSize = 10,
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Padding = new Thickness(4, 0, 4, 0),
+                MinWidth = 18,
+                MinHeight = 18,
+            };
+            ToolTipService.SetToolTip(x, $"Remove from “{listName}”");
+            x.Click += (_, _) =>
+            {
+                if (_movie == null) return;
+                AppState.Instance.Db.RemoveMovieFromUserList(listId, _movie.Id);
+                RefreshListChips();
+                WatchlistChanged?.Invoke(this, EventArgs.Empty);
+            };
+            sp.Children.Add(x);
+            border.Child = sp;
+            return border;
+        }
+
         // ── Lists (v1.9.2) — add/remove this movie to/from any user list ─────
 
         private void OnListsFlyoutOpening(object sender, object e)
@@ -779,6 +849,7 @@ public sealed partial class MovieDetailDialog : Window
                             AppState.Instance.Db.RemoveMovieFromUserList(capturedUl.Id, _movie.Id);
                         // Tell host so MY LISTS counts refresh
                         WatchlistChanged?.Invoke(this, EventArgs.Empty);
+                        RefreshListChips();
                     };
                     ListsFlyout.Items.Add(item);
                 }
@@ -795,6 +866,7 @@ public sealed partial class MovieDetailDialog : Window
                     var listId = AppState.Instance.Db.CreateUserList(name.Trim());
                     AppState.Instance.Db.AddMovieToUserList(listId, _movie.Id);
                     WatchlistChanged?.Invoke(this, EventArgs.Empty);
+                    RefreshListChips();
                 }
                 catch (Microsoft.Data.Sqlite.SqliteException) { /* dup name */ }
             };

@@ -19,6 +19,10 @@ public sealed partial class LibraryPage : Page
     public LibraryViewModel ViewModel => _vm;
     public event EventHandler? SidebarRefreshRequested;
 
+    // ── Multi-select state (v2.5) ─────────────────────────────────────────
+    private readonly HashSet<int> _selectedIds = new();
+    private MovieListItem? _selectionAnchor;
+
     // Set to true only after construction finishes. XAML-driven events
     // (ComboBox.SelectionChanged on IsSelected="True", etc.) can fire during
     // InitializeComponent() — we must not touch _vm from those before it's wired up.
@@ -50,12 +54,25 @@ public sealed partial class LibraryPage : Page
         });
         AddAccelerator(VirtualKey.Escape, VirtualKeyModifiers.None, (_, a) =>
         {
+            // Esc clears search first, then selection — never both at once.
             if (!string.IsNullOrEmpty(SearchBox.Text))
             {
                 SearchBox.Text = "";
                 _vm.SearchText = "";
                 a.Handled = true;
+                return;
             }
+            if (_selectedIds.Count > 0)
+            {
+                ClearSelection();
+                a.Handled = true;
+            }
+        });
+        AddAccelerator(VirtualKey.A, VirtualKeyModifiers.Control, (_, a) =>
+        {
+            if (IsTextEditFocused()) return;
+            SelectAllVisible();
+            a.Handled = true;
         });
 
         // Navigation shortcuts (v2.0.1) — PgDn/PgUp scroll one viewport,
@@ -85,9 +102,311 @@ public sealed partial class LibraryPage : Page
         ListRepeater.ElementPrepared += OnListRepeaterElementPrepared;
         ListRepeater.ElementClearing += OnListRepeaterElementClearing;
 
+        // Multi-select wiring (v2.5) — cards/rows raise this static event;
+        // we manage the actual selection set and visual.
+        MovieCardControl.AnyCardSelectionInteraction += OnCardSelectionInteraction;
+        MovieCardControl.ResolveSelectionForDrag = ResolveSelectionForDrag;
+        Unloaded += (_, _) =>
+        {
+            MovieCardControl.AnyCardSelectionInteraction -= OnCardSelectionInteraction;
+            if (MovieCardControl.ResolveSelectionForDrag == (Func<MovieListItem, IEnumerable<int>>)ResolveSelectionForDrag)
+                MovieCardControl.ResolveSelectionForDrag = null;
+        };
+        // Reset selection when the underlying list reloads (filter / search /
+        // user-list change). The reload calls Movies.Clear() first, so we
+        // hook the Reset action to wipe the selection set in lockstep.
+        _vm.Movies.CollectionChanged += (_, e) =>
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
+                && _selectedIds.Count > 0)
+            {
+                _selectedIds.Clear();
+                AfterSelectionChanged();
+            }
+            RefreshRemoveFromListVisibility();
+        };
+
         _ready = true;
 
         _ = _vm.LoadAsync();
+    }
+
+    // ── Multi-select handlers (v2.5) ──────────────────────────────────────
+
+    private void OnCardSelectionInteraction(object? sender, MovieCardControl.SelectionInteractionArgs e)
+    {
+        if (e.Ctrl)
+        {
+            ToggleSelect(e.Movie);
+            _selectionAnchor = e.Movie;
+        }
+        else if (e.Shift)
+        {
+            SelectRangeTo(e.Movie);
+            _selectionAnchor = e.Movie;
+        }
+        else
+        {
+            // Plain tap: if a selection exists, exit selection mode.
+            if (_selectedIds.Count > 0) ClearSelection();
+            _selectionAnchor = e.Movie;
+        }
+    }
+
+    private void ToggleSelect(MovieListItem m)
+    {
+        if (_selectedIds.Add(m.Id)) m.IsSelected = true;
+        else { _selectedIds.Remove(m.Id); m.IsSelected = false; }
+        AfterSelectionChanged();
+    }
+
+    private void SelectRangeTo(MovieListItem target)
+    {
+        if (_selectionAnchor == null) { ToggleSelect(target); return; }
+        int a = _vm.Movies.IndexOf(_selectionAnchor);
+        int b = _vm.Movies.IndexOf(target);
+        if (a < 0 || b < 0) { ToggleSelect(target); return; }
+        if (a > b) (a, b) = (b, a);
+        for (int i = a; i <= b; i++)
+        {
+            var m = _vm.Movies[i];
+            if (_selectedIds.Add(m.Id)) m.IsSelected = true;
+        }
+        AfterSelectionChanged();
+    }
+
+    private void SelectAllVisible()
+    {
+        foreach (var m in _vm.Movies)
+            if (_selectedIds.Add(m.Id)) m.IsSelected = true;
+        AfterSelectionChanged();
+    }
+
+    private void ClearSelection()
+    {
+        foreach (var m in _vm.Movies)
+            if (m.IsSelected) m.IsSelected = false;
+        _selectedIds.Clear();
+        AfterSelectionChanged();
+    }
+
+    private void AfterSelectionChanged()
+    {
+        MovieCardControl.CurrentSelectionCount = _selectedIds.Count;
+        if (_selectedIds.Count == 0)
+        {
+            SelectionBar.Visibility = Visibility.Collapsed;
+            return;
+        }
+        SelectionBar.Visibility = Visibility.Visible;
+        SelectionCountText.Text = $"{_selectedIds.Count} selected";
+        RefreshRemoveFromListVisibility();
+    }
+
+    private void RefreshRemoveFromListVisibility()
+    {
+        SelRemoveFromListBtn.Visibility = (_vm.UserListId != null && _selectedIds.Count > 0)
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// MovieCardControl asks for the id-set that a drag should carry. If
+    /// the dragged card isn't in the current selection, treat the drag as
+    /// single-card AND clear/replace the selection so what the user sees
+    /// matches what they're dragging.
+    /// </summary>
+    private IEnumerable<int> ResolveSelectionForDrag(MovieListItem dragged)
+    {
+        if (_selectedIds.Contains(dragged.Id) && _selectedIds.Count > 1)
+            return _selectedIds.ToList();
+        // Drag of a single (possibly unselected) card.
+        return new[] { dragged.Id };
+    }
+
+    /// <summary>
+    /// Snapshot of selected MovieListItems for batch ops. Order follows
+    /// the current Movies list so operations feel predictable.
+    /// </summary>
+    private List<MovieListItem> SelectedMovies() =>
+        _vm.Movies.Where(m => _selectedIds.Contains(m.Id)).ToList();
+
+    private void OnSelClear(object sender, RoutedEventArgs e) => ClearSelection();
+
+    private void OnSelListsFlyoutOpening(object sender, object e)
+    {
+        SelListsFlyout.Items.Clear();
+        var ids = SelectedMovies().Select(m => m.Id).ToList();
+        if (ids.Count == 0) return;
+
+        var lists = AppState.Instance.Db.GetUserLists();
+        if (lists.Count == 0)
+        {
+            SelListsFlyout.Items.Add(new MenuFlyoutItem
+            {
+                Text = "(no lists yet — use + below)", IsEnabled = false
+            });
+        }
+        foreach (var ul in lists)
+        {
+            var item = new MenuFlyoutItem { Text = $"📑 {ul.Name}" };
+            var capturedUl = ul;
+            item.Click += (_, _) => AddSelectedToList(capturedUl.Id, capturedUl.Name);
+            SelListsFlyout.Items.Add(item);
+        }
+        SelListsFlyout.Items.Add(new MenuFlyoutSeparator());
+        var newItem = new MenuFlyoutItem { Text = "+ New list…" };
+        newItem.Click += async (_, _) =>
+        {
+            var name = await PromptNewListName();
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var listId = AppState.Instance.Db.CreateUserList(name.Trim());
+                AddSelectedToList(listId, name.Trim());
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException) { /* dup */ }
+        };
+        SelListsFlyout.Items.Add(newItem);
+    }
+
+    private void AddSelectedToList(int listId, string listName)
+    {
+        var ids = SelectedMovies().Select(m => m.Id).ToList();
+        if (ids.Count == 0) return;
+        foreach (var mid in ids)
+            AppState.Instance.Db.AddMovieToUserList(listId, mid);
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        ShowSelectionToast($"Added {ids.Count} to “{listName}”", () =>
+        {
+            foreach (var mid in ids)
+                AppState.Instance.Db.RemoveMovieFromUserList(listId, mid);
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void OnSelToggleWatched(object sender, RoutedEventArgs e)
+    {
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        bool anyUnwatched = picked.Any(m => !m.IsWatched);
+        var changed = new List<MovieListItem>();
+        foreach (var m in picked)
+        {
+            if (m.IsWatched == anyUnwatched) continue;
+            AppState.Instance.Db.ToggleWatched(m.Id);
+            m.IsWatched = anyUnwatched;
+            changed.Add(m);
+        }
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        ShowSelectionToast(
+            $"{(anyUnwatched ? "Marked" : "Unmarked")} {changed.Count} watched",
+            () => {
+                foreach (var m in changed)
+                {
+                    AppState.Instance.Db.ToggleWatched(m.Id);
+                    m.IsWatched = !anyUnwatched;
+                }
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
+    }
+
+    private void OnSelToggleWatchlist(object sender, RoutedEventArgs e)
+    {
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        bool anyOff = picked.Any(m => !m.IsWatchlist);
+        var changed = new List<MovieListItem>();
+        foreach (var m in picked)
+        {
+            if (m.IsWatchlist == anyOff) continue;
+            AppState.Instance.Db.SetWatchlist(m.Id, anyOff);
+            m.IsWatchlist = anyOff;
+            changed.Add(m);
+        }
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        ShowSelectionToast(
+            $"{(anyOff ? "Added" : "Removed")} {changed.Count} {(anyOff ? "to" : "from")} watchlist",
+            () => {
+                foreach (var m in changed)
+                {
+                    AppState.Instance.Db.SetWatchlist(m.Id, !anyOff);
+                    m.IsWatchlist = !anyOff;
+                }
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
+    }
+
+    private void OnSelToggleFav(object sender, RoutedEventArgs e)
+    {
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        bool anyOff = picked.Any(m => !m.IsFavorite);
+        var changed = new List<MovieListItem>();
+        foreach (var m in picked)
+        {
+            if (m.IsFavorite == anyOff) continue;
+            AppState.Instance.Db.ToggleFavorite(m.Id);
+            m.IsFavorite = anyOff;
+            changed.Add(m);
+        }
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        ShowSelectionToast(
+            $"{(anyOff ? "Favorited" : "Unfavorited")} {changed.Count}",
+            () => {
+                foreach (var m in changed)
+                {
+                    AppState.Instance.Db.ToggleFavorite(m.Id);
+                    m.IsFavorite = !anyOff;
+                }
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
+    }
+
+    private void OnSelRemoveFromCurrentList(object sender, RoutedEventArgs e)
+    {
+        if (_vm.UserListId == null) return;
+        var listId = _vm.UserListId.Value;
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        var ids = picked.Select(m => m.Id).ToList();
+        foreach (var mid in ids)
+            AppState.Instance.Db.RemoveMovieFromUserList(listId, mid);
+        // Visually remove from the current view (we're viewing this list).
+        foreach (var m in picked) _vm.Movies.Remove(m);
+        _selectedIds.Clear();
+        AfterSelectionChanged();
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        ShowSelectionToast($"Removed {ids.Count} from list", () =>
+        {
+            foreach (var mid in ids)
+                AppState.Instance.Db.AddMovieToUserList(listId, mid);
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            _ = _vm.LoadAsync();
+        });
+    }
+
+    private async Task<string?> PromptNewListName()
+    {
+        var box = new TextBox { PlaceholderText = "List name" };
+        var dlg = new ContentDialog
+        {
+            Title = "New list",
+            Content = box,
+            PrimaryButtonText = "Create",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = this.XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        var result = await dlg.ShowAsync();
+        return result == ContentDialogResult.Primary ? box.Text : null;
+    }
+
+    private void ShowSelectionToast(string message, Action undo)
+    {
+        // Route through MainWindow's toast — keeps a single visual style.
+        if (App.MainWindow is MainWindow mw)
+            mw.ShowToastWithUndo(message, undo);
     }
 
     // Named handlers so we can unsubscribe on ElementClearing — anonymous

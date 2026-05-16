@@ -7,7 +7,8 @@
             Tapped="OnTapped" DoubleTapped="OnDoubleTapped"
             PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
         <Border x:Name="RowBorder" Background="{ThemeResource CardBrush}"
-                CornerRadius="8" Padding="12,10">
+                CornerRadius="8" Padding="12,10"
+                BorderBrush="Transparent" BorderThickness="2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="48"/>

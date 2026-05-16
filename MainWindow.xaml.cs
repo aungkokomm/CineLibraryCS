@@ -7,6 +7,7 @@ using CineLibraryCS.Models;
 using CineLibraryCS.Services;
 using CineLibraryCS.ViewModels;
 using CineLibraryCS.Views;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.System;
 
@@ -87,6 +88,20 @@ public sealed partial class MainWindow : Window
             a.Handled = true;
         };
         RootGrid.KeyboardAccelerators.Add(searchAcc);
+
+        // v2.5 — drag-and-drop targets in the sidebar. Drag selected cards
+        // onto Favorites / Watchlist to flip those flags in bulk; drop on
+        // a user-list row to add. AllowDrop must be set per-target.
+        WireSidebarDropTarget(BtnFavorites, ids =>
+        {
+            foreach (var mid in ids) AppState.Instance.Db.ToggleFavorite(mid);
+            return $"Favorited {ids.Count}";
+        });
+        WireSidebarDropTarget(BtnWatchlist, ids =>
+        {
+            foreach (var mid in ids) AppState.Instance.Db.SetWatchlist(mid, true);
+            return $"Added {ids.Count} to watchlist";
+        });
 
         // v1.4.1 — Ctrl+? (Ctrl+Shift+/) shows keyboard shortcuts dialog
         var helpAcc = new KeyboardAccelerator
@@ -204,12 +219,53 @@ public sealed partial class MainWindow : Window
         // Update toast stays until dismissed — no auto-hide.
     }
 
+    // Pending action for the toast's primary button. The update-notifier
+    // path sets _pendingUpdateUrl; selection bulk-ops set _pendingUndo.
+    // Whichever is set when the button is clicked wins.
+    private Action? _pendingUndo;
+
     private async void OnToastActionClick(object sender, RoutedEventArgs e)
     {
+        // Undo first (selection bulk-ops). Update download is a fallback.
+        if (_pendingUndo != null)
+        {
+            try { _pendingUndo(); } catch { }
+            _pendingUndo = null;
+            ToastBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
         if (string.IsNullOrEmpty(_pendingUpdateUrl)) return;
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(_pendingUpdateUrl)); }
         catch { }
         ToastBorder.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Show a toast with an "Undo" button that calls back into the caller
+    /// to revert the action. Auto-hides after 6s. Used by the multi-select
+    /// bulk operations (add to list / mark watched / favorite / etc.) so a
+    /// fat-fingered batch is one click away from being put back.
+    /// </summary>
+    public void ShowToastWithUndo(string message, Action undo)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ToastText.Text = message;
+            _pendingUndo = undo;
+            ToastActionBtn.Content = "Undo";
+            ToastActionBtn.Visibility = Visibility.Visible;
+            ToastBorder.Visibility = Visibility.Visible;
+        });
+        Task.Delay(6000).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+        {
+            // Only clear if no newer toast superseded ours (cheap check:
+            // the Undo action is still the same instance).
+            if (_pendingUndo == undo)
+            {
+                _pendingUndo = null;
+                ToastBorder.Visibility = Visibility.Collapsed;
+            }
+        }));
     }
 
     // ── Sidebar refresh ───────────────────────────────────────────────────
@@ -323,7 +379,82 @@ public sealed partial class MainWindow : Window
         menu.Items.Add(renameItem);
         menu.Items.Add(deleteItem);
         btn.ContextFlyout = menu;
+
+        // Drop target for drag-from-card multi-select.
+        var listIdCap = ul.Id;
+        var listNameCap = ul.Name;
+        WireSidebarDropTarget(btn, ids =>
+        {
+            foreach (var mid in ids)
+                AppState.Instance.Db.AddMovieToUserList(listIdCap, mid);
+            return $"Added {ids.Count} to “{listNameCap}”";
+        });
         return btn;
+    }
+
+    /// <summary>
+    /// Wire a sidebar button as a drop target for "cinelibrary/movie-ids".
+    /// The applyOp callback runs synchronously against the DB and returns
+    /// the toast text. Visual: a purple outline appears while dragging
+    /// over the target.
+    /// </summary>
+    private void WireSidebarDropTarget(Button target, Func<List<int>, string> applyOp)
+    {
+        target.AllowDrop = true;
+        var purple = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"];
+        var origBg = target.Background;
+        var origBorderBrush = target.BorderBrush;
+        var origBorderThickness = target.BorderThickness;
+
+        target.DragEnter += (_, e) =>
+        {
+            if (!ContainsMovieIds(e.DataView)) return;
+            e.AcceptedOperation = DataPackageOperation.Link;
+            target.BorderBrush = purple;
+            target.BorderThickness = new Thickness(2);
+        };
+        target.DragOver += (_, e) =>
+        {
+            if (ContainsMovieIds(e.DataView))
+                e.AcceptedOperation = DataPackageOperation.Link;
+        };
+        target.DragLeave += (_, _) =>
+        {
+            target.BorderBrush = origBorderBrush;
+            target.BorderThickness = origBorderThickness;
+        };
+        target.Drop += async (_, e) =>
+        {
+            target.BorderBrush = origBorderBrush;
+            target.BorderThickness = origBorderThickness;
+            var ids = await ReadMovieIdsAsync(e.DataView);
+            if (ids.Count == 0) return;
+            var toastMsg = applyOp(ids);
+            _ = RefreshSidebarAsync();
+            // For Favorites/Watchlist the user can undo by flipping
+            // those movies back. We don't have a generic inverse op
+            // because applyOp could be anything, so plain toast for now.
+            ShowToast(toastMsg);
+        };
+    }
+
+    private static bool ContainsMovieIds(DataPackageView view)
+        => view.Properties.ContainsKey("cinelibrary/movie-ids") || view.Contains(StandardDataFormats.Text);
+
+    private static async Task<List<int>> ReadMovieIdsAsync(DataPackageView view)
+    {
+        string? csv = null;
+        if (view.Properties.TryGetValue("cinelibrary/movie-ids", out var raw))
+            csv = raw as string;
+        if (csv == null && view.Contains(StandardDataFormats.Text))
+        {
+            try { csv = await view.GetTextAsync(); } catch { }
+        }
+        if (string.IsNullOrWhiteSpace(csv)) return new List<int>();
+        return csv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                  .Select(s => int.TryParse(s.Trim(), out var n) ? n : 0)
+                  .Where(n => n > 0)
+                  .ToList();
     }
 
     /// <summary>
@@ -958,7 +1089,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.4.1",
+            Title = "CineLibrary v2.5.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

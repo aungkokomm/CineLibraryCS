@@ -24,6 +24,10 @@ public partial class MovieListItem : ObservableObject
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private bool _isWatched;
     [ObservableProperty] private bool _isWatchlist;
+    // v2.5 — multi-select state. The card draws a purple outline + ✓ corner
+    // chip when this is true. LibraryPage owns the source-of-truth list of
+    // selected items; this property is bound one-way for the card UI.
+    [ObservableProperty] private bool _isSelected;
 
     public string YearRuntimeText =>
         $"{Year?.ToString() ?? "—"}{(Runtime.HasValue ? $" · {Runtime}m" : "")}";
