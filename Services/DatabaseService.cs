@@ -1107,13 +1107,46 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
     }
 
+    /// <summary>
+    /// Split the user's search query into whitespace tokens, dropping empties.
+    /// Each token is then AND'ed in the SQL so multi-word queries like
+    /// "iron man 2008" match titles in any order with punctuation between
+    /// them — e.g. "Iron Man (2008)" or "The Iron Man — 2008 Remaster".
+    /// </summary>
+    private static string[] TokenizeSearch(string s) =>
+        s.Trim().Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+    /// <summary>
+    /// Escape SQL LIKE wildcards in a user-provided token. Without this,
+    /// typing "100%" or "snake_case" would behave as wildcards instead of
+    /// literals. Combined with `ESCAPE '\'` in the LIKE clause.
+    /// </summary>
+    private static string EscapeLike(string s) => s
+        .Replace(@"\", @"\\")
+        .Replace("%", @"\%")
+        .Replace("_", @"\_");
+
     private (string whereStr, List<string> clauses) BuildMovieListWhere(ListOptions opts)
     {
         var where = new List<string>();
         if (!string.IsNullOrWhiteSpace(opts.Search))
-            where.Add(@"(m.title LIKE @q OR m.original_title LIKE @q OR m.plot LIKE @q
-                OR EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND a.name LIKE @q)
-                OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND d.name LIKE @q))");
+        {
+            // Multi-token AND: every word in the query has to match somewhere
+            // (title / original / plot / tagline / year / actor / director /
+            // collection). Order doesn't matter — "hanks forrest" finds
+            // "Forrest Gump" via Tom Hanks just as well as "forrest hanks".
+            var tokens = TokenizeSearch(opts.Search);
+            for (int i = 0; i < tokens.Length; i++)
+            {
+                var p = $"@q{i}";
+                where.Add($@"(m.title LIKE {p} ESCAPE '\' OR m.original_title LIKE {p} ESCAPE '\'
+                    OR m.plot LIKE {p} ESCAPE '\' OR m.tagline LIKE {p} ESCAPE '\'
+                    OR CAST(m.year AS TEXT) LIKE {p} ESCAPE '\'
+                    OR EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND a.name LIKE {p} ESCAPE '\')
+                    OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND d.name LIKE {p} ESCAPE '\')
+                    OR EXISTS (SELECT 1 FROM movie_sets ms JOIN sets s ON s.id=ms.set_id WHERE ms.movie_id=m.id AND s.name LIKE {p} ESCAPE '\'))");
+            }
+        }
         if (opts.DriveSerial != null) where.Add("m.volume_serial=@serial");
         if (opts.Genre != null) where.Add("EXISTS (SELECT 1 FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id AND g.name=@genre)");
         if (opts.Actor != null) where.Add("EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND LOWER(a.name)=LOWER(@actor))");
@@ -1136,7 +1169,11 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     private void BindMovieListParams(SqliteCommand cmd, ListOptions opts, bool includePaging)
     {
         if (!string.IsNullOrWhiteSpace(opts.Search))
-            cmd.Parameters.AddWithValue("@q", $"%{opts.Search}%");
+        {
+            var tokens = TokenizeSearch(opts.Search);
+            for (int i = 0; i < tokens.Length; i++)
+                cmd.Parameters.AddWithValue($"@q{i}", $"%{EscapeLike(tokens[i])}%");
+        }
         if (opts.DriveSerial != null) cmd.Parameters.AddWithValue("@serial", opts.DriveSerial);
         if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
         if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
