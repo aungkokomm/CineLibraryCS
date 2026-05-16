@@ -14,7 +14,10 @@ A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, 
 
 
 Built with C# + WinUI 3.
-<img width="958" height="509" alt="Screenshot 2026-05-14 194041" src="https://github.com/user-attachments/assets/82ab1734-2046-4b73-b29c-4d33dbe1ef0a" />
+<img width="960" height="509" alt="image" src="https://github.com/user-attachments/assets/12554e40-8d38-4fa9-96c5-665d76cc3593" />
+
+✨ **Richer, deeper movie details than ever before** — discover the stories behind your collection in a whole new way.
+<img width="960" height="457" alt="image" src="https://github.com/user-attachments/assets/bc89a995-5aea-4bc1-864e-6188b9df28ff" />
 
 
 
