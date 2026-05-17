@@ -31,7 +31,8 @@
                     <StackPanel>
                         <TextBlock Text="🎬" FontSize="22"/>
                         <TextBlock x:Name="TileTotalMovies" Text="0"
-                                   FontSize="32" FontWeight="Bold"
+                                   FontSize="36" FontWeight="Bold"
+                                   CharacterSpacing="-25"
                                    Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
                         <TextBlock Text="Total movies" FontSize="12"
                                    Foreground="{ThemeResource MutedBrush}"/>
@@ -42,7 +43,8 @@
                     <StackPanel>
                         <TextBlock Text="⏱️" FontSize="22"/>
                         <TextBlock x:Name="TileTotalRuntime" Text="—"
-                                   FontSize="32" FontWeight="Bold"
+                                   FontSize="36" FontWeight="Bold"
+                                   CharacterSpacing="-25"
                                    Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
                         <TextBlock Text="Total runtime" FontSize="12"
                                    Foreground="{ThemeResource MutedBrush}"/>
@@ -53,7 +55,8 @@
                     <StackPanel>
                         <TextBlock Text="⭐" FontSize="22"/>
                         <TextBlock x:Name="TileAvgRating" Text="—"
-                                   FontSize="32" FontWeight="Bold"
+                                   FontSize="36" FontWeight="Bold"
+                                   CharacterSpacing="-25"
                                    Foreground="#FACC15" Margin="0,4,0,0"/>
                         <TextBlock Text="Avg rating" FontSize="12"
                                    Foreground="{ThemeResource MutedBrush}"/>
@@ -64,7 +67,8 @@
                     <StackPanel>
                         <TextBlock Text="💾" FontSize="22"/>
                         <TextBlock x:Name="TileTotalDrives" Text="0"
-                                   FontSize="32" FontWeight="Bold"
+                                   FontSize="36" FontWeight="Bold"
+                                   CharacterSpacing="-25"
                                    Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
                         <TextBlock Text="Drives tracked" FontSize="12"
                                    Foreground="{ThemeResource MutedBrush}"/>

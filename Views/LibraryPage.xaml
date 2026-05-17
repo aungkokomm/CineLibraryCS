@@ -45,15 +45,35 @@
                        FontSize="18" FontWeight="Bold" Foreground="{ThemeResource TextBrush}"
                        CharacterSpacing="100" VerticalAlignment="Center"/>
 
-            <AutoSuggestBox Grid.Column="2"
-                            x:Name="SearchBox"
-                            PlaceholderText="Search title, actor, director, plot…"
-                            Margin="20,0"
-                            QueryIcon="Find"
-                            TextChanged="OnSearchChanged"
-                            Background="{ThemeResource InputBgBrush}"
-                            BorderBrush="{ThemeResource InputBorderBrush}"
-                            Foreground="{ThemeResource TextBrush}"/>
+            <!-- v2.6 — Search box wrapped in a focus-aware Border so the
+                 focus ring is the brand purple, plus a small "Esc"
+                 affordance shown while there's text to clear. -->
+            <Grid Grid.Column="2" Margin="20,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <AutoSuggestBox Grid.Column="0"
+                                x:Name="SearchBox"
+                                PlaceholderText="Search title, actor, director, plot…"
+                                QueryIcon="Find"
+                                TextChanged="OnSearchChanged"
+                                GotFocus="OnSearchBoxFocus"
+                                LostFocus="OnSearchBoxBlur"
+                                Background="{ThemeResource InputBgBrush}"
+                                BorderBrush="{ThemeResource InputBorderBrush}"
+                                Foreground="{ThemeResource TextBrush}"/>
+                <Border x:Name="SearchEscHint" Grid.Column="1" Visibility="Collapsed"
+                        Background="{ThemeResource ChipBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="4" Padding="6,2" Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False">
+                    <TextBlock Text="Esc" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{ThemeResource MutedBrush}"
+                               CharacterSpacing="50"/>
+                </Border>
+            </Grid>
 
             <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
 
@@ -150,20 +170,32 @@
         </Grid>
 
         <!-- ═══ FILTER BAR ═══ -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Padding="24,0,24,12">
-            <TextBlock x:Name="MovieCountText" Text="0 movies"
-                       Foreground="{ThemeResource MutedBrush}" FontSize="13"
-                       VerticalAlignment="Center" Margin="0,0,12,0"/>
-            <Button x:Name="FilterAll"      Content="All"       Tag="all"
-                    Style="{StaticResource PillButtonActiveStyle}" Click="OnWatchedFilter"/>
-            <Button x:Name="FilterUnwatched" Content="Unwatched" Tag="unwatched"
-                    Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
-            <Button x:Name="FilterWatched"  Content="Watched"   Tag="watched"
-                    Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
-            <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters"
-                    Click="OnClearFilters" Visibility="Collapsed"
-                    Style="{StaticResource PillButtonStyle}"
-                    Margin="12,0,0,0"/>
+        <StackPanel Grid.Row="1" Padding="24,0,24,8" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock x:Name="MovieCountText" Text="0 movies"
+                           Foreground="{ThemeResource MutedBrush}" FontSize="13"
+                           VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <Button x:Name="FilterAll"      Content="All"       Tag="all"
+                        Style="{StaticResource PillButtonActiveStyle}" Click="OnWatchedFilter"/>
+                <Button x:Name="FilterUnwatched" Content="Unwatched" Tag="unwatched"
+                        Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
+                <Button x:Name="FilterWatched"  Content="Watched"   Tag="watched"
+                        Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
+                <Button x:Name="ClearFiltersBtn" Content="✕ Clear filters"
+                        Click="OnClearFilters" Visibility="Collapsed"
+                        Style="{StaticResource PillButtonStyle}"
+                        Margin="12,0,0,0"/>
+            </StackPanel>
+            <!-- v2.6 — Active filter chips. Each one removes itself when
+                 clicked, so the user can drop a single filter without
+                 hunting through menus. -->
+            <ItemsControl x:Name="ActiveFilterChips" Visibility="Collapsed">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </StackPanel>
 
         <!-- ═══ MOVIE GRID / LIST ═══ -->
@@ -248,6 +280,10 @@
                 Background="{ThemeResource CardBrush}"
                 BorderBrush="{StaticResource BrandPurpleBrush}"
                 BorderThickness="1" CornerRadius="22">
+            <!-- v2.6 — slides up from below when selection becomes non-empty -->
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="SelectionBarSlide" Y="40"/>
+            </Border.RenderTransform>
             <Border.Shadow>
                 <ThemeShadow/>
             </Border.Shadow>

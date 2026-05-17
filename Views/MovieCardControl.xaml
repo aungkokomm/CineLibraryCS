@@ -13,16 +13,24 @@
             </TransformGroup>
         </Grid.RenderTransform>
         <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="10">
+            <Border.Shadow>
+                <ThemeShadow/>
+            </Border.Shadow>
             <Grid>
                 <!-- Poster image -->
                 <Image x:Name="PosterImage" Stretch="UniformToFill"
                        VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
 
-                <!-- Placeholder -->
-                <Grid x:Name="PosterPlaceholder"
-                      Background="{ThemeResource PlaceholderBgBrush}" Visibility="Visible">
+                <!-- Placeholder — v2.6 subtle gradient + reel emoji for depth -->
+                <Grid x:Name="PosterPlaceholder" Visibility="Visible">
+                    <Grid.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0"   Color="{ThemeResource PlaceholderTopColor}"/>
+                            <GradientStop Offset="1"   Color="{ThemeResource PlaceholderBottomColor}"/>
+                        </LinearGradientBrush>
+                    </Grid.Background>
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-                        <TextBlock Text="🎬" FontSize="40" HorizontalAlignment="Center"/>
+                        <TextBlock Text="🎬" FontSize="42" Opacity="0.85" HorizontalAlignment="Center"/>
                         <TextBlock x:Name="PlaceholderTitle" Text="" FontSize="11"
                                    Foreground="{ThemeResource MutedBrush}"
                                    TextWrapping="Wrap" TextAlignment="Center"

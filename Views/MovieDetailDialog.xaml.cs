@@ -294,7 +294,7 @@ public sealed partial class MovieDetailDialog : Window
                         foreach (var ext in ActorThumbExts)
                         {
                             var p = Path.Combine(actorsDir, stem + ext);
-                            if (File.Exists(p)) { ApplyBitmap(a, new Uri(p)); return; }
+                            if (File.Exists(p)) { ApplyBitmap(a, SafeFileUri(p)); return; }
                         }
                     }
                 }
@@ -309,11 +309,25 @@ public sealed partial class MovieDetailDialog : Window
                     raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     uri = new Uri(raw);
                 else if (File.Exists(raw))
-                    uri = new Uri(raw);
+                    uri = SafeFileUri(raw);
                 if (uri != null) ApplyBitmap(a, uri);
             }
         }
         catch { }
+    }
+
+    /// <summary>
+    /// Build a file:// Uri that won't get its path lopped off by '#' or
+    /// '?' in the file name. BitmapImage.UriSource treats those as URL
+    /// fragment / query delimiters, so a poster called "Wall·E #1.jpg"
+    /// silently fails to load otherwise.
+    /// </summary>
+    private static Uri SafeFileUri(string absolutePath)
+    {
+        var escaped = absolutePath
+            .Replace("#", "%23")
+            .Replace("?", "%3F");
+        return new Uri(escaped);
     }
 
     private static void ApplyBitmap(Models.Actor a, Uri uri)
@@ -351,7 +365,7 @@ public sealed partial class MovieDetailDialog : Window
             var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath!, fullPath));
             if (bytes == null) return;
             var bmp = new BitmapImage { DecodePixelWidth = decodeWidth };
-            var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             ms.Seek(0);
             await bmp.SetSourceAsync(ms);
@@ -688,13 +702,23 @@ public sealed partial class MovieDetailDialog : Window
     private async void OnOpenImdb(object sender, RoutedEventArgs e)
     {
         if (_movie?.ImdbId == null) return;
-        try { await Launcher.LaunchUriAsync(new Uri($"https://www.imdb.com/title/{_movie.ImdbId}/")); } catch { }
+        try { await Launcher.LaunchUriAsync(new Uri($"https://www.imdb.com/title/{_movie.ImdbId}/")); }
+        catch
+        {
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("Couldn't open IMDb — no browser available?");
+        }
     }
 
     private async void OnOpenTmdb(object sender, RoutedEventArgs e)
     {
         if (_movie?.TmdbId == null) return;
-        try { await Launcher.LaunchUriAsync(new Uri($"https://www.themoviedb.org/movie/{_movie.TmdbId}")); } catch { }
+        try { await Launcher.LaunchUriAsync(new Uri($"https://www.themoviedb.org/movie/{_movie.TmdbId}")); }
+        catch
+        {
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("Couldn't open TMDb — no browser available?");
+        }
     }
 
     private async void OnPlay(object sender, RoutedEventArgs e)
@@ -868,7 +892,11 @@ public sealed partial class MovieDetailDialog : Window
                     WatchlistChanged?.Invoke(this, EventArgs.Empty);
                     RefreshListChips();
                 }
-                catch (Microsoft.Data.Sqlite.SqliteException) { /* dup name */ }
+                catch (Microsoft.Data.Sqlite.SqliteException)
+                {
+                    if (App.MainWindow is MainWindow mw)
+                        mw.ShowToast($"A list named “{name.Trim()}” already exists");
+                }
             };
             ListsFlyout.Items.Add(newItem);
         }

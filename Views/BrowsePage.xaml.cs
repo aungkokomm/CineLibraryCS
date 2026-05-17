@@ -137,7 +137,7 @@ public sealed partial class BrowsePage : Page
             var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath, fullPath));
             if (bytes == null) return;
             var bmp = new BitmapImage { DecodePixelWidth = 800 };
-            var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             ms.Seek(0);
             await bmp.SetSourceAsync(ms);

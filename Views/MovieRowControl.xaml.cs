@@ -199,7 +199,7 @@ public sealed partial class MovieRowControl : UserControl
             if (bytes == null) return;
 
             var bmp = new BitmapImage { DecodePixelWidth = 44 };
-            var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             if (myToken != _thumbLoadToken) return;
             ms.Seek(0);
@@ -304,7 +304,11 @@ public sealed partial class MovieRowControl : UserControl
             await Windows.System.Launcher.LaunchUriAsync(new Uri(videoPath));
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch { }
+        catch
+        {
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("Couldn't launch the video player");
+        }
     }
 
     private async Task ShowOfflineDialog(string title, string? driveLabel)

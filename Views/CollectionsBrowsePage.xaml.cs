@@ -67,7 +67,9 @@ public sealed partial class CollectionsBrowsePage : Page
                         // DecodePixelWidth caps the in-memory size to roughly
                         // the rendered poster width.
                         var bmp = new BitmapImage { DecodePixelWidth = 200 };
-                        bmp.UriSource = new Uri(fullPath);
+                        // # / ? in the file name would otherwise be eaten by
+                        // the URI parser as fragment / query delimiters.
+                        bmp.UriSource = new Uri(fullPath.Replace("#", "%23").Replace("?", "%3F"));
                         vm.CoverImage = bmp;
                     }
                     catch { /* unreadable file → tile shows the placeholder bg */ }

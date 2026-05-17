@@ -27,7 +27,12 @@ public class DatabaseService : IDisposable
 
     private void ExecutePragmas()
     {
-        Exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;");
+        // v2.6 — busy_timeout makes a writer wait up to 5 s for the lock
+        // instead of failing immediately with SQLITE_BUSY. Critical when
+        // the scanner is mid-transaction and the UI thread tries to UPDATE
+        // (e.g. drive-last-seen, watched/fav toggles). WAL gives concurrent
+        // readers; busy_timeout gives serialized writers a chance to land.
+        Exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     }
 
     private void CreateSchema()
@@ -1025,11 +1030,23 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void UpdateDriveLastSeen(string serial, string letter)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "UPDATE drives SET last_seen_letter=@l, last_connected_at=strftime('%s','now') WHERE volume_serial=@s";
-        cmd.Parameters.AddWithValue("@l", letter);
-        cmd.Parameters.AddWithValue("@s", serial);
-        cmd.ExecuteNonQuery();
+        // v2.6 — fire-and-forget cosmetic bookkeeping. busy_timeout already
+        // makes us wait up to 5 s for the write lock; if the scanner is
+        // doing a long transaction and we still can't squeeze in, just skip
+        // the update — the next RefreshConnected (next drive event or
+        // sidebar nav) will pick it up. Better than crashing the UI.
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "UPDATE drives SET last_seen_letter=@l, last_connected_at=strftime('%s','now') WHERE volume_serial=@s";
+            cmd.Parameters.AddWithValue("@l", letter);
+            cmd.Parameters.AddWithValue("@s", serial);
+            cmd.ExecuteNonQuery();
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException)
+        {
+            // SQLITE_BUSY after the 5 s wait — scan still running. Skip.
+        }
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -1562,7 +1579,10 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         var c = new SqliteConnection($"Data Source={dbPath}");
         c.Open();
         using var pr = c.CreateCommand();
-        pr.CommandText = "PRAGMA foreign_keys=ON;";
+        // v2.6 — same pragmas as the main connection so the scanner's
+        // writer waits cooperatively when the UI thread also wants the
+        // write lock (drive last-seen update, watched-toggle, etc).
+        pr.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;";
         pr.ExecuteNonQuery();
         return c;
     }
