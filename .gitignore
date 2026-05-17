@@ -17,6 +17,7 @@ CineLibrary-Data/
 _*.ps1
 dist/
 
-# Stray root-level PNGs (e.g. accidental icon → PNG conversions).
-# Real assets live under Assets\.
+# Stray root-level art files (e.g. accidental icon → PNG conversions).
+# Real artwork lives under Assets\.
 /*.png
+/icon.ico
