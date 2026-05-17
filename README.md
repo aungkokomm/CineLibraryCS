@@ -88,3 +88,4 @@ SQLite DB + cached artwork live there. Back it up to keep your favorites/watched
 ## License
 
 MIT
+
