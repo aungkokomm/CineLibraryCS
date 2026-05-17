@@ -222,7 +222,14 @@ public sealed partial class MainWindow : Window
     // Pending action for the toast's primary button. The update-notifier
     // path sets _pendingUpdateUrl; selection bulk-ops set _pendingUndo.
     // Whichever is set when the button is clicked wins.
+    //
+    // v2.5.1 — every show-toast call bumps _toastGeneration. Auto-hide
+    // timers capture the generation at show-time and bail out if a newer
+    // toast has been shown since. Prevents a stale 6 s timer from
+    // collapsing a freshly-shown toast (or worse, clearing the wrong
+    // _pendingUndo).
     private Action? _pendingUndo;
+    private int _toastGeneration;
 
     private async void OnToastActionClick(object sender, RoutedEventArgs e)
     {
@@ -250,21 +257,31 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            var myGen = ++_toastGeneration;
             ToastText.Text = message;
-            _pendingUndo = undo;
+            // Set the visual label BEFORE installing the action so a rapid
+            // click can never trigger the wrong handler.
             ToastActionBtn.Content = "Undo";
             ToastActionBtn.Visibility = Visibility.Visible;
+            _pendingUndo = undo;
             ToastBorder.Visibility = Visibility.Visible;
+            AnimateToastIn();
+            ScheduleToastHide(myGen);
         });
+    }
+
+    /// <summary>
+    /// Hide the toast 6 s from now, but only if it's still showing the
+    /// generation we captured. Newer ShowToast* calls bump the counter
+    /// and effectively cancel us.
+    /// </summary>
+    private void ScheduleToastHide(int generation)
+    {
         Task.Delay(6000).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
         {
-            // Only clear if no newer toast superseded ours (cheap check:
-            // the Undo action is still the same instance).
-            if (_pendingUndo == undo)
-            {
-                _pendingUndo = null;
-                ToastBorder.Visibility = Visibility.Collapsed;
-            }
+            if (_toastGeneration != generation) return;
+            _pendingUndo = null;
+            ToastBorder.Visibility = Visibility.Collapsed;
         }));
     }
 
@@ -277,8 +294,9 @@ public sealed partial class MainWindow : Window
             var stats = _vm.Stats;
             TotalBadge.Text = stats?.TotalMovies.ToString() ?? "0";
             DrivesBadge.Text = _vm.Drives.Count.ToString();
-            StatRuntime.Text = stats?.TotalRuntimeText ?? "—";
-            StatRating.Text = stats?.AvgRatingText ?? "—";
+            // v2.5.1 — StatRuntime / StatRating tiles removed from sidebar
+            // (they live on the Statistics page now). Stats object still
+            // computed because other code paths use it.
 
             // Update watchlist badge (v1.3)
             if (_libraryPage?.ViewModel is LibraryViewModel vm)
@@ -425,11 +443,24 @@ public sealed partial class MainWindow : Window
         };
         target.Drop += async (_, e) =>
         {
+            // Read the DataView first — once we hand control back to the
+            // event pump (e.g. by setting visuals and awaiting), the view
+            // can be invalidated and GetTextAsync starts returning empty.
+            // Take a deferral so the system waits for our read.
+            var deferral = e.GetDeferral();
+            List<int> ids;
+            try { ids = await ReadMovieIdsAsync(e.DataView); }
+            finally { deferral.Complete(); }
             target.BorderBrush = origBorderBrush;
             target.BorderThickness = origBorderThickness;
-            var ids = await ReadMovieIdsAsync(e.DataView);
             if (ids.Count == 0) return;
-            var toastMsg = applyOp(ids);
+            string toastMsg;
+            try { toastMsg = applyOp(ids); }
+            catch (Exception ex)
+            {
+                ShowToast($"Couldn't apply drop: {ex.Message}");
+                return;
+            }
             _ = RefreshSidebarAsync();
             // For Favorites/Watchlist the user can undo by flipping
             // those movies back. We don't have a generic inverse op
@@ -1089,7 +1120,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.5.0",
+            Title = "CineLibrary v2.6.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
@@ -1104,12 +1135,38 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            var myGen = ++_toastGeneration;
             ToastText.Text = message;
             ToastActionBtn.Visibility = Visibility.Collapsed;
+            // Plain toast — no undo, so clear any pending action so the
+            // user clicking the ✕ doesn't accidentally fire a stale undo.
+            _pendingUndo = null;
             ToastBorder.Visibility = Visibility.Visible;
+            AnimateToastIn();
+            ScheduleToastHide(myGen);
         });
-        Task.Delay(6000).ContinueWith(_ =>
-            DispatcherQueue.TryEnqueue(() => ToastBorder.Visibility = Visibility.Collapsed));
+    }
+
+    /// <summary>
+    /// v2.6 — slide the toast up from 20 px below to 0 over ~180 ms. Run
+    /// every time the toast becomes visible so each new toast animates,
+    /// even if the previous one was still on screen.
+    /// </summary>
+    private void AnimateToastIn()
+    {
+        ToastSlide.Y = 20;
+        var sb = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        var anim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = 20, To = 0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(180)),
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+                { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, ToastSlide);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, "Y");
+        sb.Children.Add(anim);
+        sb.Begin();
     }
 
     private void OnToastDismiss(object sender, RoutedEventArgs e)

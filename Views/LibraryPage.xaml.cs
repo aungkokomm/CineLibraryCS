@@ -112,16 +112,37 @@ public sealed partial class LibraryPage : Page
             if (MovieCardControl.ResolveSelectionForDrag == (Func<MovieListItem, IEnumerable<int>>)ResolveSelectionForDrag)
                 MovieCardControl.ResolveSelectionForDrag = null;
         };
-        // Reset selection when the underlying list reloads (filter / search /
-        // user-list change). The reload calls Movies.Clear() first, so we
-        // hook the Reset action to wipe the selection set in lockstep.
+        // v2.5.2 — preserve selection across reloads. When the filter or
+        // search changes, movies that are still visible should stay
+        // selected; movies that scrolled out of the view get pruned
+        // from _selectedIds. Each newly-added item has its IsSelected
+        // flag rehydrated from _selectedIds so its visual matches.
         _vm.Movies.CollectionChanged += (_, e) =>
         {
-            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset
-                && _selectedIds.Count > 0)
+            switch (e.Action)
             {
-                _selectedIds.Clear();
-                AfterSelectionChanged();
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                    if (e.NewItems != null)
+                        foreach (MovieListItem m in e.NewItems)
+                            if (_selectedIds.Contains(m.Id) && !m.IsSelected)
+                                m.IsSelected = true;
+                    break;
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                    // Movies just cleared — the next batch of Adds will repopulate.
+                    // Schedule a prune after they land so _selectedIds drops any
+                    // ids that no longer have a card on screen, and the "X
+                    // selected" counter stays honest.
+                    if (_selectedIds.Count > 0)
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            var visible = new HashSet<int>(_vm.Movies.Select(m => m.Id));
+                            var before = _selectedIds.Count;
+                            _selectedIds.IntersectWith(visible);
+                            if (_selectedIds.Count != before) AfterSelectionChanged();
+                        });
+                    }
+                    break;
             }
             RefreshRemoveFromListVisibility();
         };
@@ -190,17 +211,44 @@ public sealed partial class LibraryPage : Page
         AfterSelectionChanged();
     }
 
+    private bool _selectionBarShown;
+
     private void AfterSelectionChanged()
     {
         MovieCardControl.CurrentSelectionCount = _selectedIds.Count;
         if (_selectedIds.Count == 0)
         {
             SelectionBar.Visibility = Visibility.Collapsed;
+            _selectionBarShown = false;
             return;
         }
-        SelectionBar.Visibility = Visibility.Visible;
         SelectionCountText.Text = $"{_selectedIds.Count} selected";
+        // v2.6 — animate the bar up the first time it appears in this
+        // selection session; subsequent count changes just update the text.
+        if (!_selectionBarShown)
+        {
+            SelectionBar.Visibility = Visibility.Visible;
+            AnimateSelectionBarIn();
+            _selectionBarShown = true;
+        }
         RefreshRemoveFromListVisibility();
+    }
+
+    private void AnimateSelectionBarIn()
+    {
+        SelectionBarSlide.Y = 40;
+        var sb = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        var anim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = 40, To = 0,
+            Duration = new Duration(TimeSpan.FromMilliseconds(220)),
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+                { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, SelectionBarSlide);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, "Y");
+        sb.Children.Add(anim);
+        sb.Begin();
     }
 
     private void RefreshRemoveFromListVisibility()
@@ -264,7 +312,11 @@ public sealed partial class LibraryPage : Page
                 var listId = AppState.Instance.Db.CreateUserList(name.Trim());
                 AddSelectedToList(listId, name.Trim());
             }
-            catch (Microsoft.Data.Sqlite.SqliteException) { /* dup */ }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                if (App.MainWindow is MainWindow mw)
+                    mw.ShowToast($"A list named “{name.Trim()}” already exists");
+            }
         };
         SelListsFlyout.Items.Add(newItem);
     }
@@ -369,6 +421,13 @@ public sealed partial class LibraryPage : Page
         var picked = SelectedMovies();
         if (picked.Count == 0) return;
         var ids = picked.Select(m => m.Id).ToList();
+        // Snapshot of (movie, original index) so Undo can put each item
+        // back exactly where the user removed it from. Reloading the page
+        // would lose anything past page 1 of the paged list.
+        var snapshots = picked
+            .Select(m => (Movie: m, Index: _vm.Movies.IndexOf(m)))
+            .OrderBy(s => s.Index)
+            .ToList();
         foreach (var mid in ids)
             AppState.Instance.Db.RemoveMovieFromUserList(listId, mid);
         // Visually remove from the current view (we're viewing this list).
@@ -380,8 +439,14 @@ public sealed partial class LibraryPage : Page
         {
             foreach (var mid in ids)
                 AppState.Instance.Db.AddMovieToUserList(listId, mid);
+            // Re-insert in place. Iterate from the lowest-index outwards
+            // so later items don't have to be re-indexed as we go.
+            foreach (var snap in snapshots)
+            {
+                var idx = Math.Min(snap.Index, _vm.Movies.Count);
+                _vm.Movies.Insert(idx, snap.Movie);
+            }
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-            _ = _vm.LoadAsync();
         });
     }
 
@@ -563,6 +628,7 @@ public sealed partial class LibraryPage : Page
         if (!empty) return;
 
         // First-launch: zero drives in DB → big CTA pointing to Drives → Add folder.
+        // Empty user list → list-specific message (v2.5.2).
         // Otherwise: filter-empty hint (existing behaviour).
         var hasAnyDrive = AppState.Instance.Db.GetDrives().Count > 0;
         if (!hasAnyDrive)
@@ -574,6 +640,16 @@ public sealed partial class LibraryPage : Page
                 "Drives → Add folder.";
             EmptyCtaBtn.Content = "📂 Add my movies folder";
             EmptyCtaBtn.Visibility = Visibility.Visible;
+        }
+        else if (_vm.UserListId != null && string.IsNullOrEmpty(_vm.SearchText))
+        {
+            EmptyTitle.Text = "This list is empty";
+            EmptyStateHint.Text =
+                "Add movies by right-clicking any poster and choosing " +
+                "“📑 Add to list”, or from a movie's detail dialog. " +
+                "You can also Ctrl+click multiple cards in the library and " +
+                "drag them onto this list in the sidebar.";
+            EmptyCtaBtn.Visibility = Visibility.Collapsed;
         }
         else
         {
@@ -607,19 +683,9 @@ public sealed partial class LibraryPage : Page
 
     private void UpdateClearFiltersButton()
     {
-        var anyFilter =
-            !string.IsNullOrEmpty(_vm.SearchText) ||
-            _vm.WatchedFilter != WatchedFilter.All ||
-            _vm.FavoritesOnly ||
-            _vm.IsWatchlistOnly ||
-            _vm.DriveSerial != null ||
-            _vm.Genre != null ||
-            _vm.CollectionId != null ||
-            _vm.FilterActor != null ||
-            _vm.FilterDirector != null ||
-            _vm.FilterStudio != null ||
-            _vm.UserListId != null;
-        ClearFiltersBtn.Visibility = anyFilter ? Visibility.Visible : Visibility.Collapsed;
+        // v2.6 — covers the new Decade / Rating / ContinueWatching filters too.
+        ClearFiltersBtn.Visibility = AnyFilterActive()
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Density (S/M/L/XL) ────────────────────────────────────────────────
@@ -736,7 +802,106 @@ public sealed partial class LibraryPage : Page
             }
             // Any filter-related VM change should reflect in the Clear button
             UpdateClearFiltersButton();
+            UpdateFilterChips();
         });
+    }
+
+    /// <summary>
+    /// v2.6 — render a chip per active VM filter so the user can see what's
+    /// narrowing the view and drop any single one with one click.
+    ///
+    /// Each chip's onClear action also reloads — VM filter setters have no
+    /// partial OnXxxChanged handlers, so nulling the field alone wouldn't
+    /// re-query. We do a reload + re-render the chip strip to keep
+    /// everything in sync.
+    /// </summary>
+    private void UpdateFilterChips()
+    {
+        ActiveFilterChips.Items.Clear();
+        AddChip("Genre",    _vm.Genre,           () => DropFilter(() => _vm.Genre = null));
+        if (_vm.FilterDecadeStart.HasValue)
+            AddChip("Decade", $"{_vm.FilterDecadeStart.Value}s",
+                () => DropFilter(() => _vm.FilterDecadeStart = null));
+        AddChip("Rating",   _vm.FilterRatingBand,() => DropFilter(() => _vm.FilterRatingBand = null));
+        AddChip("Actor",    _vm.FilterActor,     () => DropFilter(() => _vm.FilterActor = null));
+        AddChip("Director", _vm.FilterDirector,  () => DropFilter(() => _vm.FilterDirector = null));
+        AddChip("Studio",   _vm.FilterStudio,    () => DropFilter(() => _vm.FilterStudio = null));
+        if (_vm.FavoritesOnly)
+            AddChip("Favorites", "★",   () => DropFilter(() => _vm.FavoritesOnly = false));
+        if (_vm.IsWatchlistOnly)
+            AddChip("Watchlist", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
+        if (_vm.IsContinueWatching)
+            AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
+        ActiveFilterChips.Visibility = ActiveFilterChips.Items.Count > 0
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Apply a single filter mutation, then reload. If the result is "no
+    /// filters left", also reset the page title so the breadcrumb doesn't
+    /// stick around ("ALL MOVIES › 2010S" should revert to "ALL MOVIES").
+    /// </summary>
+    private void DropFilter(Action mutate)
+    {
+        mutate();
+        if (!AnyFilterActive())
+        {
+            _vm.PageTitle = "All Movies";
+            PageTitleText.Text = "ALL MOVIES";
+        }
+        _ = _vm.LoadAsync();
+        UpdateClearFiltersButton();
+    }
+
+    private bool AnyFilterActive() =>
+        !string.IsNullOrEmpty(_vm.SearchText) ||
+        _vm.WatchedFilter != WatchedFilter.All ||
+        _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
+        _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
+        _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
+        _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||
+        _vm.UserListId != null;
+
+    private void AddChip(string label, string? value, Action onClear)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        var border = new Border
+        {
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(10, 3, 6, 3),
+        };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        sp.Children.Add(new TextBlock
+        {
+            FontSize = 11,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Text = label + ":",
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        sp.Children.Add(new TextBlock
+        {
+            FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+            Text = value,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var x = new Button
+        {
+            Content = "✕", FontSize = 10,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4, 0, 4, 0),
+            MinWidth = 18, MinHeight = 18,
+        };
+        ToolTipService.SetToolTip(x, $"Clear {label.ToLower()} filter");
+        x.Click += (_, _) => onClear();
+        sp.Children.Add(x);
+        border.Child = sp;
+        ActiveFilterChips.Items.Add(border);
     }
 
     // ── Search ────────────────────────────────────────────────────────────
@@ -746,6 +911,32 @@ public sealed partial class LibraryPage : Page
         if (!_ready) return;
         if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
             _vm.SearchText = sender.Text;
+        // v2.6 — Esc hint visibility tracks "has text" (Esc only does
+        // something when there's a search to clear).
+        UpdateSearchEscHint();
+    }
+
+    private void OnSearchBoxFocus(object sender, RoutedEventArgs e)
+    {
+        SearchBox.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
+            Application.Current.Resources["BrandPurpleBrush"];
+        UpdateSearchEscHint();
+    }
+
+    private void OnSearchBoxBlur(object sender, RoutedEventArgs e)
+    {
+        SearchBox.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
+            Application.Current.Resources["InputBorderBrush"];
+        UpdateSearchEscHint();
+    }
+
+    private void UpdateSearchEscHint()
+    {
+        // Show only when the box is focused AND has text to clear.
+        var hasText = !string.IsNullOrEmpty(SearchBox.Text);
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot)
+            is FrameworkElement fe && (fe == SearchBox || fe.Parent == SearchBox);
+        SearchEscHint.Visibility = (hasText && focused) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────

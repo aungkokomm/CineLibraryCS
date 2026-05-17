@@ -16,9 +16,9 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.5.0</Version>
-    <AssemblyVersion>2.5.0.0</AssemblyVersion>
-    <FileVersion>2.5.0.0</FileVersion>
+    <Version>2.6.0</Version>
+    <AssemblyVersion>2.6.0.0</AssemblyVersion>
+    <FileVersion>2.6.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

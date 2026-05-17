@@ -76,6 +76,13 @@ public partial class MainViewModel : ObservableObject
     public async Task OnDeviceChangeAsync()
     {
         if (_shuttingDown) return;
+        // Debounce — USB hubs fire 3–5 WM_DEVICECHANGE messages within ms
+        // when a stick is plugged in. Coalesce into one refresh.
+        var myCall = ++_deviceChangeCallId;
+        await Task.Delay(150);
+        if (_shuttingDown) return;
+        if (myCall != _deviceChangeCallId) return;
+
         var prev = _prevConnected;
         await Task.Run(() => _state.RefreshConnected());
         if (_shuttingDown) return;
@@ -83,15 +90,27 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var drive in Drives)
         {
-            var wasConnected = prev.TryGetValue(drive.VolumeSerial, out _);
+            // Read the previous CONNECTED state, not "ever seen". Without
+            // this, a drive that disconnects then reconnects in the same
+            // session never produces a toast because TryGetValue always
+            // succeeds for any drive that was once present.
+            prev.TryGetValue(drive.VolumeSerial, out var wasConnected);
             var nowConnected = curr.ContainsKey(drive.VolumeSerial);
             if (!wasConnected && nowConnected)
                 ShowToast($"Drive '{drive.Label}' connected");
         }
 
-        _prevConnected = curr.ToDictionary(kv => kv.Key, _ => true);
+        // Track every known drive's CONNECTED state (true / false), not just
+        // presence — so disconnect→reconnect cycles produce a toast.
+        var next = new Dictionary<string, bool>(prev);
+        foreach (var drive in Drives)
+            next[drive.VolumeSerial] = curr.ContainsKey(drive.VolumeSerial);
+        _prevConnected = next;
+
         await RefreshSidebarAsync();
     }
+
+    private int _deviceChangeCallId;
 
     // ── Toast ─────────────────────────────────────────────────────────────
 

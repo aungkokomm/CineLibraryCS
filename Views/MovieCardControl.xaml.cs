@@ -75,8 +75,14 @@ public sealed partial class MovieCardControl : UserControl
     {
         InitializeComponent();
         ApplySize();
-        GlobalSizeChanged += OnGlobalSizeChanged;
-        Unloaded += (_, _) => GlobalSizeChanged -= OnGlobalSizeChanged;
+        // v2.5.1 — subscribe on Loaded / unsubscribe on Unloaded so a
+        // recycled card (UniformGridLayout reuses controls aggressively)
+        // re-attaches to the density-change event each time it goes back
+        // on-screen. The previous "subscribe in ctor, unsubscribe on
+        // Unloaded" pattern lost the subscription permanently after the
+        // first recycle, so cards stopped resizing on density change.
+        Loaded += OnCardLoaded;
+        Unloaded += OnCardUnloaded;
 
         // Right-click → flyout with watched/favorite/watchlist + Add to list
         var flyout = new MenuFlyout();
@@ -86,16 +92,19 @@ public sealed partial class MovieCardControl : UserControl
         PointerEntered += (_, _) =>
         {
             HoverOverlay.Visibility = Visibility.Visible;
-            HoverOverlay.Opacity = 1;
+            // v2.6 — fade the overlay in (200 ms cubic) instead of snap
+            AnimateOverlay(0, 1, 200);
             CardLift.Y = -4;
             CardScale.ScaleX = 1.025; CardScale.ScaleY = 1.025;
+            // Lift the card into Z so ThemeShadow casts a real shadow.
+            CardBorder.Translation = new System.Numerics.Vector3(0, 0, 24);
         };
         PointerExited += (_, _) =>
         {
-            HoverOverlay.Opacity = 0;
-            HoverOverlay.Visibility = Visibility.Collapsed;
+            AnimateOverlay(HoverOverlay.Opacity, 0, 160);
             CardLift.Y = 0;
             CardScale.ScaleX = 1; CardScale.ScaleY = 1;
+            CardBorder.Translation = new System.Numerics.Vector3(0, 0, 0);
         };
         // Single tap → open details after a short delay (so a double-tap
         // gets a chance to suppress it). Double tap → play directly.
@@ -161,6 +170,33 @@ public sealed partial class MovieCardControl : UserControl
     }
 
     private void OnGlobalSizeChanged(object? s, EventArgs e) => ApplySize();
+
+    private void AnimateOverlay(double from, double to, int durationMs)
+    {
+        var sb = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        var anim = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = from, To = to,
+            Duration = new Duration(TimeSpan.FromMilliseconds(durationMs)),
+            EasingFunction = new Microsoft.UI.Xaml.Media.Animation.CubicEase
+                { EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseOut },
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(anim, HoverOverlay);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(anim, "Opacity");
+        sb.Children.Add(anim);
+        sb.Begin();
+    }
+
+    private void OnCardLoaded(object sender, RoutedEventArgs e)
+    {
+        // Defensive unsubscribe-then-subscribe so even a freak double-Load
+        // can't end up with two copies of the handler attached.
+        GlobalSizeChanged -= OnGlobalSizeChanged;
+        GlobalSizeChanged += OnGlobalSizeChanged;
+    }
+
+    private void OnCardUnloaded(object sender, RoutedEventArgs e)
+        => GlobalSizeChanged -= OnGlobalSizeChanged;
 
     private void ApplySize()
     {
@@ -289,7 +325,7 @@ public sealed partial class MovieCardControl : UserControl
             // cached poster source size (~780).
             var decodeW = (int)Math.Min(500, Math.Max(240, GlobalCardWidth * 2));
             var bmp = new BitmapImage { DecodePixelWidth = decodeW };
-            var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             if (myToken != _posterLoadToken) return;
             ms.Seek(0);
@@ -406,7 +442,11 @@ public sealed partial class MovieCardControl : UserControl
             // Bubble so sidebar Continue Watching count refreshes
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch { /* OS player launch failed — silent */ }
+        catch
+        {
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("Couldn't launch the video player");
+        }
     }
 
     private async Task ShowOfflineDialog(string title, string? driveLabel)
@@ -504,7 +544,11 @@ public sealed partial class MovieCardControl : UserControl
                 AppState.Instance.Db.AddMovieToUserList(newId, Movie.Id);
                 SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
             }
-            catch (Microsoft.Data.Sqlite.SqliteException) { /* dup name */ }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                if (App.MainWindow is MainWindow mw)
+                    mw.ShowToast($"A list named “{name.Trim()}” already exists");
+            }
         };
         listsSub.Items.Add(newListItem);
         flyout.Items.Add(listsSub);

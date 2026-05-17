@@ -44,11 +44,6 @@ public partial class LibraryViewModel : ObservableObject
 
     public ObservableCollection<MovieListItem> Movies { get; } = new();
 
-    // Filter/nav state
-    private string? _filterDriveSerial;
-    private string? _filterGenre;
-    private int? _filterCollectionId;
-
     private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
     public LibraryViewModel()
@@ -60,6 +55,12 @@ public partial class LibraryViewModel : ObservableObject
 
     private void LoadPrefs()
     {
+        // Direct field assignment is intentional here: writing through the
+        // public properties would fire OnSortKeyChanged / OnSortDirChanged,
+        // each of which calls LoadAsync(). At construction time we want to
+        // hydrate the prefs first and let the page's explicit LoadAsync()
+        // do exactly one DB hop — not race two parallel loads.
+#pragma warning disable MVVMTK0034
         var vm = _state.GetPref("viewMode", "Grid");
         _viewMode = Enum.TryParse<ViewMode>(vm, out var vmp) ? vmp : ViewMode.Grid;
 
@@ -68,6 +69,7 @@ public partial class LibraryViewModel : ObservableObject
 
         var sd = _state.GetPref("sortDir", "Asc");
         _sortDir = Enum.TryParse<SortDir>(sd, out var sdp) ? sdp : SortDir.Asc;
+#pragma warning restore MVVMTK0034
     }
 
     // ── Load movies ──────────────────────────────────────────────────────────
