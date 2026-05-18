@@ -8,10 +8,10 @@ of movies in under five minutes.
 
 ---
 
-> **What's new in v2.5.0** — Multi-select (Ctrl/Shift+click, Ctrl+A) with
-> a bottom action bar for bulk add-to-list / watched / favorite / watchlist,
-> drag-and-drop from cards onto sidebar lists, and per-list ✕ chips in the
-> movie detail dialog. See *My Lists* and *Multi-select* below.
+> **What's new in v2.7.0** — Your watched marks, favorites, watchlist,
+> list memberships, and notes are now also saved into each movie's own
+> folder. Remove a drive, plug it back in, and CineLibrary picks them
+> all back up. See *State that travels with your drives* below.
 
 ## Contents
 
@@ -23,14 +23,15 @@ of movies in under five minutes.
 6. [Tracking what you've watched](#tracking-what-youve-watched)
 7. [My Lists — group movies your way](#my-lists--group-movies-your-way)
 8. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-9. [Statistics](#statistics)
-10. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-11. [Themes and sidebar](#themes-and-sidebar)
-12. [Keyboard shortcuts](#keyboard-shortcuts)
-13. [Exporting your catalog](#exporting-your-catalog)
-14. [Updates](#updates)
-15. [Where your data lives](#where-your-data-lives)
-16. [Troubleshooting](#troubleshooting)
+9. [State that travels with your drives](#state-that-travels-with-your-drives)
+10. [Statistics](#statistics)
+11. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+12. [Themes and sidebar](#themes-and-sidebar)
+13. [Keyboard shortcuts](#keyboard-shortcuts)
+14. [Exporting your catalog](#exporting-your-catalog)
+15. [Updates](#updates)
+16. [Where your data lives](#where-your-data-lives)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -304,6 +305,87 @@ The target row lights up purple while you hover over it. If you drag
 a card that isn't part of the current selection, only that one card
 gets added (and other selected cards stay selected — your selection
 isn't disturbed).
+
+---
+
+## State that travels with your drives
+
+Your watched marks, favorites, watchlist, list memberships, and notes
+are personal — they're the only things CineLibrary can't rebuild for
+you by re-reading a `.nfo`. Losing them when you remove and re-add a
+drive would be no fun, so as of **v2.7.0** they ride along **with the
+drive itself**.
+
+### How it works
+
+For every movie that has any personal state (watched, favorited,
+watchlisted, played at least once, sitting in one of your lists, or
+carrying a note), CineLibrary writes a tiny file called
+**`cinelibrary-state.json`** into that movie's folder, right next to
+the `.nfo`. It looks something like this:
+
+```json
+{
+  "version": 1,
+  "watched": true,
+  "favorite": true,
+  "lastPlayedUnix": 1747576800,
+  "lists": ["All Time Great"]
+}
+```
+
+Three things happen automatically:
+
+- **Every time you mark / unmark / play / list / note** a movie, the
+  file gets rewritten. Best effort — if the drive is offline at the
+  moment, nothing breaks; the sync will catch up on the next sweep.
+- **When you scan or rescan a drive**, CineLibrary reads any
+  `cinelibrary-state.json` it finds and merges the values back into
+  its library. This is what makes the "remove a drive then re-add it"
+  flow non-destructive.
+- **On startup**, a quiet background sweep makes sure every movie
+  with personal state has an up-to-date file on disk.
+
+### The "Remove Drive" dialog
+
+When you click 🗑 Remove Drive on the Drives page, you'll now see how
+many movies on that drive have personal state attached, plus a
+checkbox: **"Save that state to the drive first"** (default ON).
+Leaving it ticked guarantees that re-adding the drive later restores
+everything.
+
+If the drive is **offline** when you try to remove it, the dialog
+warns you that the state can't be saved and recommends cancelling
+until you reconnect.
+
+### The "Sync state" button
+
+Each drive card on the Drives page has a **Sync state** action. Most
+of the time you'll never need it — the automatic mirroring covers
+day-to-day use. It's useful when:
+
+- You want to manually push everything to disk right now (e.g. you're
+  about to hand the drive to someone).
+- You restored from a backup of `CineLibrary-Data\cinelibrary.db` on a
+  new machine and want to make sure the drives reflect the DB.
+- A bunch of edits happened while the drive was offline; this forces
+  the catch-up.
+
+### Conflict rule
+
+If you ever end up with both a DB row and a sidecar file with
+different values (e.g. you marked something watched on machine A,
+then plugged the drive into machine B which already had its own
+copy), the **DB wins where it already has a value**. Lists are
+**additive** — joining a missing list, never silently removing.
+
+### What this doesn't touch
+
+`cinelibrary-state.json` is the **only** file CineLibrary writes to
+your movie folder. Your `.nfo`, posters, fanart, and the video files
+themselves are never modified. The sidecar file is a few hundred
+bytes per movie and is safe to delete — CineLibrary will just
+re-create it on the next change.
 
 ---
 

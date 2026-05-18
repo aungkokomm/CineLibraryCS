@@ -491,10 +491,54 @@ public sealed partial class DrivesPage : Page
             if (sender is not Button btn || btn.Tag is not string serial) return;
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
 
+            // v2.7 — count how many movies on this drive carry personal state
+            // (watched / favorite / watchlist / last_played / notes / list
+            // membership). If there's any, offer to mirror it to disk first
+            // so the user can re-add the drive later and get everything back.
+            var stateful = AppState.Instance.Db.GetMoviesWithPersonalState(serial).Count;
+            var canSync = drive?.IsConnected == true && stateful > 0;
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"Remove '{drive?.Label}' and all its {drive?.MovieCount} movies from CineLibrary? The actual files on the drive are not deleted.",
+                TextWrapping = TextWrapping.Wrap,
+            });
+            CheckBox? syncBox = null;
+            if (stateful > 0)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = $"{stateful} movie(s) on this drive have watched / favorite / list / notes data.",
+                    FontSize = 12,
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                    TextWrapping = TextWrapping.Wrap,
+                });
+                if (canSync)
+                {
+                    syncBox = new CheckBox
+                    {
+                        Content = "Save that state to the drive first (so it comes back if you re-add this drive later)",
+                        IsChecked = true,
+                    };
+                    panel.Children.Add(syncBox);
+                }
+                else
+                {
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = "⚠ Drive is offline — that state will be lost unless you cancel and connect the drive first.",
+                        FontSize = 12,
+                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentRedBrush"],
+                        TextWrapping = TextWrapping.Wrap,
+                    });
+                }
+            }
+
             var dialog = new ContentDialog
             {
                 Title = "Remove Drive?",
-                Content = $"Remove '{drive?.Label}' and all its {drive?.MovieCount} movies from CineLibrary? The actual files are not deleted.",
+                Content = panel,
                 PrimaryButtonText = "Remove",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close,
@@ -502,9 +546,33 @@ public sealed partial class DrivesPage : Page
                 RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
             };
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            if (syncBox?.IsChecked == true)
+            {
+                var (written, skipped) = await Task.Run(() =>
+                    AppState.Instance.SweepStateSidecars(serial));
+                if (App.MainWindow is CineLibraryCS.MainWindow mw)
+                    mw.ShowToast($"Synced state to {written} movie(s){(skipped > 0 ? $" — {skipped} skipped" : "")}");
+            }
+
             AppState.Instance.Db.RemoveDrive(serial);
             Refresh();
             RefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
+    private async void OnSyncStateToDrive(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn || btn.Tag is not string serial) return;
+            var (written, skipped) = await Task.Run(() =>
+                AppState.Instance.SweepStateSidecars(serial));
+            if (App.MainWindow is CineLibraryCS.MainWindow mw)
+                mw.ShowToast(written == 0
+                    ? "Nothing to sync — no movies on this drive carry personal state yet."
+                    : $"Synced state to {written} movie(s){(skipped > 0 ? $" — {skipped} skipped" : "")}");
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }

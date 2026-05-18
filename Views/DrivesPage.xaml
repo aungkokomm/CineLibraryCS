@@ -280,6 +280,25 @@
                                                     <TextBlock Text="Rename" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
+                                            <Button Grid.Column="3"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnSyncStateToDrive"
+                                                    Background="{ThemeResource CardBrush}"
+                                                    Foreground="{ThemeResource TextBrush}"
+                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="8" Padding="12,7"
+                                                    Margin="8,0,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    IsEnabled="{x:Bind IsConnected}"
+                                                    ToolTipService.ToolTip="Write Watched / Favorite / Watchlist / Notes / Lists into per-movie sidecar files on this drive, so the state survives removing and re-adding the drive later.">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon Glyph="&#xE895;" FontSize="13"
+                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                              Foreground="{ThemeResource MutedBrush}"
+                                                              VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Sync state" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
                                             <Button Grid.Column="4"
                                                     Content="🗑 Remove Drive"
                                                     Tag="{x:Bind VolumeSerial}"

@@ -1446,6 +1446,17 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     }
 
     // ── Mutations ────────────────────────────────────────────────────────────
+    //
+    // v2.7 — every personal-state mutation fires PersonalStateChanged(id)
+    // so AppState can mirror the new state into the per-movie sidecar file
+    // (cinelibrary-state.json) for portability. Subscribers run on the
+    // calling thread — keep them cheap or hand off to a background queue.
+
+    public event Action<int>? PersonalStateChanged;
+    private void RaisePersonalStateChanged(int id)
+    {
+        try { PersonalStateChanged?.Invoke(id); } catch { /* sidecar is best-effort */ }
+    }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void ToggleFavorite(int id)
@@ -1454,6 +1465,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.CommandText = "UPDATE movies SET is_favorite = 1 - is_favorite WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(id);
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -1463,6 +1475,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.CommandText = "UPDATE movies SET is_watched = 1 - is_watched WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(id);
     }
 
     // ── Collections ──────────────────────────────────────────────────────────
@@ -1965,6 +1978,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.Parameters.AddWithValue("@l", listId);
         cmd.Parameters.AddWithValue("@m", movieId);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -1975,6 +1989,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.Parameters.AddWithValue("@l", listId);
         cmd.Parameters.AddWithValue("@m", movieId);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
     }
 
     /// <summary>
@@ -2021,6 +2036,56 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     }
 
     /// <summary>
+    /// List names that contain this movie. v2.7 — used by the per-movie
+    /// state sidecar so list membership travels with the drive.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<string> GetUserListNamesForMovie(int movieId)
+    {
+        var names = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT ul.name FROM user_lists ul
+              JOIN user_list_movies ulm ON ulm.list_id = ul.id
+             WHERE ulm.movie_id = @m
+             ORDER BY ul.name";
+        cmd.Parameters.AddWithValue("@m", movieId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) names.Add(r.GetString(0));
+        return names;
+    }
+
+    /// <summary>
+    /// Movies with any non-default personal state — used by the v2.7
+    /// sidecar sweep so we only touch folders that actually carry data
+    /// worth exporting. Optionally restrict to a single drive serial.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<int> GetMoviesWithPersonalState(string? volumeSerial = null)
+    {
+        var ids = new List<int>();
+        using var cmd = _conn.CreateCommand();
+        var where = @"
+            (is_watched=1 OR is_favorite=1 OR is_watchlist=1
+             OR (last_played_at IS NOT NULL AND last_played_at > 0)
+             OR (note IS NOT NULL AND TRIM(note) != '')
+             OR EXISTS (SELECT 1 FROM user_list_movies ulm
+                          WHERE ulm.movie_id = movies.id))";
+        if (volumeSerial != null)
+        {
+            cmd.CommandText = $"SELECT id FROM movies WHERE volume_serial=@s AND {where}";
+            cmd.Parameters.AddWithValue("@s", volumeSerial);
+        }
+        else
+        {
+            cmd.CommandText = $"SELECT id FROM movies WHERE {where}";
+        }
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) ids.Add(r.GetInt32(0));
+        return ids;
+    }
+
+    /// <summary>
     /// Save user note to the row. Empty/null clears it.
     /// Sidecar file write is handled by the caller (needs the drive letter).
     /// </summary>
@@ -2032,6 +2097,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(note) ? (object)DBNull.Value : note);
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
     }
 
     /// <summary>
@@ -2045,6 +2111,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.CommandText = "UPDATE movies SET last_played_at = strftime('%s','now') WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
     }
 
     /// <summary>
@@ -2102,6 +2169,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.Parameters.AddWithValue("@val", isWatchlist ? 1 : 0);
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -225,6 +225,12 @@ public class ScannerService
                 // a reinstall + rescan can recover notes from sidecars; subsequent
                 // edits in CineLibrary won't be reverted by the next scan.
                 ImportSidecarNoteIfNeeded(conn, tx, rowId, folder);
+
+                // v2.7 — full personal-state sidecar (cinelibrary-state.json):
+                // Watched / Favorite / Watchlist / last_played / lists. Same
+                // "DB wins where it has data, lists are additive" rule as the
+                // note importer. Recovers state after a drive-remove + re-add.
+                MovieStateSidecar.ImportIntoMovieRow(_db, conn, tx, rowId, folder);
             }
 
             tx.Commit();

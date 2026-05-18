@@ -21,6 +21,47 @@ public class AppState
         Db = new DatabaseService(DataDir);
         Scanner = new ScannerService(Db);
         ListCopy = new ListCopyService(Db);
+
+        // v2.7 — mirror every personal-state change into the per-movie
+        // sidecar (cinelibrary-state.json) so the state travels with the
+        // drive. Best-effort; the sidecar helper swallows I/O errors.
+        Db.PersonalStateChanged += OnPersonalStateChanged;
+    }
+
+    /// <summary>
+    /// Fires after Toggle/Set Watched | Favorite | Watchlist, MarkPlayed,
+    /// SetNote, and list add/remove. Off the SQL thread is preferable but
+    /// the operation is cheap, so we just run it inline.
+    /// </summary>
+    private void OnPersonalStateChanged(int movieId)
+    {
+        var composed = MovieStateSidecar.Compose(Db, movieId, _connected);
+        if (composed.HasValue)
+            MovieStateSidecar.TryWrite(composed.Value.FolderAbs, composed.Value.State);
+    }
+
+    /// <summary>
+    /// Walk every movie with non-default personal state and mirror it to
+    /// the per-folder sidecar. Used by:
+    ///   • App startup (catches state edited before this feature, or while
+    ///     drives were offline).
+    ///   • The Drives page "Sync personal state" button.
+    ///   • The pre-remove confirmation when a user removes a drive.
+    /// Returns (written, skipped) counts. Skipped = drive offline or path
+    /// unreachable. Runs on the caller's thread — call from a Task.Run.
+    /// </summary>
+    public (int Written, int Skipped) SweepStateSidecars(string? onlyVolumeSerial = null)
+    {
+        var ids = Db.GetMoviesWithPersonalState(onlyVolumeSerial);
+        int written = 0, skipped = 0;
+        foreach (var id in ids)
+        {
+            var composed = MovieStateSidecar.Compose(Db, id, _connected);
+            if (composed == null) { skipped++; continue; }
+            MovieStateSidecar.TryWrite(composed.Value.FolderAbs, composed.Value.State);
+            written++;
+        }
+        return (written, skipped);
     }
 
     private static string GetDataDir()

@@ -36,6 +36,16 @@ public partial class MainViewModel : ObservableObject
         await RefreshSidebarAsync();
         // Drive change detection is now event-driven via WM_DEVICECHANGE —
         // see DeviceChangeWatcher wired in MainWindow.xaml.cs. No polling.
+
+        // v2.7 — background sweep mirrors current personal state into the
+        // per-folder sidecar files on online drives, so anything edited
+        // before this feature existed (or while a drive was offline) ends
+        // up on disk too. Best-effort, silent failures, low priority.
+        _ = Task.Run(() =>
+        {
+            try { _state.SweepStateSidecars(); }
+            catch { /* sweep is best-effort */ }
+        });
     }
 
     public async Task RefreshSidebarAsync()
