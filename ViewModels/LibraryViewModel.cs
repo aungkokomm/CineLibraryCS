@@ -32,6 +32,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterRatingBand = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
+    [ObservableProperty] private bool _hasNoteOnly = false;
     [ObservableProperty] private int? _userListId = null;
     /// <summary>Total rows that match the current filter, before paging.</summary>
     [ObservableProperty] private int _filterTotal = 0;
@@ -130,6 +131,7 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly: FavoritesOnly,
         IsWatchlistOnly: IsWatchlistOnly,
         ContinueWatching: IsContinueWatching,
+        HasNoteOnly: HasNoteOnly,
         UserListId: UserListId,
         DecadeStart: FilterDecadeStart,
         RatingBand: FilterRatingBand,
@@ -319,6 +321,7 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly = false;
         IsWatchlistOnly = false;
         IsContinueWatching = false;
+        HasNoteOnly = false;
         UserListId = null;
         FilterDecadeStart = null;
         FilterRatingBand = null;
@@ -331,6 +334,14 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly = true;
         PageTitle = "📋 To Watch";
         RefreshWatchlistCount();
+        _ = LoadAsync();
+    }
+
+    public void ShowNotes()
+    {
+        ResetAllFilters();
+        HasNoteOnly = true;
+        PageTitle = "📝 Notes";
         _ = LoadAsync();
     }
 

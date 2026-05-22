@@ -867,6 +867,8 @@ public sealed partial class LibraryPage : Page
             AddChip("Watchlist", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
         if (_vm.IsContinueWatching)
             AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
+        if (_vm.HasNoteOnly)
+            AddChip("Notes", "📝",      () => DropFilter(() => _vm.HasNoteOnly = false));
         ActiveFilterChips.Visibility = ActiveFilterChips.Items.Count > 0
             ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -891,7 +893,7 @@ public sealed partial class LibraryPage : Page
     private bool AnyFilterActive() =>
         !string.IsNullOrEmpty(_vm.SearchText) ||
         _vm.WatchedFilter != WatchedFilter.All ||
-        _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
+        _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching || _vm.HasNoteOnly ||
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
         _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||

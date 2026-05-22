@@ -296,6 +296,7 @@ public sealed partial class MainWindow : Window
             TotalBadge.Text = stats?.TotalMovies.ToString() ?? "0";
             DrivesBadge.Text = _vm.Drives.Count.ToString();
             try { TvShowsBadge.Text = AppState.Instance.Db.GetTvShowCount().ToString(); } catch { }
+            try { NotesBadge.Text = AppState.Instance.Db.GetNotesCount().ToString(); } catch { }
             // v2.5.1 — StatRuntime / StatRating tiles removed from sidebar
             // (they live on the Statistics page now). Stats object still
             // computed because other code paths use it.
@@ -1093,6 +1094,15 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnWatchlist);
     }
 
+    private void OnNavNotes(object sender, RoutedEventArgs e)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.ShowNotes();
+        if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+        ClearLibraryBack();
+        SetActiveNav(sender as Button ?? BtnNotes);
+    }
+
     // ── v1.4.1 Statistics dashboard ────────────────────────────────────────
 
     private void OnNavStatistics(object sender, RoutedEventArgs e)
@@ -1190,7 +1200,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.8.1",
+            Title = "CineLibrary v2.8.2",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

@@ -1201,6 +1201,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         bool FavoritesOnly = false,
         bool IsWatchlistOnly = false,
         bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
+        bool HasNoteOnly = false,       // v2.8.2 — only movies carrying a note
         int? UserListId = null,
         int? DecadeStart = null,        // e.g. 1980 → year in [1980..1989]
         string? RatingBand = null,      // bucket key: "9","8","7","6","5","0"
@@ -1273,6 +1274,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         else if (opts.WatchedFilter == "unwatched") where.Add("m.is_watched=0");
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
+        if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
         if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
         if (opts.DecadeStart != null)
@@ -1854,6 +1856,15 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
+        return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>v2.8.2 — count of movies carrying a note (for the Notes pill badge).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetNotesCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE note IS NOT NULL AND TRIM(note) != ''";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
