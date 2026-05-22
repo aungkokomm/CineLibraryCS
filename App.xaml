@@ -11,6 +11,7 @@
                 <ResourceDictionary Source="Styles/Controls.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <conv:BoolToColorConverter x:Key="BoolToColorConverter"/>
+            <conv:WatchedGlyphConverter x:Key="WatchedGlyphConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

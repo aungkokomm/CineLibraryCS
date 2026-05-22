@@ -164,5 +164,8 @@ public sealed partial class BrowsePage : Page
                 mw.NavigateLibraryByStudio(e.Key);
                 break;
         }
+        // v2.7 — arm the "‹ By Genre/Decade/Rating/Studio" back button on
+        // the library view so the user can return to this banner page.
+        mw.SetLibraryBackToBrowse(Facet);
     }
 }

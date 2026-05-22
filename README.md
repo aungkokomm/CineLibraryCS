@@ -1,6 +1,6 @@
 # CineLibrary
 
-A fast, native Windows movie catalog for MediaElch-scraped collections. Browse, search and play your movies across multiple external drives.
+A fast, native Windows catalog for your MediaElch-scraped **movies and TV shows**. Browse, search and play across multiple external drives.
 
 ***Stop letting your movies gather dust in forgotten directories.***  
 ***Treat them with CineLibrary — making your collection visible, searchable, and alive again.***  
@@ -26,8 +26,9 @@ Built with C# + WinUI 3.
 
 ## Features
 
-- **Multi-drive library** — index movies across external drives; knows which are currently online
-- **MediaElch-compatible** — reads `movie.nfo`, posters, fanart; caches artwork locally so offline drives still show thumbnails
+- **📺 TV Shows** *(new in v2.8)* — folders with `tvshow.nfo` are detected as shows. Each show has a single page: poster, plot, cast, season-by-season episode rows, per-episode watched tracking, a "▶ Play next unwatched" button, and a watched-progress roll-up. Personal state travels with the drive just like movies.
+- **Multi-drive library** — index movies and shows across external drives; knows which are currently online
+- **MediaElch-compatible** — reads `movie.nfo` / `tvshow.nfo` + episode `.nfo`, posters, fanart, episode thumbnails; caches artwork locally so offline drives still show thumbnails
 - **Grid + list views** — with S/M/L/XL thumbnail sizes (like Windows Explorer)
 - **Full-text search** — title, actor, director, plot
 - **Filters** — by drive, genre, collection, favorites, watched/unwatched

@@ -148,6 +148,85 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
     added_at INTEGER DEFAULT (strftime('%s','now')),
     PRIMARY KEY (list_id, movie_id)
 );
+
+-- v2.8 — TV Shows. A show folder (contains tvshow.nfo) maps to one
+-- tv_shows row; each episode file maps to one tv_episodes row. Seasons
+-- are derived from tv_episodes.season (no separate table). Watched is
+-- per-episode; favorite/watchlist/note are show-level.
+CREATE TABLE IF NOT EXISTS tv_shows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    volume_serial TEXT NOT NULL REFERENCES drives(volume_serial) ON DELETE CASCADE,
+    folder_rel_path TEXT NOT NULL,
+    title TEXT NOT NULL,
+    original_title TEXT,
+    sort_title TEXT,
+    year INTEGER,
+    rating REAL,
+    votes INTEGER,
+    plot TEXT,
+    mpaa TEXT,
+    premiered TEXT,
+    studio TEXT,
+    status TEXT,
+    imdb_id TEXT,
+    tmdb_id TEXT,
+    tvdb_id TEXT,
+    local_poster TEXT,
+    local_fanart TEXT,
+    local_nfo TEXT,
+    is_missing INTEGER DEFAULT 0,
+    is_favorite INTEGER DEFAULT 0,
+    is_watchlist INTEGER DEFAULT 0,
+    note TEXT,
+    date_added INTEGER DEFAULT (strftime('%s','now')),
+    date_modified INTEGER DEFAULT (strftime('%s','now')),
+    UNIQUE(volume_serial, folder_rel_path)
+);
+
+CREATE TABLE IF NOT EXISTS tv_episodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    show_id INTEGER NOT NULL REFERENCES tv_shows(id) ON DELETE CASCADE,
+    season INTEGER NOT NULL,
+    episode INTEGER NOT NULL,
+    title TEXT,
+    plot TEXT,
+    aired TEXT,
+    rating REAL,
+    runtime INTEGER,
+    video_file_rel_path TEXT,
+    local_thumb TEXT,
+    subtitle_languages TEXT,
+    video_width INTEGER,
+    video_height INTEGER,
+    video_codec TEXT,
+    hdr_type TEXT,
+    audio_codec TEXT,
+    audio_channels TEXT,
+    audio_languages TEXT,
+    duration_seconds INTEGER,
+    container_ext TEXT,
+    file_size_bytes INTEGER,
+    is_watched INTEGER DEFAULT 0,
+    last_played_at INTEGER DEFAULT 0,
+    UNIQUE(show_id, season, episode)
+);
+
+CREATE TABLE IF NOT EXISTS tv_show_genres (
+    show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
+    genre_id INTEGER REFERENCES genres(id) ON DELETE CASCADE,
+    PRIMARY KEY(show_id, genre_id)
+);
+CREATE TABLE IF NOT EXISTS tv_show_actors (
+    show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
+    actor_id INTEGER REFERENCES actors(id) ON DELETE CASCADE,
+    role TEXT,
+    sort_order INTEGER DEFAULT 0,
+    PRIMARY KEY(show_id, actor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tv_shows_volume ON tv_shows(volume_serial);
+CREATE INDEX IF NOT EXISTS idx_tv_episodes_show ON tv_episodes(show_id);
+CREATE INDEX IF NOT EXISTS idx_tv_episodes_watched ON tv_episodes(is_watched);
 ");
     }
 
@@ -805,8 +884,19 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
             });
         }
         r.Close();
+        // v2.8 — TV show count per drive (separate query; cheap).
+        var tvCounts = new Dictionary<string, int>();
+        using (var tc = _conn.CreateCommand())
+        {
+            tc.CommandText = "SELECT volume_serial, COUNT(*) FROM tv_shows GROUP BY volume_serial";
+            using var tr = tc.ExecuteReader();
+            while (tr.Read()) tvCounts[tr.GetString(0)] = tr.GetInt32(1);
+        }
         foreach (var d in list)
+        {
+            if (tvCounts.TryGetValue(d.VolumeSerial, out var n)) d.TvShowCount = n;
             d.Folders = GetDriveRoots(d.VolumeSerial);
+        }
         return list;
     }
 
@@ -2080,6 +2170,273 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         {
             cmd.CommandText = $"SELECT id FROM movies WHERE {where}";
         }
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) ids.Add(r.GetInt32(0));
+        return ids;
+    }
+
+    // ── TV Shows (v2.8) ──────────────────────────────────────────────────
+
+    public Action<int>? TvShowStateChanged;  // wired by AppState → sidecar write
+    private void RaiseTvShowStateChanged(int showId)
+    { try { TvShowStateChanged?.Invoke(showId); } catch { } }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> GetTvShows(IReadOnlyDictionary<string, string> connected)
+    {
+        var list = new List<Models.TvShowListItem>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT s.id, s.title, s.year, s.rating, s.local_poster, s.is_missing,
+                   s.volume_serial, d.label, s.is_favorite, s.is_watchlist,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id) AS ep_count,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id AND e.is_watched=1) AS watched_count,
+                   (SELECT GROUP_CONCAT(g.name, ', ') FROM tv_show_genres sg JOIN genres g ON g.id=sg.genre_id WHERE sg.show_id=s.id) AS genres
+              FROM tv_shows s
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             ORDER BY s.sort_title, s.title";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(6);
+            list.Add(new Models.TvShowListItem
+            {
+                Id = r.GetInt32(0),
+                Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+                LocalPoster = r.IsDBNull(4) ? null : r.GetString(4),
+                IsMissing = r.GetInt32(5) == 1,
+                VolumeSerial = serial,
+                DriveLabel = r.IsDBNull(7) ? null : r.GetString(7),
+                IsFavorite = r.GetInt32(8) == 1,
+                IsWatchlist = r.GetInt32(9) == 1,
+                EpisodeCount = r.GetInt32(10),
+                WatchedCount = r.GetInt32(11),
+                GenresCsv = r.IsDBNull(12) ? null : r.GetString(12),
+                IsOnline = connected.ContainsKey(serial),
+            });
+        }
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetTvShowCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM tv_shows WHERE is_missing=0";
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvSeason> GetSeasons(int showId)
+    {
+        var list = new List<Models.TvSeason>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT season, COUNT(*) AS ep, SUM(CASE WHEN is_watched=1 THEN 1 ELSE 0 END) AS watched
+              FROM tv_episodes WHERE show_id=@id GROUP BY season ORDER BY season";
+        cmd.Parameters.AddWithValue("@id", showId);
+        string? poster = null;
+        using (var pc = _conn.CreateCommand())
+        {
+            pc.CommandText = "SELECT local_poster FROM tv_shows WHERE id=@id";
+            pc.Parameters.AddWithValue("@id", showId);
+            var o = pc.ExecuteScalar();
+            poster = o == null || o == DBNull.Value ? null : (string)o;
+        }
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new Models.TvSeason
+            {
+                ShowId = showId,
+                Season = r.GetInt32(0),
+                EpisodeCount = r.GetInt32(1),
+                WatchedCount = r.IsDBNull(2) ? 0 : r.GetInt32(2),
+                PosterPath = poster,
+            });
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvEpisodeItem> GetEpisodes(int showId, int season, IReadOnlyDictionary<string, string> connected)
+    {
+        var list = new List<Models.TvEpisodeItem>();
+        string serial = "";
+        using (var sc = _conn.CreateCommand())
+        {
+            sc.CommandText = "SELECT volume_serial FROM tv_shows WHERE id=@id";
+            sc.Parameters.AddWithValue("@id", showId);
+            var o = sc.ExecuteScalar();
+            serial = o == null || o == DBNull.Value ? "" : (string)o;
+        }
+        bool online = connected.ContainsKey(serial);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT id, season, episode, title, plot, aired, runtime, rating,
+                   local_thumb, video_file_rel_path, is_watched
+              FROM tv_episodes WHERE show_id=@id AND season=@se ORDER BY episode";
+        cmd.Parameters.AddWithValue("@id", showId);
+        cmd.Parameters.AddWithValue("@se", season);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new Models.TvEpisodeItem
+            {
+                Id = r.GetInt32(0),
+                ShowId = showId,
+                Season = r.GetInt32(1),
+                Episode = r.GetInt32(2),
+                Title = r.IsDBNull(3) ? "" : r.GetString(3),
+                Plot = r.IsDBNull(4) ? null : r.GetString(4),
+                Aired = r.IsDBNull(5) ? null : r.GetString(5),
+                Runtime = r.IsDBNull(6) ? null : r.GetInt32(6),
+                Rating = r.IsDBNull(7) ? null : r.GetDouble(7),
+                LocalThumb = r.IsDBNull(8) ? null : r.GetString(8),
+                VideoFileRelPath = r.IsDBNull(9) ? null : r.GetString(9),
+                IsWatched = r.GetInt32(10) == 1,
+                VolumeSerial = serial,
+                IsOnline = online,
+            });
+        }
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public Models.TvShowDetail? GetTvShowDetail(int showId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT id, title, year, rating, plot, mpaa, studio, status, premiered,
+                   imdb_id, tmdb_id, local_poster, local_fanart, volume_serial,
+                   folder_rel_path, is_favorite, is_watchlist, note
+              FROM tv_shows WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", showId);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        var d = new Models.TvShowDetail
+        {
+            Id = r.GetInt32(0),
+            Title = r.GetString(1),
+            Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+            Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+            Plot = r.IsDBNull(4) ? null : r.GetString(4),
+            Mpaa = r.IsDBNull(5) ? null : r.GetString(5),
+            Studio = r.IsDBNull(6) ? null : r.GetString(6),
+            Status = r.IsDBNull(7) ? null : r.GetString(7),
+            Premiered = r.IsDBNull(8) ? null : r.GetString(8),
+            ImdbId = r.IsDBNull(9) ? null : r.GetString(9),
+            TmdbId = r.IsDBNull(10) ? null : r.GetString(10),
+            LocalPoster = r.IsDBNull(11) ? null : r.GetString(11),
+            LocalFanart = r.IsDBNull(12) ? null : r.GetString(12),
+            VolumeSerial = r.GetString(13),
+            FolderRelPath = r.IsDBNull(14) ? null : r.GetString(14),
+            IsFavorite = r.GetInt32(15) == 1,
+            IsWatchlist = r.GetInt32(16) == 1,
+            Note = r.IsDBNull(17) ? null : r.GetString(17),
+        };
+        r.Close();
+        // genres
+        using (var g = _conn.CreateCommand())
+        {
+            g.CommandText = "SELECT genre.name FROM tv_show_genres sg JOIN genres genre ON genre.id=sg.genre_id WHERE sg.show_id=@id ORDER BY genre.name";
+            g.Parameters.AddWithValue("@id", showId);
+            using var gr = g.ExecuteReader();
+            while (gr.Read()) d.Genres.Add(gr.GetString(0));
+        }
+        // actors
+        using (var a = _conn.CreateCommand())
+        {
+            a.CommandText = @"SELECT ac.name, sa.role, ac.thumb FROM tv_show_actors sa
+                JOIN actors ac ON ac.id=sa.actor_id WHERE sa.show_id=@id ORDER BY sa.sort_order LIMIT 30";
+            a.Parameters.AddWithValue("@id", showId);
+            using var ar = a.ExecuteReader();
+            while (ar.Read())
+                d.Actors.Add(new Models.Actor
+                {
+                    Name = ar.GetString(0),
+                    Role = ar.IsDBNull(1) ? null : ar.GetString(1),
+                    Thumb = ar.IsDBNull(2) ? null : ar.GetString(2),
+                });
+        }
+        using (var c = _conn.CreateCommand())
+        {
+            c.CommandText = "SELECT COUNT(*), SUM(CASE WHEN is_watched=1 THEN 1 ELSE 0 END) FROM tv_episodes WHERE show_id=@id";
+            c.Parameters.AddWithValue("@id", showId);
+            using var cr = c.ExecuteReader();
+            if (cr.Read()) { d.EpisodeCount = cr.GetInt32(0); d.WatchedCount = cr.IsDBNull(1) ? 0 : cr.GetInt32(1); }
+        }
+        return d;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetEpisodeWatched(int episodeId, bool watched)
+    {
+        int showId = 0;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"UPDATE tv_episodes SET is_watched=@w,
+                last_played_at = CASE WHEN @w=1 AND (last_played_at IS NULL OR last_played_at=0)
+                                       THEN strftime('%s','now') ELSE last_played_at END
+                WHERE id=@id RETURNING show_id";
+            cmd.Parameters.AddWithValue("@w", watched ? 1 : 0);
+            cmd.Parameters.AddWithValue("@id", episodeId);
+            var o = cmd.ExecuteScalar();
+            if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
+        }
+        if (showId != 0) RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void MarkEpisodePlayed(int episodeId)
+    {
+        int showId = 0;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "UPDATE tv_episodes SET last_played_at=strftime('%s','now') WHERE id=@id RETURNING show_id";
+            cmd.Parameters.AddWithValue("@id", episodeId);
+            var o = cmd.ExecuteScalar();
+            if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
+        }
+        if (showId != 0) RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetTvShowFavorite(int showId, bool fav)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_shows SET is_favorite=@v WHERE id=@id";
+        cmd.Parameters.AddWithValue("@v", fav ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", showId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetTvShowWatchlist(int showId, bool wl)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_shows SET is_watchlist=@v WHERE id=@id";
+        cmd.Parameters.AddWithValue("@v", wl ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", showId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<int> GetTvShowsWithPersonalState(string? volumeSerial = null)
+    {
+        var ids = new List<int>();
+        using var cmd = _conn.CreateCommand();
+        var where = @"(is_favorite=1 OR is_watchlist=1 OR (note IS NOT NULL AND TRIM(note)!='')
+                       OR EXISTS (SELECT 1 FROM tv_episodes e WHERE e.show_id=tv_shows.id
+                                   AND (e.is_watched=1 OR e.last_played_at>0)))";
+        if (volumeSerial != null)
+        {
+            cmd.CommandText = $"SELECT id FROM tv_shows WHERE volume_serial=@s AND {where}";
+            cmd.Parameters.AddWithValue("@s", volumeSerial);
+        }
+        else cmd.CommandText = $"SELECT id FROM tv_shows WHERE {where}";
         using var r = cmd.ExecuteReader();
         while (r.Read()) ids.Add(r.GetInt32(0));
         return ids;

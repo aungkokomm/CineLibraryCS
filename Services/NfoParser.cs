@@ -50,8 +50,148 @@ public record ParsedMovie(
     ParsedStreamDetails? Stream
 );
 
+// ── TV Shows (v2.8) ──────────────────────────────────────────────────────
+
+/// <summary>Parsed `<tvshow>` root from a tvshow.nfo.</summary>
+public record ParsedTvShow(
+    string Title,
+    string? OriginalTitle,
+    string? SortTitle,
+    int? Year,
+    double? Rating,
+    int? Votes,
+    string? Plot,
+    string? Mpaa,
+    string? Premiered,
+    string? Studio,
+    string? Status,
+    string? ImdbId,
+    string? TmdbId,
+    string? TvdbId,
+    List<string> Genres,
+    List<ParsedActor> Actors
+);
+
+/// <summary>Parsed `<episodedetails>` root from an episode .nfo.</summary>
+public record ParsedEpisode(
+    int Season,
+    int Episode,
+    string Title,
+    string? Plot,
+    string? Aired,
+    double? Rating,
+    int? Runtime,
+    ParsedStreamDetails? Stream
+);
+
 public static class NfoParser
 {
+    /// <summary>
+    /// Parse a tvshow.nfo. Returns null if the root isn't a tvshow or the
+    /// title is missing. Reuses the shared Get/ReadList/actor helpers.
+    /// </summary>
+    public static ParsedTvShow? ParseTvShow(string nfoPath)
+    {
+        try
+        {
+            var doc = new XmlDocument();
+            doc.Load(nfoPath);
+            var root = doc.DocumentElement;
+            if (root == null) return null;
+
+            var title = Get(root, "title");
+            if (string.IsNullOrWhiteSpace(title)) return null;
+
+            var genres = ReadList(root, "genre");
+            var actors = new List<ParsedActor>();
+            int order = 0;
+            foreach (XmlElement a in SelectElements(root, "actor"))
+            {
+                var name = GetChild(a, "name");
+                if (string.IsNullOrEmpty(name)) continue;
+                actors.Add(new ParsedActor(name, GetChild(a, "role"), GetChild(a, "thumb"), order++));
+            }
+
+            var ratings = new List<ParsedRating>();
+            foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
+            {
+                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+                if (v == null) continue;
+                ratings.Add(new ParsedRating(rt.GetAttribute("name"), v.Value, TryInt(GetChild(rt, "votes"))));
+            }
+            double? primaryRating = ratings.Count > 0 ? ratings[0].Value : TryDouble(Get(root, "rating"));
+            int? primaryVotes = ratings.Count > 0 ? ratings[0].Votes : TryInt(Get(root, "votes"));
+
+            return new ParsedTvShow(
+                Title: title,
+                OriginalTitle: Get(root, "originaltitle"),
+                SortTitle: Get(root, "sorttitle"),
+                Year: TryInt(Get(root, "year")) ?? YearFromDate(Get(root, "premiered")),
+                Rating: primaryRating,
+                Votes: primaryVotes,
+                Plot: Get(root, "plot"),
+                Mpaa: Get(root, "mpaa"),
+                Premiered: Get(root, "premiered") ?? Get(root, "aired"),
+                Studio: Get(root, "studio"),
+                Status: Get(root, "status"),
+                ImdbId: Get(root, "imdbid") ?? Get(root, "uniqueid[@type='imdb']"),
+                TmdbId: Get(root, "tmdbid") ?? Get(root, "uniqueid[@type='tmdb']"),
+                TvdbId: Get(root, "tvdbid") ?? Get(root, "uniqueid[@type='tvdb']") ?? Get(root, "id"),
+                Genres: genres,
+                Actors: actors
+            );
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Parse an episode .nfo (`<episodedetails>`). Season/episode also come
+    /// from the filename when the nfo omits them (see overload below).
+    /// </summary>
+    public static ParsedEpisode? ParseEpisode(string nfoPath, int? fallbackSeason = null, int? fallbackEpisode = null)
+    {
+        try
+        {
+            var doc = new XmlDocument();
+            doc.Load(nfoPath);
+            var root = doc.DocumentElement;
+            if (root == null) return null;
+
+            var season = TryInt(Get(root, "season")) ?? fallbackSeason;
+            var episode = TryInt(Get(root, "episode")) ?? fallbackEpisode;
+            if (season == null || episode == null) return null;
+
+            var title = Get(root, "title") ?? $"Episode {episode}";
+
+            var ratings = new List<ParsedRating>();
+            foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
+            {
+                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+                if (v != null) ratings.Add(new ParsedRating(rt.GetAttribute("name"), v.Value, TryInt(GetChild(rt, "votes"))));
+            }
+            double? rating = ratings.Count > 0 ? ratings[0].Value : TryDouble(Get(root, "rating"));
+
+            return new ParsedEpisode(
+                Season: season.Value,
+                Episode: episode.Value,
+                Title: title,
+                Plot: Get(root, "plot"),
+                Aired: Get(root, "aired") ?? Get(root, "premiered"),
+                Rating: rating,
+                Runtime: TryInt(Get(root, "runtime")),
+                Stream: ParseStreamDetails(root)
+            );
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Pull a 4-digit year from a yyyy-MM-dd date string.</summary>
+    private static int? YearFromDate(string? date)
+    {
+        if (string.IsNullOrEmpty(date) || date.Length < 4) return null;
+        return int.TryParse(date[..4], out var y) ? y : null;
+    }
+
     public static ParsedMovie? Parse(string nfoPath)
     {
         try

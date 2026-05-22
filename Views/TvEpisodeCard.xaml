@@ -1,0 +1,89 @@
+<UserControl
+    x:Class="CineLibraryCS.Views.TvEpisodeCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid x:Name="CardRoot" Width="270" Height="232">
+        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}"
+                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                CornerRadius="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Thumbnail (16:9) -->
+                <Grid Grid.Row="0" Height="152">
+                    <Grid x:Name="ThumbPlaceholder" CornerRadius="10,10,0,0">
+                        <Grid.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Offset="0" Color="{ThemeResource PlaceholderTopColor}"/>
+                                <GradientStop Offset="1" Color="{ThemeResource PlaceholderBottomColor}"/>
+                            </LinearGradientBrush>
+                        </Grid.Background>
+                        <TextBlock Text="🎬" FontSize="32" Opacity="0.7"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border CornerRadius="10,10,0,0">
+                        <Image x:Name="ThumbImage" Stretch="UniformToFill"/>
+                    </Border>
+
+                    <!-- dim overlay when watched -->
+                    <Border x:Name="WatchedDim" CornerRadius="10,10,0,0"
+                            Background="#88000000" Visibility="Collapsed"/>
+
+                    <!-- Episode code badge -->
+                    <Border Background="#CC000000" CornerRadius="6"
+                            VerticalAlignment="Top" HorizontalAlignment="Left"
+                            Padding="6,2" Margin="6">
+                        <TextBlock x:Name="CodeText" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                    </Border>
+
+                    <!-- Watched check badge -->
+                    <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="11"
+                            Width="22" Height="22" VerticalAlignment="Top" HorizontalAlignment="Right"
+                            Margin="6" Visibility="Collapsed">
+                        <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Hover overlay: big play -->
+                    <Border x:Name="HoverOverlay" CornerRadius="10,10,0,0"
+                            Background="#66000000" Opacity="0" Visibility="Collapsed">
+                        <Button Click="OnPlay"
+                                Background="{StaticResource BrandPurpleBrush}" Foreground="White"
+                                BorderThickness="0" CornerRadius="20" Padding="16,8"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="▶ Play"/>
+                        </Button>
+                    </Border>
+                </Grid>
+
+                <!-- Info -->
+                <Grid Grid.Row="1" Padding="10,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="TitleText" Grid.Row="0" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}"
+                               TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="WrapWholeWords"/>
+                    <Grid Grid.Row="1" Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MetaText" Grid.Column="0" FontSize="11"
+                                   Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center"/>
+                        <Button x:Name="WatchedToggleBtn" Grid.Column="1" Click="OnToggleWatched"
+                                Background="Transparent" BorderThickness="0"
+                                CornerRadius="6" Padding="6,2" FontSize="12"
+                                Foreground="{ThemeResource MutedBrush}"
+                                ToolTipService.ToolTip="Toggle watched"/>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

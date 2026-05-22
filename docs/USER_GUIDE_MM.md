@@ -5,10 +5,10 @@
 
 ဤလက်စွဲသည် သင့်အား အသစ်တပ်ဆင်ချိန်မှ ငါးမိနစ်အတွင်း ထောင်ချီသော ရုပ်ရှင် Catalog တစ်ခု ဖန်တီးနိုင်သည်အထိ လမ်းညွှန် တွဲခေါ်ပေးပါလိမ့်မည်။
 
-> **v2.7.0 အသစ်များ** — Watched / Favorite / Watchlist / List / Notes
-> တွေကို CineLibrary ထဲမှာရော Movie folder ထဲမှာပါ သိမ်းပါသည်။ Drive
-> ကို ဖျက်ပြီး ပြန်ထည့်လျှင် ဒေတာတွေ ပြန်ပေါ်လာပါမည်။
-> *Drive တွေနဲ့ အတူ သယ်သွားနိုင်တဲ့ Personal Data* အောက်တွင် ကြည့်ပါ။
+> **v2.8.0 အသစ်များ** — **TV Shows!** `tvshow.nfo` ပါသော folder များကို
+> TV Show အဖြစ် မှတ်ပါသည်။ Show တစ်ခုလျှင် စာမျက်နှာတစ်ခု (poster, plot,
+> cast, season-by-season episode row များ၊ episode တစ်ခုစီ watched
+> မှတ်တမ်း၊ "▶ Play next unwatched" ခလုတ်)။ *TV Shows* အောက်တွင် ကြည့်ပါ။
 
 ---
 
@@ -20,17 +20,18 @@
 4. [စာကြည့်တိုက် ကြည့်ရှုခြင်း](#စာကြည့်တိုက်-ကြည့်ရှုခြင်း)
 5. [ရှာဖွေ၊ စစ်ထုတ်နှင့် စီရင်ခြင်း](#ရှာဖွေ-စစ်ထုတ်နှင့်-စီရင်ခြင်း)
 6. [ကြည့်ပြီး/မကြည့်ရသေး မှတ်တမ်းတင်ခြင်း](#ကြည့်ပြီးမကြည့်ရသေး-မှတ်တမ်းတင်ခြင်း)
-7. [My Lists — ကိုယ်ပိုင်စာရင်းများ](#my-lists--ကိုယ်ပိုင်-list-များ-ဖန်တီးခြင်း)
-8. [Multi-select — အများကို တစ်ပြိုင်နက်](#multi-select--တစ်ပြိုင်နက်-ရွေး၍-တစ်ပြိုင်နက်-ဆောင်ရွက်ခြင်း)
-9. [Drive တွေနဲ့ အတူ သယ်သွားနိုင်တဲ့ Personal Data](#drive-တွေနဲ့-အတူ-သယ်သွားနိုင်တဲ့-personal-data)
-10. [အနှစ်ချုပ်](#Statistics)
-11. [Drive များစွာ — အွန်လိုင်းနှင့် အော့ဖ်လိုင်း](#drive-များစွာ--အွန်လိုင်းနှင့်-အော့ဖ်လိုင်း)
-12. [အပြင်အဆင်နှင့် sidebar](#အပြင်အဆင်နှင့်-sidebar)
-13. [ကီးဘုတ် ဖြတ်လမ်းများ](#ကီးဘုတ်-ဖြတ်လမ်းများ)
-14. [Catalog ထုတ်ယူခြင်း](#catalog-ထုတ်ယူခြင်း)
-15. [အပ်ဒိတ်များ](#အပ်ဒိတ်များ)
-16. [ဒေတာ သိမ်းဆည်းနေသောနေရာ](#ဒေတာ-သိမ်းဆည်းနေသောနေရာ)
-17. [ပြဿနာဖြေရှင်းခြင်း](#ပြဿနာဖြေရှင်းခြင်း)
+7. [TV Shows](#tv-shows)
+8. [My Lists — ကိုယ်ပိုင်စာရင်းများ](#my-lists--ကိုယ်ပိုင်-list-များ-ဖန်တီးခြင်း)
+9. [Multi-select — အများကို တစ်ပြိုင်နက်](#multi-select--တစ်ပြိုင်နက်-ရွေး၍-တစ်ပြိုင်နက်-ဆောင်ရွက်ခြင်း)
+10. [Drive တွေနဲ့ အတူ သယ်သွားနိုင်တဲ့ Personal Data](#drive-တွေနဲ့-အတူ-သယ်သွားနိုင်တဲ့-personal-data)
+11. [အနှစ်ချုပ်](#Statistics)
+12. [Drive များစွာ — အွန်လိုင်းနှင့် အော့ဖ်လိုင်း](#drive-များစွာ--အွန်လိုင်းနှင့်-အော့ဖ်လိုင်း)
+13. [အပြင်အဆင်နှင့် sidebar](#အပြင်အဆင်နှင့်-sidebar)
+14. [ကီးဘုတ် ဖြတ်လမ်းများ](#ကီးဘုတ်-ဖြတ်လမ်းများ)
+15. [Catalog ထုတ်ယူခြင်း](#catalog-ထုတ်ယူခြင်း)
+16. [အပ်ဒိတ်များ](#အပ်ဒိတ်များ)
+17. [ဒေတာ သိမ်းဆည်းနေသောနေရာ](#ဒေတာ-သိမ်းဆည်းနေသောနေရာ)
+18. [ပြဿနာဖြေရှင်းခြင်း](#ပြဿနာဖြေရှင်းခြင်း)
 
 ---
 
@@ -163,6 +164,75 @@ Sort dropdown တွင် ခေါင်းစဉ်၊ နှစ်၊ rating
 
 ဤ flag များသည် **CineLibrary** တွင်သာ သိမ်းသည် — `.nfo` ဖိုင်ထဲ မရေးပါ။ 
 MediaElch ဖြင့် ပြန် scrape လုပ်ခဲ့သည်ရှိသော် မထိခိုက်စေရန် ကြိုတင်ကာကွယ်ထားခြင်း ဖြစ်ပါသည်။
+
+---
+
+## TV Shows
+
+**v2.8.0** မှစ၍ CineLibrary သည် ရုပ်ရှင်များနှင့်အတူ TV Show များကိုပါ
+catalog ပြုလုပ်ပေးပါသည်။
+
+### TV Show အဖြစ် ဘယ်လို မှတ်သလဲ
+
+**`tvshow.nfo`** ပါသော folder တိုင်းကို TV Show အဖြစ် မှတ်သည်။ ၎င်း
+folder ထဲရှိ `SxxExx` ပါသော video ဖိုင်များ (matching `.nfo` နှင့်) ကို
+episode အဖြစ် ဖတ်သည် — MediaElch (သို့) CineLibrary Essentials ထုတ်သော
+ပုံစံအတိုင်း —
+
+```
+H:\TV\Dark\
+├── tvshow.nfo                       ← show metadata
+├── poster.jpg  fanart.jpg
+├── .actors\                         ← cast ဓာတ်ပုံများ
+├── Dark - S01E01 - Secrets.mkv
+├── Dark - S01E01 - Secrets.nfo
+├── Dark - S01E01 - Secrets-thumb.jpg
+└── …
+```
+
+Season ကို ဖိုင်နာမည်ထဲက `Sxx` မှ တိုက်ရိုက်ဖတ်သည် — Season အားလုံးကို
+folder တစ်ခုထဲ ပြားပြားထားနိုင်သည်။ ရုပ်ရှင်များ မထိခိုက်ပါ — Drive
+တစ်ခုတည်းတွင် ရုပ်ရှင်ရော TV Show ရော ထားနိုင်သည်။
+
+### TV Show များ ရှာဖွေခြင်း
+
+Sidebar (All Movies အောက်) တွင် **All TV Shows** နှိပ်ပါ။ Show card grid
+ပေါ်လာမည် — poster, နှစ်, watched progress bar တို့ဖြင့်။ Sidebar badge
+က Show အရေအတွက် ပြသည်။
+
+### Show စာမျက်နှာ
+
+Show တစ်ခုနှိပ်လျှင် ၎င်း၏ စာမျက်နှာ ဖွင့်သည် — drilling မလို၊ scroll
+တစ်ခုတည်းတွင် —
+
+- **Header** — poster, plot, နှစ် · rating · status, watched roll-up
+  ("12/62 watched")၊ genre chips, **cast strip**, **☆ Favorite** /
+  **📋 Watchlist** ခလုတ်များ။
+- **▶ Play next** — မကြည့်ရသေးသော ပထမ episode သို့ ခုန်သည် (season,
+  episode အလိုက်)။ ပြီးသွားလျှင် "✓ All watched" ပြသည်။
+- **Season row များ** — Season တစ်ခုစီသည် episode card များ၏ ဘေးတိုက်
+  row ဖြစ်သည် (Netflix ပုံစံ ဘေးတိုက် scroll)။ Card တစ်ခုစီတွင်
+  episode thumbnail, `SxxExx`, ခေါင်းစဉ်, runtime/rating,
+  **○ / ✓ Mark-watched** toggle နှင့် hover တွင် **▶ Play**။
+
+### Episode ကြည့်ခြင်း
+
+- Episode card ကို **နှစ်ချက်နှိပ်** (သို့) **▶ Play** နှိပ်လျှင် default
+  video player ဖြင့် ဖွင့်သည်။ ဖွင့်လျှင် watched အဖြစ်လည်း မှတ်ပေးသည်။
+- Card ၏ **○ / ✓** toggle က မဖွင့်ဘဲ watched state ပြောင်းသည်။ Show ၏
+  progress roll-up ချက်ချင်း update ဖြစ်သည်။
+
+### Show အတွက် Favorite / Watchlist
+
+Favorite နှင့် Watchlist က **Show-level** ဖြစ်သည် (episode တစ်ခုမဟုတ်)၊
+Show header ရှိ ခလုတ်များမှ ပြုလုပ်သည်။ Watched က **episode တစ်ခုစီ**။
+
+### Show များလည်း Drive နဲ့ အတူ သယ်သွားသည်
+
+ရုပ်ရှင်များကဲ့သို့ပင်၊ Show ၏ personal state (favorite / watchlist /
+note / episode တစ်ခုစီ watched) ကို show folder ထဲ
+`cinelibrary-state.json` တွင် မိုးထားသည်။ Drive ဖျက်ပြီး ပြန်ထည့်လျှင်
+progress ပြန်ပေါ်လာသည်။
 
 ---
 

@@ -310,26 +310,44 @@
                                         </Grid>
                                     </StackPanel>
 
-                                    <!-- Movie count pill (v2.5.2) — sleek rounded badge with gold accent -->
-                                    <Border Grid.Column="2" VerticalAlignment="Top"
-                                            HorizontalAlignment="Right" Margin="0,2,0,0"
-                                            Background="{ThemeResource CardBrush}"
-                                            BorderBrush="{StaticResource BrandGoldBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="10"
-                                            Padding="14,8" MinWidth="86">
-                                        <StackPanel>
-                                            <TextBlock Text="{x:Bind MovieCount}"
-                                                       FontSize="28" FontWeight="Bold"
-                                                       Foreground="{StaticResource BrandGoldBrush}"
-                                                       HorizontalAlignment="Center"/>
-                                            <TextBlock Text="MOVIES"
-                                                       FontSize="9" CharacterSpacing="200"
-                                                       FontWeight="SemiBold" Opacity="0.7"
-                                                       Foreground="{ThemeResource MutedBrush}"
-                                                       HorizontalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Border>
+                                    <!-- Count pills (v2.5.2 / v2.8) — movies + shows -->
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Top"
+                                                HorizontalAlignment="Right" Margin="0,2,0,0" Spacing="8">
+                                        <Border Background="{ThemeResource CardBrush}"
+                                                BorderBrush="{StaticResource BrandGoldBrush}"
+                                                BorderThickness="1" CornerRadius="10"
+                                                Padding="14,8" MinWidth="86">
+                                            <StackPanel>
+                                                <TextBlock Text="{x:Bind MovieCount}"
+                                                           FontSize="28" FontWeight="Bold"
+                                                           Foreground="{StaticResource BrandGoldBrush}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="MOVIES"
+                                                           FontSize="9" CharacterSpacing="200"
+                                                           FontWeight="SemiBold" Opacity="0.7"
+                                                           Foreground="{ThemeResource MutedBrush}"
+                                                           HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- TV shows pill — only when the drive has shows -->
+                                        <Border Background="{ThemeResource CardBrush}"
+                                                BorderBrush="{StaticResource BrandPurpleBrush}"
+                                                BorderThickness="1" CornerRadius="10"
+                                                Padding="14,8" MinWidth="86"
+                                                Visibility="{x:Bind TvShowVisibility}">
+                                            <StackPanel>
+                                                <TextBlock Text="{x:Bind TvShowCount}"
+                                                           FontSize="28" FontWeight="Bold"
+                                                           Foreground="{StaticResource BrandPurpleBrush}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="SHOWS"
+                                                           FontSize="9" CharacterSpacing="200"
+                                                           FontWeight="SemiBold" Opacity="0.7"
+                                                           Foreground="{ThemeResource MutedBrush}"
+                                                           HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>

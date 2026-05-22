@@ -24,7 +24,13 @@ public class ScannerService
     /// MediaElch hasn't touched them since we last scanned, so re-parsing would be wasted work.</param>
     public async Task ScanAsync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress = null, CancellationToken ct = default, string? scanFolder = null, bool incremental = false)
     {
-        await Task.Run(() => ScanSync(volumeSerial, driveRoot, progress, ct, scanFolder, incremental), ct);
+        await Task.Run(() =>
+        {
+            ScanSync(volumeSerial, driveRoot, progress, ct, scanFolder, incremental);
+            // v2.8 — second pass for TV shows. Separate transaction so a
+            // failure in one domain can't roll back the other.
+            ScanTvSync(volumeSerial, driveRoot, progress, ct, scanFolder);
+        }, ct);
     }
 
     private void ScanSync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct, string? scanFolder, bool incremental)
@@ -509,6 +515,12 @@ public class ScannerService
         {
             var dir = stack.Pop();
 
+            // A folder with tvshow.nfo is a TV show, not a movie — skip it
+            // (and don't descend; episodes live flat inside it). The TV
+            // scanner handles these via FindTvShowFolders.
+            if (File.Exists(Path.Combine(dir, "tvshow.nfo")))
+                continue;
+
             // Yield this dir if it's a movie folder
             if (FindNfo(dir) != null) yield return dir;
 
@@ -535,6 +547,53 @@ public class ScannerService
             }
         }
     }
+
+    /// <summary>
+    /// v2.8 — walk for TV show folders: any folder containing tvshow.nfo.
+    /// We don't descend into a show folder (episodes are flat inside it),
+    /// but we do keep descending elsewhere so shows can live in
+    /// subdirectories (e.g. driveRoot/TV Shows/Dark/).
+    /// </summary>
+    private static IEnumerable<string> FindTvShowFolders(string root)
+    {
+        if (!Directory.Exists(root)) yield break;
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var dir = stack.Pop();
+            if (File.Exists(Path.Combine(dir, "tvshow.nfo")))
+            {
+                yield return dir;
+                continue; // don't descend into a show folder
+            }
+            string[] subs;
+            try { subs = Directory.GetDirectories(dir); }
+            catch (UnauthorizedAccessException) { continue; }
+            catch (IOException) { continue; }
+            foreach (var sub in subs)
+            {
+                var name = Path.GetFileName(sub);
+                if (ExcludedSystemDirs.Contains(name)) continue;
+                try
+                {
+                    var attr = File.GetAttributes(sub);
+                    if ((attr & FileAttributes.System) == FileAttributes.System &&
+                        (attr & FileAttributes.Hidden) == FileAttributes.Hidden)
+                        continue;
+                }
+                catch { }
+                stack.Push(sub);
+            }
+        }
+    }
+
+    // Episode filename pattern: "… S01E09 …" (case-insensitive). Captures
+    // season + episode numbers. Multi-episode files (S01E01E02) match the
+    // first pair, which is the right primary key for our purposes.
+    private static readonly System.Text.RegularExpressions.Regex EpisodeRe =
+        new(@"[Ss](\d{1,2})[\s._-]*[Ee](\d{1,3})",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static string? FindNfo(string folder)
     {
@@ -570,6 +629,345 @@ public class ScannerService
         }
         catch { }
         return null;
+    }
+
+    /// <summary>
+    /// v2.8 — TV show scan pass. Detects folders with tvshow.nfo, parses
+    /// the show + every episode file, and upserts tv_shows / tv_episodes.
+    /// Mirrors the movie scan's mark-missing-then-clear flow. Runs in its
+    /// own connection + transaction.
+    /// </summary>
+    private void ScanTvSync(string volumeSerial, string driveRoot, IProgress<ScanProgress>? progress, CancellationToken ct, string? scanFolder)
+    {
+        using var conn = _db.OpenNewConnection();
+        var dataDir = _db.DataDir;
+        var walkFrom = scanFolder ?? driveRoot;
+
+        // Mark shows in scope missing; episodes follow their show.
+        using (var cmd = conn.CreateCommand())
+        {
+            if (scanFolder != null)
+            {
+                var subRel = Path.GetRelativePath(driveRoot, scanFolder).Replace('\\', '/');
+                cmd.CommandText = "UPDATE tv_shows SET is_missing=1 WHERE volume_serial=@s AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
+                cmd.Parameters.AddWithValue("@s", volumeSerial);
+                cmd.Parameters.AddWithValue("@r", subRel);
+                cmd.Parameters.AddWithValue("@p", subRel + "/%");
+            }
+            else
+            {
+                cmd.CommandText = "UPDATE tv_shows SET is_missing=1 WHERE volume_serial=@s";
+                cmd.Parameters.AddWithValue("@s", volumeSerial);
+            }
+            cmd.ExecuteNonQuery();
+        }
+
+        using var tx = conn.BeginTransaction();
+        var lookup = LookupCache.Load(conn, tx);
+        try
+        {
+            foreach (var folder in FindTvShowFolders(walkFrom))
+            {
+                ct.ThrowIfCancellationRequested();
+                var nfoPath = Path.Combine(folder, "tvshow.nfo");
+                var show = NfoParser.ParseTvShow(nfoPath);
+                if (show == null) continue;
+
+                var folderRel = Path.GetRelativePath(driveRoot, folder).Replace('\\', '/');
+                var key = ComputeMovieKey(volumeSerial, folderRel);
+
+                var posterSrc = FindArtwork(folder, PosterNames, "poster");
+                var fanartSrc = FindArtwork(folder, FanartNames, "fanart");
+                var localPoster = posterSrc != null ? CopyToCache(posterSrc, dataDir, key, "poster") : null;
+                var localFanart = fanartSrc != null ? CopyToCache(fanartSrc, dataDir, key, "fanart") : null;
+                var localNfo    = CopyToCache(nfoPath, dataDir, key, "nfo");
+
+                int showId = UpsertTvShow(conn, tx, volumeSerial, folderRel, show, localPoster, localFanart, localNfo);
+                UpsertTvShowRelated(conn, tx, showId, show, lookup);
+
+                // Episodes — every video file with an SxxExx pattern.
+                var episodes = ScanEpisodeFiles(folder, driveRoot);
+                // Mark this show's episodes missing, then re-add found ones.
+                using (var em = conn.CreateCommand())
+                {
+                    em.Transaction = tx;
+                    em.CommandText = "DELETE FROM tv_episodes WHERE show_id=@id AND id NOT IN (SELECT id FROM tv_episodes WHERE show_id=@id LIMIT 0)";
+                    // (no-op placeholder kept simple — we upsert below and prune later)
+                    em.Parameters.AddWithValue("@id", showId);
+                }
+                var seenKeys = new HashSet<(int, int)>();
+                foreach (var ep in episodes)
+                {
+                    seenKeys.Add((ep.Parsed.Season, ep.Parsed.Episode));
+                    UpsertEpisode(conn, tx, showId, ep, key, dataDir);
+                }
+                // Prune episodes that vanished from disk.
+                PruneMissingEpisodes(conn, tx, showId, seenKeys);
+
+                // Re-import show + episode personal state from the sidecar.
+                TvStateSidecar.ImportIntoShow(_db, conn, tx, showId, folder);
+            }
+            tx.Commit();
+        }
+        catch (OperationCanceledException) { tx.Rollback(); throw; }
+        catch { tx.Rollback(); throw; }
+    }
+
+    private record ScannedEpisode(ParsedEpisode? ParsedNfo, ParsedEpisode Parsed,
+        string? VideoRel, string? ThumbSrc, string? Srt, string? ContainerExt, long? FileSize);
+
+    /// <summary>
+    /// Enumerate episode video files in a (flat) show folder. Season +
+    /// episode come from the filename; the matching .nfo (if present)
+    /// supplies title/plot/aired/runtime/streamdetails.
+    /// </summary>
+    private static List<ScannedEpisode> ScanEpisodeFiles(string folder, string driveRoot)
+    {
+        var result = new List<ScannedEpisode>();
+        IEnumerable<string> files;
+        try { files = Directory.EnumerateFiles(folder); }
+        catch { return result; }
+
+        foreach (var f in files)
+        {
+            if (!VideoExts.Contains(Path.GetExtension(f))) continue;
+            var name = Path.GetFileNameWithoutExtension(f);
+            var m = EpisodeRe.Match(name);
+            if (!m.Success) continue;
+            int season = int.Parse(m.Groups[1].Value);
+            int epnum = int.Parse(m.Groups[2].Value);
+
+            // Sibling .nfo + thumb + srt (same base name).
+            var basePath = Path.Combine(folder, name);
+            var nfoPath = basePath + ".nfo";
+            ParsedEpisode? parsedNfo = File.Exists(nfoPath)
+                ? NfoParser.ParseEpisode(nfoPath, season, epnum) : null;
+
+            // Build a parsed record even when the .nfo is missing.
+            var parsed = parsedNfo ?? new ParsedEpisode(season, epnum,
+                EpisodeTitleFromName(name), null, null, null, null, null);
+
+            string? thumb = null;
+            foreach (var suffix in new[] { "-thumb.jpg", "-thumb.jpeg", "-thumb.png", ".jpg", ".png" })
+            {
+                var t = basePath + suffix;
+                if (File.Exists(t)) { thumb = t; break; }
+            }
+            string? srt = File.Exists(basePath + ".srt") ? basePath + ".srt" : null;
+
+            long? size = null;
+            try { size = new FileInfo(f).Length; } catch { }
+            var container = Path.GetExtension(f).TrimStart('.').ToLowerInvariant();
+            var videoRel = Path.GetRelativePath(driveRoot, f).Replace('\\', '/');
+
+            result.Add(new ScannedEpisode(parsedNfo, parsed, videoRel, thumb, srt, container, size));
+        }
+        return result;
+    }
+
+    private static string EpisodeTitleFromName(string fileName)
+    {
+        // "Dark - S01E09 - Everything Is Now" → "Everything Is Now"
+        var m = System.Text.RegularExpressions.Regex.Match(fileName, @"[Ss]\d{1,2}[\s._-]*[Ee]\d{1,3}\s*-\s*(.+)$");
+        return m.Success ? m.Groups[1].Value.Trim() : fileName;
+    }
+
+    private static int UpsertTvShow(SqliteConnection conn, SqliteTransaction tx, string serial,
+        string folderRel, ParsedTvShow s, string? poster, string? fanart, string? nfo)
+    {
+        using var find = conn.CreateCommand();
+        find.Transaction = tx;
+        find.CommandText = "SELECT id FROM tv_shows WHERE volume_serial=@s AND folder_rel_path=@f";
+        find.Parameters.AddWithValue("@s", serial);
+        find.Parameters.AddWithValue("@f", folderRel);
+        var existing = find.ExecuteScalar();
+
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        if (existing != null && existing != DBNull.Value)
+        {
+            var id = Convert.ToInt32(existing);
+            cmd.CommandText = @"UPDATE tv_shows SET title=@t, original_title=@ot, sort_title=@st,
+                year=@y, rating=@ra, votes=@vo, plot=@pl, mpaa=@mp, premiered=@pr, studio=@su,
+                status=@status, imdb_id=@im, tmdb_id=@tm, tvdb_id=@tv,
+                local_poster=COALESCE(@lp,local_poster), local_fanart=COALESCE(@lf,local_fanart),
+                local_nfo=@ln, is_missing=0, date_modified=strftime('%s','now') WHERE id=@id";
+            BindShow(cmd, s, poster, fanart, nfo);
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.ExecuteNonQuery();
+            return id;
+        }
+        else
+        {
+            cmd.CommandText = @"INSERT INTO tv_shows
+                (volume_serial, folder_rel_path, title, original_title, sort_title, year, rating, votes,
+                 plot, mpaa, premiered, studio, status, imdb_id, tmdb_id, tvdb_id, local_poster, local_fanart, local_nfo)
+                VALUES (@vs,@fr,@t,@ot,@st,@y,@ra,@vo,@pl,@mp,@pr,@su,@status,@im,@tm,@tv,@lp,@lf,@ln);
+                SELECT last_insert_rowid();";
+            cmd.Parameters.AddWithValue("@vs", serial);
+            cmd.Parameters.AddWithValue("@fr", folderRel);
+            BindShow(cmd, s, poster, fanart, nfo);
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+
+    private static void BindShow(SqliteCommand cmd, ParsedTvShow s, string? poster, string? fanart, string? nfo)
+    {
+        cmd.Parameters.AddWithValue("@t", s.Title);
+        cmd.Parameters.AddWithValue("@ot", (object?)s.OriginalTitle ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@st", (object?)(s.SortTitle ?? s.Title) ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@y", (object?)s.Year ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ra", (object?)s.Rating ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vo", (object?)s.Votes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pl", (object?)s.Plot ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@mp", (object?)s.Mpaa ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pr", (object?)s.Premiered ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@su", (object?)s.Studio ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@status", (object?)s.Status ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@im", (object?)s.ImdbId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@tm", (object?)s.TmdbId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@tv", (object?)s.TvdbId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lp", (object?)poster ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lf", (object?)fanart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ln", (object?)nfo ?? DBNull.Value);
+    }
+
+    private static void UpsertTvShowRelated(SqliteConnection conn, SqliteTransaction tx, int showId,
+        ParsedTvShow s, LookupCache lookup)
+    {
+        // Genres
+        using (var del = conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM tv_show_genres WHERE show_id=@id";
+            del.Parameters.AddWithValue("@id", showId);
+            del.ExecuteNonQuery();
+        }
+        var seenGenres = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in s.Genres)
+        foreach (var g in SplitAndAliasGenres(raw))
+        {
+            if (!seenGenres.Add(g)) continue;
+            var gid = GetOrInsert(conn, tx, "genres", g, lookup.Genres);
+            if (gid < 0) continue;
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = "INSERT OR IGNORE INTO tv_show_genres(show_id, genre_id) VALUES(@s,@g)";
+            link.Parameters.AddWithValue("@s", showId);
+            link.Parameters.AddWithValue("@g", gid);
+            link.ExecuteNonQuery();
+        }
+        // Actors
+        using (var del = conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM tv_show_actors WHERE show_id=@id";
+            del.Parameters.AddWithValue("@id", showId);
+            del.ExecuteNonQuery();
+        }
+        foreach (var a in s.Actors)
+        {
+            var aid = GetOrInsert(conn, tx, "actors", a.Name, lookup.Actors, "thumb", a.Thumb);
+            if (aid < 0) continue;
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = "INSERT OR REPLACE INTO tv_show_actors(show_id, actor_id, role, sort_order) VALUES(@s,@a,@r,@o)";
+            link.Parameters.AddWithValue("@s", showId);
+            link.Parameters.AddWithValue("@a", aid);
+            link.Parameters.AddWithValue("@r", (object?)a.Role ?? DBNull.Value);
+            link.Parameters.AddWithValue("@o", a.Order);
+            link.ExecuteNonQuery();
+        }
+    }
+
+    private static void UpsertEpisode(SqliteConnection conn, SqliteTransaction tx, int showId,
+        ScannedEpisode ep, string showKey, string dataDir)
+    {
+        var p = ep.Parsed;
+        var sd = p.Stream;
+        string? thumb = ep.ThumbSrc != null
+            ? CopyToCache(ep.ThumbSrc, dataDir, showKey, $"ep_s{p.Season:D2}e{p.Episode:D2}") : null;
+
+        using var find = conn.CreateCommand();
+        find.Transaction = tx;
+        find.CommandText = "SELECT id FROM tv_episodes WHERE show_id=@s AND season=@se AND episode=@ep";
+        find.Parameters.AddWithValue("@s", showId);
+        find.Parameters.AddWithValue("@se", p.Season);
+        find.Parameters.AddWithValue("@ep", p.Episode);
+        var existing = find.ExecuteScalar();
+
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        if (existing != null && existing != DBNull.Value)
+        {
+            cmd.CommandText = @"UPDATE tv_episodes SET title=@t, plot=@pl, aired=@air, rating=@ra,
+                runtime=@ru, video_file_rel_path=@vfr, local_thumb=COALESCE(@th,local_thumb),
+                subtitle_languages=@sl, video_width=@vw, video_height=@vh, video_codec=@vc,
+                hdr_type=@hdr, audio_codec=@ac, audio_channels=@ach, audio_languages=@al,
+                duration_seconds=@dur, container_ext=@cx, file_size_bytes=@fs
+                WHERE id=@id";
+            BindEpisode(cmd, ep, thumb);
+            cmd.Parameters.AddWithValue("@id", Convert.ToInt32(existing));
+            cmd.ExecuteNonQuery();
+        }
+        else
+        {
+            cmd.CommandText = @"INSERT INTO tv_episodes
+                (show_id, season, episode, title, plot, aired, rating, runtime, video_file_rel_path,
+                 local_thumb, subtitle_languages, video_width, video_height, video_codec, hdr_type,
+                 audio_codec, audio_channels, audio_languages, duration_seconds, container_ext, file_size_bytes)
+                VALUES (@sid,@se,@epn,@t,@pl,@air,@ra,@ru,@vfr,@th,@sl,@vw,@vh,@vc,@hdr,@ac,@ach,@al,@dur,@cx,@fs)";
+            cmd.Parameters.AddWithValue("@sid", showId);
+            cmd.Parameters.AddWithValue("@se", p.Season);
+            cmd.Parameters.AddWithValue("@epn", p.Episode);
+            BindEpisode(cmd, ep, thumb);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void BindEpisode(SqliteCommand cmd, ScannedEpisode ep, string? thumb)
+    {
+        var p = ep.Parsed; var sd = p.Stream;
+        cmd.Parameters.AddWithValue("@t", (object?)p.Title ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pl", (object?)p.Plot ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@air", (object?)p.Aired ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ra", (object?)p.Rating ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ru", (object?)p.Runtime ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vfr", (object?)ep.VideoRel ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@th", (object?)thumb ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sl", (object?)sd?.SubtitleLanguages ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vw", (object?)sd?.VideoWidth ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vh", (object?)sd?.VideoHeight ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vc", (object?)sd?.VideoCodec ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@hdr", (object?)sd?.HdrType ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ac", (object?)sd?.AudioCodec ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ach", (object?)sd?.AudioChannels ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@al", (object?)sd?.AudioLanguages ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@dur", (object?)sd?.DurationSeconds ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@cx", (object?)ep.ContainerExt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@fs", (object?)ep.FileSize ?? DBNull.Value);
+    }
+
+    private static void PruneMissingEpisodes(SqliteConnection conn, SqliteTransaction tx, int showId, HashSet<(int, int)> seen)
+    {
+        var toDelete = new List<int>();
+        using (var sel = conn.CreateCommand())
+        {
+            sel.Transaction = tx;
+            sel.CommandText = "SELECT id, season, episode FROM tv_episodes WHERE show_id=@id";
+            sel.Parameters.AddWithValue("@id", showId);
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+                if (!seen.Contains((r.GetInt32(1), r.GetInt32(2)))) toDelete.Add(r.GetInt32(0));
+        }
+        foreach (var id in toDelete)
+        {
+            using var del = conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM tv_episodes WHERE id=@id";
+            del.Parameters.AddWithValue("@id", id);
+            del.ExecuteNonQuery();
+        }
     }
 
     private static string? CopyToCache(string srcPath, string dataDir, string movieKey, string kind)

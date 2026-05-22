@@ -1054,16 +1054,18 @@ public sealed partial class LibraryPage : Page
         // This will be called by MainWindow to show/hide it
     }
 
-    private void OnBackToggleClick(object sender, RoutedEventArgs e)
+    // v2.7 — "back to Browse" button. MainWindow drives visibility via
+    // ShowBrowseBack / HideBrowseBack and handles the actual navigation.
+    private void OnBrowseBackClick(object sender, RoutedEventArgs e)
+        => (App.MainWindow as MainWindow)?.OnLibraryBackRequested();
+
+    public void ShowBrowseBack(string label)
     {
-        // Get the main window and toggle sidebar
-        if (App.MainWindow is MainWindow mainWindow)
-        {
-            var toggleSidebarMethod = typeof(MainWindow).GetMethod("OnToggleSidebar", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            toggleSidebarMethod?.Invoke(mainWindow, new object[] { sender, e });
-        }
+        BackLabel.Text = label;
+        BackToggleBtn.Visibility = Visibility.Visible;
     }
+
+    public void HideBrowseBack() => BackToggleBtn.Visibility = Visibility.Collapsed;
 }
 
 

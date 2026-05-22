@@ -8,9 +8,14 @@ public class DriveInfo
     public bool IsConnected { get; set; }
     public string? CurrentLetter { get; set; }
     public int MovieCount { get; set; }
+    public int TvShowCount { get; set; }
     public int MissingCount { get; set; }
     public string MovieRootRelative { get; set; } = "";
     public List<DriveRoot> Folders { get; set; } = new();
+
+    // v2.8 — TV-show pill on the drive card (only when the drive has shows).
+    public Microsoft.UI.Xaml.Visibility TvShowVisibility =>
+        TvShowCount > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public string StatusText => IsConnected ? $"Connected ({CurrentLetter}:)" : "Offline";
     public string NotConnectedText => IsConnected ? $"Connected as {CurrentLetter}:" : "Not connected";

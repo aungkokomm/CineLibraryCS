@@ -8,10 +8,10 @@ of movies in under five minutes.
 
 ---
 
-> **What's new in v2.7.0** — Your watched marks, favorites, watchlist,
-> list memberships, and notes are now also saved into each movie's own
-> folder. Remove a drive, plug it back in, and CineLibrary picks them
-> all back up. See *State that travels with your drives* below.
+> **What's new in v2.8.0** — **TV Shows!** Folders with a `tvshow.nfo`
+> are now detected as shows, with a single show page (poster, plot,
+> cast, season-by-season episode rows, per-episode watched tracking,
+> and a "▶ Play next unwatched" button). See *TV Shows* below.
 
 ## Contents
 
@@ -21,17 +21,18 @@ of movies in under five minutes.
 4. [Browsing your library](#browsing-your-library)
 5. [Search, filter, and sort](#search-filter-and-sort)
 6. [Tracking what you've watched](#tracking-what-youve-watched)
-7. [My Lists — group movies your way](#my-lists--group-movies-your-way)
-8. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-9. [State that travels with your drives](#state-that-travels-with-your-drives)
-10. [Statistics](#statistics)
-11. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-12. [Themes and sidebar](#themes-and-sidebar)
-13. [Keyboard shortcuts](#keyboard-shortcuts)
-14. [Exporting your catalog](#exporting-your-catalog)
-15. [Updates](#updates)
-16. [Where your data lives](#where-your-data-lives)
-17. [Troubleshooting](#troubleshooting)
+7. [TV Shows](#tv-shows)
+8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
+9. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+10. [State that travels with your drives](#state-that-travels-with-your-drives)
+11. [Statistics](#statistics)
+12. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+13. [Themes and sidebar](#themes-and-sidebar)
+14. [Keyboard shortcuts](#keyboard-shortcuts)
+15. [Exporting your catalog](#exporting-your-catalog)
+16. [Updates](#updates)
+17. [Where your data lives](#where-your-data-lives)
+18. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -196,6 +197,76 @@ Three personal flags, all toggle from the movie detail dialog:
 
 These flags are local to your CineLibrary install — they don't write
 back to your `.nfo` files, so MediaElch re-scrapes won't disturb them.
+
+---
+
+## TV Shows
+
+As of **v2.8.0**, CineLibrary catalogs TV shows alongside your movies.
+
+### What gets detected as a show
+
+Any folder that contains a **`tvshow.nfo`** is treated as a TV show.
+Episodes are the video files inside it whose names carry an
+`SxxExx` marker, each with a matching `.nfo` — exactly what MediaElch
+(or CineLibrary Essentials) produces:
+
+```
+H:\TV\Dark\
+├── tvshow.nfo                       ← show metadata
+├── poster.jpg  fanart.jpg
+├── .actors\                         ← cast thumbnails
+├── Dark - S01E01 - Secrets.mkv
+├── Dark - S01E01 - Secrets.nfo
+├── Dark - S01E01 - Secrets-thumb.jpg
+├── Dark - S01E02 - Lies.mkv
+└── …
+```
+
+Seasons are read straight from the `Sxx` in each filename, so a show
+folder can hold every season flat in one place. Movies are unaffected —
+a single drive can hold both movies and shows.
+
+### Finding your shows
+
+Click **All TV Shows** in the sidebar (under All Movies). You get a
+grid of show cards, each with its poster, year, and a watched-progress
+bar. The sidebar badge shows how many shows you have.
+
+### The show page
+
+Click a show to open its page — everything on one scroll, no
+drilling:
+
+- **Header** — poster, plot, year · rating · status, a watched
+  roll-up ("12/62 watched"), genre chips, a **cast strip**, and
+  **☆ Favorite** / **📋 Watchlist** buttons.
+- **▶ Play next** — jumps straight to the first unwatched episode
+  (by season, then episode). Reads "✓ All watched" once you're done.
+- **Season rows** — each season is a horizontal row of episode
+  cards (scroll sideways, like Netflix). Each card shows the
+  episode thumbnail, `SxxExx`, title, runtime/rating, an
+  **○ / ✓ Mark-watched** toggle, and **▶ Play** on hover.
+
+### Watching episodes
+
+- **Double-click** an episode card (or its **▶ Play**) to open it in
+  your default video player. Playing also marks it watched.
+- The **○ / ✓** toggle on each card flips watched state without
+  playing. The show's progress roll-up updates instantly.
+
+### Favorite / Watchlist for shows
+
+Favorite and Watchlist are **show-level** (you favorite *the show*,
+not one episode), set from the buttons in the show header. Watched is
+**per-episode**.
+
+### Shows travel with the drive too
+
+Just like movies, a show's personal state (favorite / watchlist /
+note / per-episode watched) is mirrored into a `cinelibrary-state.json`
+in the show folder. Remove the drive and re-add it later — your
+progress comes right back. See *State that travels with your drives*.
 
 ---
 

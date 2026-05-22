@@ -22,23 +22,30 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Back/Toggle button (shows when sidebar is hidden) -->
+            <!-- v2.7 — "back to Browse" button. Appears only when the
+                 library view was drilled into from a Browse banner (By
+                 Genre / Decade / Rating / Studio) or Collections; returns
+                 to that page. Hidden for All Movies / Favorites / etc. -->
             <Button x:Name="BackToggleBtn"
                     Grid.Column="0"
-                    Click="OnBackToggleClick"
+                    Click="OnBrowseBackClick"
                     Background="{ThemeResource InputBgBrush}"
                     BorderBrush="{ThemeResource InputBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="8"
-                    Padding="8"
-                    Width="36"
+                    Padding="10,6"
                     Height="36"
                     VerticalAlignment="Center"
                     Margin="0,0,12,0"
                     Visibility="Collapsed">
-                <TextBlock Text="‹" FontSize="18" FontWeight="Bold" 
-                           VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Foreground="{ThemeResource TextBrush}"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="‹" FontSize="18" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextBrush}"/>
+                    <TextBlock x:Name="BackLabel" Text="Back" FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextBrush}"/>
+                </StackPanel>
             </Button>
 
             <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="ALL MOVIES"

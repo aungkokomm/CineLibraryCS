@@ -21,6 +21,7 @@ public sealed partial class MainWindow : Window
     private StatisticsPage? _statisticsPage;
     private BrowsePage? _browsePage;
     private CollectionsBrowsePage? _collectionsPage;
+    private TvShowsPage? _tvShowsPage;
     private DeviceChangeWatcher? _deviceWatcher;
 
     public MainWindow()
@@ -294,6 +295,7 @@ public sealed partial class MainWindow : Window
             var stats = _vm.Stats;
             TotalBadge.Text = stats?.TotalMovies.ToString() ?? "0";
             DrivesBadge.Text = _vm.Drives.Count.ToString();
+            try { TvShowsBadge.Text = AppState.Instance.Db.GetTvShowCount().ToString(); } catch { }
             // v2.5.1 — StatRuntime / StatRating tiles removed from sidebar
             // (they live on the Statistics page now). Stats object still
             // computed because other code paths use it.
@@ -348,6 +350,7 @@ public sealed partial class MainWindow : Window
             if (_libraryPage == null) NavigateTo("library");
             _libraryPage?.ViewModel.ShowUserList(ul.Id, ul.Name);
             if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+            ClearLibraryBack();
             SetActiveNav(btn);
         };
 
@@ -787,6 +790,10 @@ public sealed partial class MainWindow : Window
             {
                 _libraryPage.ApplyNavParam(lp);
             }
+            // Any fresh library navigation hides the Browse-back button by
+            // default. Drill-in callers (browse banners / collections)
+            // re-arm it immediately after this returns.
+            ClearLibraryBack();
             ContentFrame.Content = _libraryPage;
         }
         else if (page == "drives")
@@ -826,6 +833,16 @@ public sealed partial class MainWindow : Window
             _collectionsPage.Load();
             ContentFrame.Content = _collectionsPage;
         }
+        else if (page == "tvshows")
+        {
+            if (_tvShowsPage == null)
+            {
+                _tvShowsPage = new TvShowsPage();
+                _tvShowsPage.SidebarRefreshRequested += (_, _) => { _ = RefreshSidebarAsync(); };
+            }
+            _tvShowsPage.Load();
+            ContentFrame.Content = _tvShowsPage;
+        }
     }
 
     private async Task RefreshSidebarAsync()
@@ -833,6 +850,39 @@ public sealed partial class MainWindow : Window
         await _vm.RefreshSidebarAsync();
         RefreshSidebar();
     }
+
+    // ── Browse back navigation (v2.7) ─────────────────────────────────────
+    // When the library view is drilled into from a Browse banner or the
+    // Collections page, remember how to get back so LibraryPage can show
+    // a "‹ By Rating" style button. Cleared on any other navigation.
+    private Action? _libraryBackAction;
+
+    public void SetLibraryBackToBrowse(DatabaseService.BrowseFacet facet)
+    {
+        _libraryBackAction = () => NavigateTo("browse", facet);
+        _libraryPage?.ShowBrowseBack(facet switch
+        {
+            DatabaseService.BrowseFacet.Genre  => "By Genre",
+            DatabaseService.BrowseFacet.Decade => "By Decade",
+            DatabaseService.BrowseFacet.Rating => "By Rating",
+            DatabaseService.BrowseFacet.Studio => "By Studio",
+            _ => "Back",
+        });
+    }
+
+    public void SetLibraryBackToCollections()
+    {
+        _libraryBackAction = () => { NavigateTo("collections"); SetActiveNav(BtnCollections); };
+        _libraryPage?.ShowBrowseBack("Collections");
+    }
+
+    private void ClearLibraryBack()
+    {
+        _libraryBackAction = null;
+        _libraryPage?.HideBrowseBack();
+    }
+
+    public void OnLibraryBackRequested() => _libraryBackAction?.Invoke();
 
     // ── Nav handlers ──────────────────────────────────────────────────────
 
@@ -865,6 +915,12 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnFavorites);
     }
 
+    private void OnNavTvShows(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("tvshows");
+        SetActiveNav(sender as Button ?? BtnTvShows);
+    }
+
     private void OnNavDrives(object sender, RoutedEventArgs e)
     {
         NavigateTo("drives");
@@ -889,6 +945,7 @@ public sealed partial class MainWindow : Window
         _libraryPage?.ViewModel.FilterByActor(actor);
         _libraryPage?.UpdatePageTitle($"ALL MOVIES › {actor.ToUpper()}");
         if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+        ClearLibraryBack();  // chip-driven (e.g. from detail dialog) — no Browse origin
     }
 
     public void NavigateLibraryByDirector(string director)
@@ -897,6 +954,7 @@ public sealed partial class MainWindow : Window
         _libraryPage?.ViewModel.FilterByDirector(director);
         _libraryPage?.UpdatePageTitle($"ALL MOVIES › {director.ToUpper()}");
         if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+        ClearLibraryBack();
     }
 
     public void NavigateLibraryByGenre(string genre)
@@ -931,6 +989,7 @@ public sealed partial class MainWindow : Window
     public void NavigateLibraryByCollection(int id, string name)
     {
         NavigateTo("library", new LibraryNavParam(CollectionId: id, Label: name));
+        SetLibraryBackToCollections();
     }
 
     private void OnNavBrowseGenre(object sender, RoutedEventArgs e)
@@ -959,6 +1018,7 @@ public sealed partial class MainWindow : Window
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowContinueWatching();
         if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+        ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnContinueWatching);
     }
 
@@ -967,6 +1027,7 @@ public sealed partial class MainWindow : Window
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowRecentlyAdded();
         if (ContentFrame.Content != _libraryPage) NavigateTo("library");
+        ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnRecentlyAdded);
     }
 
@@ -1120,7 +1181,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.7.0",
+            Title = "CineLibrary v2.8.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
