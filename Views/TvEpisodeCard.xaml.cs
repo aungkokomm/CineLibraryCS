@@ -22,6 +22,7 @@ public sealed partial class TvEpisodeCard : UserControl
     // Static so the host page wires once, regardless of recycling.
     public static event Action<TvEpisodeItem>? AnyPlay;
     public static event Action<TvEpisodeItem>? AnyWatchedToggle;
+    public static event Action<TvEpisodeItem>? AnyDetails;
 
     public TvEpisodeCard()
     {
@@ -29,6 +30,24 @@ public sealed partial class TvEpisodeCard : UserControl
         PointerEntered += (_, _) => { HoverOverlay.Visibility = Visibility.Visible; HoverOverlay.Opacity = 1; };
         PointerExited  += (_, _) => { HoverOverlay.Opacity = 0; HoverOverlay.Visibility = Visibility.Collapsed; };
         DoubleTapped   += (_, _) => { if (Episode != null) AnyPlay?.Invoke(Episode); };
+        // Single tap on the card body (not its buttons) → episode details.
+        Tapped += (_, e) =>
+        {
+            if (Episode == null) return;
+            if (TapOnButton(e.OriginalSource as DependencyObject)) return;
+            AnyDetails?.Invoke(Episode);
+        };
+    }
+
+    private static bool TapOnButton(DependencyObject? src)
+    {
+        var cur = src;
+        while (cur != null)
+        {
+            if (cur is Button) return true;
+            cur = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(cur);
+        }
+        return false;
     }
 
     private static void OnEpisodeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

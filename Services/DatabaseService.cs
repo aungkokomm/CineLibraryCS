@@ -227,6 +227,15 @@ CREATE TABLE IF NOT EXISTS tv_show_actors (
 CREATE INDEX IF NOT EXISTS idx_tv_shows_volume ON tv_shows(volume_serial);
 CREATE INDEX IF NOT EXISTS idx_tv_episodes_show ON tv_episodes(show_id);
 CREATE INDEX IF NOT EXISTS idx_tv_episodes_watched ON tv_episodes(is_watched);
+
+-- v2.8.2 — lists are independent buckets: a list can hold movies AND
+-- shows. user_list_movies already exists; this is its TV twin.
+CREATE TABLE IF NOT EXISTS user_list_shows (
+    list_id INTEGER REFERENCES user_lists(id) ON DELETE CASCADE,
+    show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
+    added_at INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (list_id, show_id)
+);
 ");
     }
 
@@ -1631,6 +1640,38 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         };
     }
 
+    /// <summary>v2.8.2 — TV-side counterpart to GetStats for the Statistics page.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public TvStats GetTvStats()
+    {
+        var s = new TvStats();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*), AVG(CASE WHEN rating IS NOT NULL THEN rating END) FROM tv_shows";
+            using var r = cmd.ExecuteReader();
+            if (r.Read())
+            {
+                s.TotalShows = (int)r.GetInt64(0);
+                s.AvgRating = r.IsDBNull(1) ? null : r.GetDouble(1);
+            }
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"SELECT COUNT(*),
+                                       SUM(CASE WHEN is_watched=1 THEN 1 ELSE 0 END),
+                                       COALESCE(SUM(runtime),0)
+                                FROM tv_episodes";
+            using var r = cmd.ExecuteReader();
+            if (r.Read())
+            {
+                s.TotalEpisodes = (int)r.GetInt64(0);
+                s.WatchedEpisodes = r.IsDBNull(1) ? 0 : (int)r.GetInt64(1);
+                s.TotalRuntime = r.GetInt64(2);
+            }
+        }
+        return s;
+    }
+
     // ── Preferences ──────────────────────────────────────────────────────────
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -2016,10 +2057,11 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     {
         var list = new List<UserList>();
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"SELECT ul.id, ul.name, COUNT(ulm.movie_id)
+        // v2.8.2 — count movies + shows so the badge reflects the whole list.
+        cmd.CommandText = @"SELECT ul.id, ul.name,
+                                   (SELECT COUNT(*) FROM user_list_movies m WHERE m.list_id=ul.id)
+                                 + (SELECT COUNT(*) FROM user_list_shows s WHERE s.list_id=ul.id) AS cnt
                             FROM user_lists ul
-                            LEFT JOIN user_list_movies ulm ON ulm.list_id=ul.id
-                            GROUP BY ul.id
                             ORDER BY ul.sort_order, ul.name";
         using var r = cmd.ExecuteReader();
         while (r.Read())
@@ -2180,6 +2222,141 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     public Action<int>? TvShowStateChanged;  // wired by AppState → sidecar write
     private void RaiseTvShowStateChanged(int showId)
     { try { TvShowStateChanged?.Invoke(showId); } catch { } }
+
+    // ── Show ↔ list membership (v2.8.2) ──────────────────────────────────
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddShowToUserList(int listId, int showId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO user_list_shows(list_id, show_id) VALUES(@l,@s)";
+        cmd.Parameters.AddWithValue("@l", listId);
+        cmd.Parameters.AddWithValue("@s", showId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemoveShowFromUserList(int listId, int showId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM user_list_shows WHERE list_id=@l AND show_id=@s";
+        cmd.Parameters.AddWithValue("@l", listId);
+        cmd.Parameters.AddWithValue("@s", showId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public HashSet<int> GetUserListsForShow(int showId)
+    {
+        var set = new HashSet<int>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT list_id FROM user_list_shows WHERE show_id=@s";
+        cmd.Parameters.AddWithValue("@s", showId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) set.Add(r.GetInt32(0));
+        return set;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<string> GetUserListNamesForShow(int showId)
+    {
+        var names = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT ul.name FROM user_lists ul
+              JOIN user_list_shows uls ON uls.list_id=ul.id
+             WHERE uls.show_id=@s ORDER BY ul.name";
+        cmd.Parameters.AddWithValue("@s", showId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) names.Add(r.GetString(0));
+        return names;
+    }
+
+    /// <summary>Shows in a given user list — for the unified list view.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> GetTvShowsInList(int listId, IReadOnlyDictionary<string, string> connected)
+    {
+        var list = new List<Models.TvShowListItem>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT s.id, s.title, s.year, s.rating, s.local_poster, s.is_missing,
+                   s.volume_serial, d.label, s.is_favorite, s.is_watchlist,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id),
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id AND e.is_watched=1)
+              FROM user_list_shows uls
+              JOIN tv_shows s ON s.id = uls.show_id
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             WHERE uls.list_id=@l
+             ORDER BY s.sort_title, s.title";
+        cmd.Parameters.AddWithValue("@l", listId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(6);
+            list.Add(new Models.TvShowListItem
+            {
+                Id = r.GetInt32(0), Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+                LocalPoster = r.IsDBNull(4) ? null : r.GetString(4),
+                IsMissing = r.GetInt32(5) == 1,
+                VolumeSerial = serial,
+                DriveLabel = r.IsDBNull(7) ? null : r.GetString(7),
+                IsFavorite = r.GetInt32(8) == 1,
+                IsWatchlist = r.GetInt32(9) == 1,
+                EpisodeCount = r.GetInt32(10),
+                WatchedCount = r.GetInt32(11),
+                IsOnline = connected.ContainsKey(serial),
+            });
+        }
+        return list;
+    }
+
+    /// <summary>Full episode detail incl. stream/file info — for the episode dialog.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public Models.TvEpisodeDetail? GetEpisodeDetail(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT e.id, e.show_id, e.season, e.episode, e.title, e.plot, e.aired,
+                   e.rating, e.runtime, e.video_file_rel_path, e.local_thumb,
+                   e.subtitle_languages, e.video_width, e.video_height, e.video_codec,
+                   e.hdr_type, e.audio_codec, e.audio_channels, e.audio_languages,
+                   e.duration_seconds, e.container_ext, e.file_size_bytes, e.is_watched,
+                   s.title, s.volume_serial
+              FROM tv_episodes e JOIN tv_shows s ON s.id=e.show_id
+             WHERE e.id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new Models.TvEpisodeDetail
+        {
+            Id = r.GetInt32(0), ShowId = r.GetInt32(1),
+            Season = r.GetInt32(2), Episode = r.GetInt32(3),
+            Title = r.IsDBNull(4) ? "" : r.GetString(4),
+            Plot = r.IsDBNull(5) ? null : r.GetString(5),
+            Aired = r.IsDBNull(6) ? null : r.GetString(6),
+            Rating = r.IsDBNull(7) ? null : r.GetDouble(7),
+            Runtime = r.IsDBNull(8) ? null : r.GetInt32(8),
+            VideoFileRelPath = r.IsDBNull(9) ? null : r.GetString(9),
+            LocalThumb = r.IsDBNull(10) ? null : r.GetString(10),
+            SubtitleLanguages = r.IsDBNull(11) ? null : r.GetString(11),
+            VideoWidth = r.IsDBNull(12) ? null : r.GetInt32(12),
+            VideoHeight = r.IsDBNull(13) ? null : r.GetInt32(13),
+            VideoCodec = r.IsDBNull(14) ? null : r.GetString(14),
+            HdrType = r.IsDBNull(15) ? null : r.GetString(15),
+            AudioCodec = r.IsDBNull(16) ? null : r.GetString(16),
+            AudioChannels = r.IsDBNull(17) ? null : r.GetString(17),
+            AudioLanguages = r.IsDBNull(18) ? null : r.GetString(18),
+            DurationSeconds = r.IsDBNull(19) ? null : r.GetInt32(19),
+            ContainerExt = r.IsDBNull(20) ? null : r.GetString(20),
+            FileSizeBytes = r.IsDBNull(21) ? null : r.GetInt64(21),
+            IsWatched = r.GetInt32(22) == 1,
+            ShowTitle = r.IsDBNull(23) ? "" : r.GetString(23),
+            VolumeSerial = r.GetString(24),
+        };
+    }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
     public List<Models.TvShowListItem> GetTvShows(IReadOnlyDictionary<string, string> connected)

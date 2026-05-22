@@ -252,8 +252,27 @@ drilling:
 
 - **Double-click** an episode card (or its **▶ Play**) to open it in
   your default video player. Playing also marks it watched.
+- **Single-click** an episode card to open its **details** — full plot,
+  air date, rating, runtime, plus tech info pulled from the `.nfo`
+  (resolution, HDR, video/audio codec, audio languages, subtitles,
+  container, file size). The dialog has Play and Mark-watched buttons.
 - The **○ / ✓** toggle on each card flips watched state without
   playing. The show's progress roll-up updates instantly.
+- Each **season header** has **▶ Play season** (first unwatched in that
+  season) and **Mark all watched / unwatched**.
+
+### Adding shows to lists
+
+My Lists are independent buckets — a list can hold **movies and shows
+together**. Use **📑 Add to list** in the show header. When you open
+that list from the sidebar, its shows appear in a row at the top and
+its movies in the grid below. (See *My Lists*.)
+
+### TV in Statistics
+
+The Statistics page gains a **📺 TV Shows** section once you have shows:
+total shows, total episodes, combined episode runtime, average show
+rating, and an episodes-watched progress bar.
 
 ### Favorite / Watchlist for shows
 

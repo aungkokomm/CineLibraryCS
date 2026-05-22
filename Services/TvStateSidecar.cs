@@ -31,12 +31,13 @@ public static class TvStateSidecar
         [JsonPropertyName("favorite")]  public bool Favorite { get; set; }
         [JsonPropertyName("watchlist")] public bool Watchlist { get; set; }
         [JsonPropertyName("note")]      public string? Note { get; set; }
+        [JsonPropertyName("lists")]     public List<string> Lists { get; set; } = new();
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeState> Episodes { get; set; } = new();
         [JsonPropertyName("updated")]   public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
         public bool HasContent =>
-            Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) ||
+            Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) || Lists.Count > 0 ||
             Episodes.Values.Any(e => e.Watched || (e.LastPlayedUnix ?? 0) > 0);
     }
 
@@ -107,6 +108,8 @@ public static class TvStateSidecar
         if (!connected.TryGetValue(serial, out var letter)) return null;
         var folderAbs = Path.Combine($"{letter}:\\", folderRel.Replace('/', '\\'));
 
+        state.Lists = db.GetUserListNamesForShow(showId);
+
         using (var c = conn.CreateCommand())
         {
             c.CommandText = "SELECT season, episode, is_watched, last_played_at FROM tv_episodes WHERE show_id=@id";
@@ -158,6 +161,35 @@ public static class TvStateSidecar
             upd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(dbNote) ? (object?)s.Note ?? DBNull.Value : DBNull.Value);
             upd.Parameters.AddWithValue("@id", showId);
             upd.ExecuteNonQuery();
+        }
+
+        // Lists — additive, create-if-missing (same rule as movies).
+        foreach (var listName in s.Lists.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(listName)) continue;
+            int listId;
+            using (var find = conn.CreateCommand())
+            {
+                find.Transaction = tx;
+                find.CommandText = "SELECT id FROM user_lists WHERE name=@n";
+                find.Parameters.AddWithValue("@n", listName);
+                var ex = find.ExecuteScalar();
+                if (ex != null && ex != DBNull.Value) listId = Convert.ToInt32(ex);
+                else
+                {
+                    using var ins = conn.CreateCommand();
+                    ins.Transaction = tx;
+                    ins.CommandText = "INSERT INTO user_lists(name) VALUES(@n); SELECT last_insert_rowid();";
+                    ins.Parameters.AddWithValue("@n", listName);
+                    listId = Convert.ToInt32(ins.ExecuteScalar());
+                }
+            }
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = "INSERT OR IGNORE INTO user_list_shows(list_id, show_id) VALUES(@l,@s)";
+            link.Parameters.AddWithValue("@l", listId);
+            link.Parameters.AddWithValue("@s", showId);
+            link.ExecuteNonQuery();
         }
 
         // Per-episode watched — OR-merge (DB true stays true).

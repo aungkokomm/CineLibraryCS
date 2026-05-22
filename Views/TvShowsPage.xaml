@@ -116,6 +116,14 @@
                                             <Button x:Name="ShowWatchlistBtn" Click="OnToggleShowWatchlist"
                                                     Background="#22FFFFFF" Foreground="White"
                                                     BorderThickness="0" CornerRadius="8" Padding="14,7"/>
+                                            <Button x:Name="ShowListsBtn" Content="📑 Add to list"
+                                                    Background="#22FFFFFF" Foreground="White"
+                                                    BorderThickness="0" CornerRadius="8" Padding="14,7">
+                                                <Button.Flyout>
+                                                    <MenuFlyout x:Name="ShowListsFlyout" Placement="Bottom"
+                                                                Opening="OnShowListsFlyoutOpening"/>
+                                                </Button.Flyout>
+                                            </Button>
                                         </StackPanel>
                                         <!-- Cast strip -->
                                         <ItemsRepeater x:Name="CastRepeater" Margin="0,6,0,0">

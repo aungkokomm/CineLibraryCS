@@ -31,19 +31,136 @@ public sealed partial class TvShowsPage : Page
         ShowsRepeater.ItemsSource = _shows;
         ShowsRepeater.Tapped += OnShowsTapped;
 
-        // Episode cards raise these statics; wire once for the page lifetime.
-        TvEpisodeCard.AnyPlay += OnEpisodePlay;
-        TvEpisodeCard.AnyWatchedToggle += OnEpisodeWatchedToggle;
+        // Episode cards raise these statics. Wire on Loaded / unwire on
+        // Unloaded — the page is cached and reused by MainWindow, so doing
+        // this in the constructor would leave the events unsubscribed after
+        // the first time the user navigates away (Unloaded fires once),
+        // which is why Play stopped working after switching pages.
+        Loaded += (_, _) =>
+        {
+            TvEpisodeCard.AnyPlay -= OnEpisodePlay;
+            TvEpisodeCard.AnyPlay += OnEpisodePlay;
+            TvEpisodeCard.AnyWatchedToggle -= OnEpisodeWatchedToggle;
+            TvEpisodeCard.AnyWatchedToggle += OnEpisodeWatchedToggle;
+            TvEpisodeCard.AnyDetails -= OnEpisodeDetails;
+            TvEpisodeCard.AnyDetails += OnEpisodeDetails;
+        };
         Unloaded += (_, _) =>
         {
             TvEpisodeCard.AnyPlay -= OnEpisodePlay;
             TvEpisodeCard.AnyWatchedToggle -= OnEpisodeWatchedToggle;
+            TvEpisodeCard.AnyDetails -= OnEpisodeDetails;
         };
+    }
+
+    /// <summary>
+    /// v2.8.2 — single-tap an episode card to open a details dialog that
+    /// surfaces everything the .nfo carries: plot, air date, rating,
+    /// runtime, resolution / codec / HDR / audio / subtitles, container,
+    /// and file size. Previously parsed and stored but never shown.
+    /// </summary>
+    private async void OnEpisodeDetails(TvEpisodeItem ep)
+    {
+        var d = AppState.Instance.Db.GetEpisodeDetail(ep.Id);
+        if (d == null) return;
+
+        var root = new StackPanel { Spacing = 12 };
+
+        // Header line: code · aired · runtime · rating
+        var meta = new List<string>();
+        if (!string.IsNullOrEmpty(d.AiredText)) meta.Add(d.AiredText);
+        if (!string.IsNullOrEmpty(d.RuntimeText)) meta.Add(d.RuntimeText);
+        if (!string.IsNullOrEmpty(d.RatingText)) meta.Add(d.RatingText);
+        root.Children.Add(new TextBlock
+        {
+            Text = $"{d.Code}   ·   {string.Join("   ·   ", meta)}",
+            FontSize = 12,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+        });
+
+        // Plot
+        if (!string.IsNullOrWhiteSpace(d.Plot))
+            root.Children.Add(new TextBlock
+            {
+                Text = d.Plot,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+                LineHeight = 21,
+            });
+
+        // Tech badges
+        var badges = new List<string>();
+        if (d.Resolution != null) badges.Add(d.Resolution);
+        if (!string.IsNullOrEmpty(d.HdrType)) badges.Add(d.HdrType!.ToUpperInvariant());
+        if (!string.IsNullOrEmpty(d.VideoCodec)) badges.Add(d.VideoCodec!.ToUpperInvariant());
+        if (!string.IsNullOrEmpty(d.AudioCodec))
+            badges.Add(d.AudioCodec!.ToUpperInvariant() + (string.IsNullOrEmpty(d.AudioChannels) ? "" : $" {d.AudioChannels}"));
+        if (!string.IsNullOrEmpty(d.ContainerExt)) badges.Add(d.ContainerExt!.ToUpperInvariant());
+        if (badges.Count > 0)
+        {
+            var wrap = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            foreach (var b in badges)
+                wrap.Children.Add(new Border
+                {
+                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Child = new TextBlock { Text = b, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"] },
+                });
+            root.Children.Add(wrap);
+        }
+
+        // Detail rows (audio langs, subs, duration, file size)
+        void AddRow(string label, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var l = new TextBlock { Text = label, FontSize = 12,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"] };
+            var v = new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"] };
+            Grid.SetColumn(v, 1);
+            g.Children.Add(l); g.Children.Add(v);
+            root.Children.Add(g);
+        }
+        AddRow("Audio", d.AudioLanguages?.Replace(",", " · "));
+        AddRow("Subtitles", d.SubtitleLanguages?.Replace(",", " · "));
+        AddRow("Duration", d.DurationText);
+        AddRow("File size", d.FileSizeText);
+
+        var dlg = new ContentDialog
+        {
+            Title = $"{d.ShowTitle} — {d.Title}",
+            Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 460 },
+            PrimaryButtonText = "▶ Play",
+            SecondaryButtonText = d.IsWatched ? "Mark unwatched" : "Mark watched",
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        var result = await dlg.ShowAsync();
+        if (result == ContentDialogResult.Primary) OnEpisodePlay(ep);
+        else if (result == ContentDialogResult.Secondary) OnEpisodeWatchedToggle(ep);
     }
 
     public void Load()
     {
         _level = Level.Shows;
+        ShowLevel();
+    }
+
+    /// <summary>Open straight onto a specific show's page (deep-link from a list).</summary>
+    public void OpenShow(int showId)
+    {
+        var show = AppState.Instance.Db.GetTvShows(AppState.Instance.Connected)
+            .FirstOrDefault(s => s.Id == showId);
+        if (show == null) { Load(); return; }
+        _currentShow = show;
+        _level = Level.Show;
         ShowLevel();
     }
 
@@ -97,18 +214,8 @@ public sealed partial class TvShowsPage : Page
             var eps = AppState.Instance.Db.GetEpisodes(_currentShow.Id, season.Season, connected);
             _showEpisodes.AddRange(eps);
 
-            // Section header
-            var header = new TextBlock
-            {
-                Text = $"{(season.Season == 0 ? "SPECIALS" : "SEASON " + season.Season)}   ·   {season.WatchedCount}/{season.EpisodeCount} watched",
-                FontSize = 12,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                CharacterSpacing = 150,
-                Opacity = 0.7,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
-                Margin = new Thickness(24, 0, 24, 8),
-            };
-            SeasonSectionsHost.Children.Add(header);
+            // Section header — label + episode/watched counts + actions.
+            SeasonSectionsHost.Children.Add(BuildSeasonHeader(season, eps));
 
             // Episode cards in a HORIZONTAL row (Netflix/Disney+ style).
             // Critical for performance: a vertical UniformGridLayout nested
@@ -142,6 +249,94 @@ public sealed partial class TvShowsPage : Page
 
         // Header progress + Play-next label depend on the full episode set.
         RefreshHeaderProgress();
+    }
+
+    /// <summary>
+    /// Richer season bar: a "Season N" title, a "watched / total · runtime"
+    /// sub-line, and Play-season + Mark-all-watched actions on the right.
+    /// </summary>
+    private FrameworkElement BuildSeasonHeader(TvSeason season, List<TvEpisodeItem> eps)
+    {
+        var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
+        var text = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"];
+
+        var grid = new Grid { Margin = new Thickness(24, 4, 24, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Left: title + sub-line
+        var left = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        left.Children.Add(new TextBlock
+        {
+            Text = season.Season == 0 ? "Specials" : $"Season {season.Season}",
+            FontSize = 16,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = text,
+        });
+        var totalMins = eps.Where(e => e.Runtime.HasValue).Sum(e => e.Runtime!.Value);
+        var subBits = new List<string> { $"{season.EpisodeCount} episodes", $"{season.WatchedCount} watched" };
+        if (totalMins > 0) subBits.Add(totalMins >= 60 ? $"{totalMins / 60}h {totalMins % 60}m" : $"{totalMins}m");
+        left.Children.Add(new TextBlock
+        {
+            Text = string.Join("  ·  ", subBits),
+            FontSize = 12,
+            Foreground = muted,
+        });
+        grid.Children.Add(left);
+
+        // Right: actions
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(actions, 1);
+        bool anyUnwatched = eps.Any(e => !e.IsWatched);
+
+        var playSeason = new Button
+        {
+            Content = anyUnwatched ? "▶ Play season" : "✓ Season watched",
+            IsEnabled = anyUnwatched,
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"],
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 12,
+        };
+        playSeason.Click += (_, _) =>
+        {
+            var next = eps.Where(e => !e.IsWatched).OrderBy(e => e.Episode).FirstOrDefault();
+            if (next != null) OnEpisodePlay(next);
+        };
+        actions.Children.Add(playSeason);
+
+        var markAll = new Button
+        {
+            Content = anyUnwatched ? "Mark all watched" : "Mark all unwatched",
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            Foreground = text,
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 12,
+        };
+        markAll.Click += (_, _) =>
+        {
+            bool target = anyUnwatched;  // mark all watched if any unwatched, else unmark all
+            foreach (var e in eps)
+            {
+                if (e.IsWatched != target)
+                {
+                    AppState.Instance.Db.SetEpisodeWatched(e.Id, target);
+                    e.IsWatched = target;
+                }
+            }
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            // Rebuild so the header counts + button labels refresh.
+            BuildSeasonSections();
+        };
+        actions.Children.Add(markAll);
+
+        grid.Children.Add(actions);
+        return grid;
     }
 
     private void PopulateShowHeader()
@@ -211,6 +406,70 @@ public sealed partial class TvShowsPage : Page
         if (_currentShow != null) _currentShow.IsWatchlist = _detail.IsWatchlist;
         UpdateShowButtons();
         SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    // "📑 Add to list" — mirrors the movie flyout: toggle membership of any
+    // list, plus "+ New list…". Lists are independent buckets, so a show
+    // and a movie can share a list.
+    private void OnShowListsFlyoutOpening(object sender, object e)
+    {
+        ShowListsFlyout.Items.Clear();
+        if (_detail == null) return;
+        var db = AppState.Instance.Db;
+        var lists = db.GetUserLists();
+        var membership = db.GetUserListsForShow(_detail.Id);
+
+        if (lists.Count == 0)
+            ShowListsFlyout.Items.Add(new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false });
+        else
+            foreach (var ul in lists)
+            {
+                var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = membership.Contains(ul.Id) };
+                var captured = ul;
+                item.Click += (_, _) =>
+                {
+                    if (item.IsChecked) db.AddShowToUserList(captured.Id, _detail!.Id);
+                    else db.RemoveShowFromUserList(captured.Id, _detail!.Id);
+                    SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+                };
+                ShowListsFlyout.Items.Add(item);
+            }
+
+        ShowListsFlyout.Items.Add(new MenuFlyoutSeparator());
+        var newItem = new MenuFlyoutItem { Text = "+ New list…" };
+        newItem.Click += async (_, _) =>
+        {
+            var name = await PromptNewListName();
+            if (string.IsNullOrWhiteSpace(name) || _detail == null) return;
+            try
+            {
+                var listId = db.CreateUserList(name.Trim());
+                db.AddShowToUserList(listId, _detail.Id);
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                if (App.MainWindow is MainWindow mw) mw.ShowToast($"A list named “{name.Trim()}” already exists");
+            }
+        };
+        ShowListsFlyout.Items.Add(newItem);
+    }
+
+    private async Task<string?> PromptNewListName()
+    {
+        var box = new TextBox { PlaceholderText = "List name" };
+        var dlg = new ContentDialog
+        {
+            Title = "New list",
+            Content = box,
+            PrimaryButtonText = "Create",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        var r = await dlg.ShowAsync();
+        return r == ContentDialogResult.Primary ? box.Text : null;
     }
 
     private static string? ResolveShowFolderAbs(TvShowDetail d)
@@ -323,6 +582,18 @@ public sealed partial class TvShowsPage : Page
         if (!connected.TryGetValue(ep.VolumeSerial, out var letter)) { await ShowOfflineDialog(ep.Title); return; }
         var path = Path.Combine($"{letter}:\\", ep.VideoFileRelPath.Replace('/', '\\'));
         if (!File.Exists(path)) { await ShowOfflineDialog(ep.Title); return; }
+
+        // Launch FIRST so a DB hiccup can never stop playback.
+        bool launched = false;
+        try { launched = await Windows.System.Launcher.LaunchUriAsync(new Uri(path)); }
+        catch { launched = false; }
+        if (!launched)
+        {
+            if (App.MainWindow is MainWindow mw) mw.ShowToast("Couldn't launch the video player");
+            return;
+        }
+
+        // Bookkeeping — best effort, never blocks the user.
         try
         {
             AppState.Instance.Db.MarkEpisodePlayed(ep.Id);
@@ -332,13 +603,9 @@ public sealed partial class TvShowsPage : Page
                 ep.IsWatched = true;
             }
             RefreshHeaderProgress();
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(path));
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         }
-        catch
-        {
-            if (App.MainWindow is MainWindow mw) mw.ShowToast("Couldn't launch the video player");
-        }
+        catch { }
     }
 
     /// <summary>"▶ Play next unwatched" — first unwatched by season then episode.</summary>

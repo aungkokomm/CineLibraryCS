@@ -35,3 +35,17 @@ public class LibraryStats
 
     public string AvgRatingText => AvgRating.HasValue ? $"★ {AvgRating:F1}" : "—";
 }
+
+/// <summary>v2.8.2 — TV stats for the Statistics page.</summary>
+public class TvStats
+{
+    public int TotalShows { get; set; }
+    public int TotalEpisodes { get; set; }
+    public int WatchedEpisodes { get; set; }
+    public long TotalRuntime { get; set; }   // minutes, across all episodes
+    public double? AvgRating { get; set; }
+
+    public int WatchPercent => TotalEpisodes > 0
+        ? (int)Math.Round(100.0 * WatchedEpisodes / TotalEpisodes) : 0;
+    public string AvgRatingText => AvgRating.HasValue ? $"★ {AvgRating:F1}" : "—";
+}

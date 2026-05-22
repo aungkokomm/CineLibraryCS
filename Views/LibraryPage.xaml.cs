@@ -95,6 +95,17 @@ public sealed partial class LibraryPage : Page
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.Movies.CollectionChanged += (_, _) => UpdateEmptyState();
 
+        // v2.8.2 — tap a show card in the "TV shows in this list" row to
+        // open that show on the TV page.
+        ShowsInListRepeater.Tapped += (s, e) =>
+        {
+            var d = e.OriginalSource as DependencyObject;
+            while (d != null && d is not TvShowCard)
+                d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
+            if (d is TvShowCard card && card.Show != null && App.MainWindow is MainWindow mw)
+                mw.OpenTvShow(card.Show.Id);
+        };
+
         // Wire up sidebar refresh from movie cards (watchlist / favorite / watched toggles
         // made inside the detail dialog need to bubble back up so the sidebar counts refresh)
         GridRepeater.ElementPrepared += OnGridRepeaterElementPrepared;
@@ -803,7 +814,31 @@ public sealed partial class LibraryPage : Page
             // Any filter-related VM change should reflect in the Clear button
             UpdateClearFiltersButton();
             UpdateFilterChips();
+            RefreshShowsInList();
         });
+    }
+
+    private int? _lastShownListId = -1;  // sentinel so first call always runs
+
+    /// <summary>
+    /// v2.8.2 — when the current view is a user list, show that list's TV
+    /// shows in a row above the movie grid. Re-queried only when the list
+    /// changes, so it's cheap on routine VM updates.
+    /// </summary>
+    private void RefreshShowsInList()
+    {
+        if (_vm.UserListId == _lastShownListId) return;
+        _lastShownListId = _vm.UserListId;
+
+        if (_vm.UserListId == null)
+        {
+            ShowsInListSection.Visibility = Visibility.Collapsed;
+            ShowsInListRepeater.ItemsSource = null;
+            return;
+        }
+        var shows = AppState.Instance.Db.GetTvShowsInList(_vm.UserListId.Value, AppState.Instance.Connected);
+        ShowsInListRepeater.ItemsSource = shows;
+        ShowsInListSection.Visibility = shows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>

@@ -209,6 +209,31 @@
         <ScrollViewer Grid.Row="2" x:Name="MainScroller"
                       VerticalScrollBarVisibility="Auto"
                       ViewChanged="OnScrollChanged">
+          <StackPanel>
+            <!-- v2.8.2 — when viewing a user list that also contains TV
+                 shows, show them as a row at the top (lists are independent
+                 buckets that hold both movies and shows). -->
+            <StackPanel x:Name="ShowsInListSection" Visibility="Collapsed" Spacing="8" Margin="0,0,0,8">
+                <TextBlock Text="TV SHOWS IN THIS LIST" Margin="24,4,24,0"
+                           FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                           Opacity="0.7" Foreground="{ThemeResource MutedBrush}"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                              Height="312" Padding="24,0,24,0">
+                    <ItemsRepeater x:Name="ShowsInListRepeater">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Horizontal" Spacing="14"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:TvShowListItem">
+                                <local:TvShowCard Show="{x:Bind}"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+
             <Grid>
                 <!-- Empty state -->
                 <StackPanel x:Name="EmptyState" Visibility="Collapsed"
@@ -266,6 +291,7 @@
                     </ItemsRepeater>
                 </Border>
             </Grid>
+          </StackPanel>
         </ScrollViewer>
 
         <!-- Loading indicator -->

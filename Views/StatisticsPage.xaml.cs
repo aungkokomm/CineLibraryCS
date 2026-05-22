@@ -45,6 +45,23 @@ public sealed partial class StatisticsPage : Page
             ? $"📌 {watchlist} on your watchlist"
             : "Tip: add movies to your watchlist from the movie detail dialog.";
 
+        // ── TV Shows (v2.8.2) — only surfaced when the library has shows ──
+        var tv = db.GetTvStats();
+        if (tv.TotalShows > 0)
+        {
+            TvSection.Visibility = Visibility.Visible;
+            TileTotalShows.Text = tv.TotalShows.ToString("N0");
+            TileTotalEpisodes.Text = tv.TotalEpisodes.ToString("N0");
+            TileTvRuntime.Text = FormatRuntime(tv.TotalRuntime);
+            TileTvAvgRating.Text = tv.AvgRatingText;
+            TvWatchProgressBar.Value = tv.WatchPercent;
+            TvWatchProgressText.Text = $"{tv.WatchedEpisodes:N0} / {tv.TotalEpisodes:N0} ({tv.WatchPercent}%)";
+        }
+        else
+        {
+            TvSection.Visibility = Visibility.Collapsed;
+        }
+
         // Decades — simple horizontal bars
         var decades = db.GetMoviesByDecade();
         DecadesPanel.Children.Clear();

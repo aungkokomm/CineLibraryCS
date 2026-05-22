@@ -96,6 +96,76 @@
                 </StackPanel>
             </Border>
 
+            <!-- ── TV Shows (v2.8.2) — only shown when shows exist ─────────── -->
+            <Border x:Name="TvSection" Style="{StaticResource StatPanelStyle}" Visibility="Collapsed">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="📺 TV Shows" FontSize="14" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}"/>
+                    <!-- TV summary tiles -->
+                    <Grid ColumnSpacing="14" RowSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource StatTileStyle}">
+                            <StackPanel>
+                                <TextBlock Text="📺" FontSize="22"/>
+                                <TextBlock x:Name="TileTotalShows" Text="0"
+                                           FontSize="36" FontWeight="Bold" CharacterSpacing="-25"
+                                           Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="TV shows" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource StatTileStyle}">
+                            <StackPanel>
+                                <TextBlock Text="🎞️" FontSize="22"/>
+                                <TextBlock x:Name="TileTotalEpisodes" Text="0"
+                                           FontSize="36" FontWeight="Bold" CharacterSpacing="-25"
+                                           Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="Episodes" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource StatTileStyle}">
+                            <StackPanel>
+                                <TextBlock Text="⏱️" FontSize="22"/>
+                                <TextBlock x:Name="TileTvRuntime" Text="—"
+                                           FontSize="36" FontWeight="Bold" CharacterSpacing="-25"
+                                           Foreground="{ThemeResource TextBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="Episode runtime" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="3" Style="{StaticResource StatTileStyle}">
+                            <StackPanel>
+                                <TextBlock Text="⭐" FontSize="22"/>
+                                <TextBlock x:Name="TileTvAvgRating" Text="—"
+                                           FontSize="36" FontWeight="Bold" CharacterSpacing="-25"
+                                           Foreground="#FACC15" Margin="0,4,0,0"/>
+                                <TextBlock Text="Avg show rating" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <!-- TV watch progress -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="✓ Episodes watched" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}"/>
+                        <TextBlock Grid.Column="1" x:Name="TvWatchProgressText" Text="0 / 0 (0%)"
+                                   FontSize="13" Foreground="{ThemeResource MutedBrush}"/>
+                    </Grid>
+                    <ProgressBar x:Name="TvWatchProgressBar" Minimum="0" Maximum="100" Value="0"
+                                 Height="10" Foreground="#22C55E"/>
+                </StackPanel>
+            </Border>
+
             <!-- ── Two-column: Decades + Top genres ────────────────────────── -->
             <Grid ColumnSpacing="14">
                 <Grid.ColumnDefinitions>

@@ -921,6 +921,15 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnTvShows);
     }
 
+    /// <summary>Open the TV page directly on a specific show (e.g. from a
+    /// list's "TV shows in this list" row).</summary>
+    public void OpenTvShow(int showId)
+    {
+        NavigateTo("tvshows");
+        SetActiveNav(BtnTvShows);
+        _tvShowsPage?.OpenShow(showId);
+    }
+
     private void OnNavDrives(object sender, RoutedEventArgs e)
     {
         NavigateTo("drives");
@@ -1181,7 +1190,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.8.0",
+            Title = "CineLibrary v2.8.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
