@@ -21,7 +21,7 @@ Built with C# + WinUI 3.
 
 
 ![GitHub Repo stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge)
-![GitHub all releases](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge)
+![GitHub all releases](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge&cacheSeconds=3600)
 ![GitHub License](https://img.shields.io/github/license/aungkokomm/CineLibraryCS?style=for-the-badge)
 
 
