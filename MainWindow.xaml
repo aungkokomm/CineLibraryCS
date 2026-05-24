@@ -214,6 +214,27 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Recently Watched (v2.9) -->
+                        <Button x:Name="BtnRecentlyWatched" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavRecentlyWatched">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Glyph="&#xE823;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Recently Watched" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="RecentlyWatchedBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
                         <!-- Random Pick (v1.7) -->
                         <Button x:Name="BtnRandomPick" Style="{StaticResource NavItemStyle}" Click="OnNavRandomPick">
                             <StackPanel Orientation="Horizontal" Spacing="10">
@@ -221,6 +242,20 @@
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="Surprise me" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- On This Day (v2.9) — hidden when nothing today.
+                             Click opens a dialog with the matches: movies you
+                             watched on this date in past years, and films
+                             released on this date in past years. -->
+                        <Button x:Name="BtnOnThisDay" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavOnThisDay" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE787;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="On This Day" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
 
@@ -297,6 +332,18 @@
                             </Grid>
                         </Button>
 
+                        <!-- v2.9 — Backup / restore personal state.
+                             Opens a small dialog with Export / Import. -->
+                        <Button x:Name="BtnBackup" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBackup">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Backup" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- My Lists section (v1.9.2) — user-defined custom lists.
                              v2.5.1: header restyled as a quiet group label
                              matching LIBRARY / DISCOVER / BROWSE / TOOLS. -->
@@ -329,6 +376,26 @@
                                 </Button>
                             </Grid>
                             <StackPanel x:Name="UserListsItemsPanel"/>
+                        </StackPanel>
+
+                        <!-- v2.9 — Tags section. Collapsible like My Lists.
+                             Populated from DB by RefreshSidebar; hidden when
+                             no tags exist yet. -->
+                        <StackPanel x:Name="TagsHeader" Visibility="Collapsed" Margin="0,8,0,0">
+                            <Button Tag="Tags" Click="OnSidebarSectionToggle"
+                                    Style="{StaticResource SidebarSectionHeaderStyle}"
+                                    Margin="8,4,8,2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🏷  TAGS" CharacterSpacing="150"/>
+                                    <TextBlock x:Name="TagsChevron" Grid.Column="1"
+                                               Text="⌃" FontSize="11" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Button>
+                            <StackPanel x:Name="TagsItemsPanel"/>
                         </StackPanel>
 
                         <!-- Libraries section (collapsible, custom header) -->

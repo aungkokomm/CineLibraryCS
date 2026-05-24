@@ -33,7 +33,7 @@ public sealed partial class CollectionsBrowsePage : Page
     public void Load()
     {
         var entries = AppState.Instance.Db.GetCollectionGrid();
-        CountText.Text = entries.Count == 0
+        PageCountText.Text = entries.Count == 0
             ? ""
             : $"{entries.Count} collection{(entries.Count == 1 ? "" : "s")}";
         if (entries.Count == 0)

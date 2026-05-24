@@ -46,19 +46,45 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
             <Grid>
-                <!-- LEVEL 1: Shows grid -->
-                <ItemsRepeater x:Name="ShowsRepeater" Margin="24,0,24,24">
-                    <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="170" MinItemHeight="300"
-                                           MinColumnSpacing="14" MinRowSpacing="14"
-                                           ItemsStretch="Fill"/>
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="models:TvShowListItem">
-                            <local:TvShowCard Show="{x:Bind}"/>
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
+                <!-- LEVEL 1: Continue Watching row (v2.9) + Shows grid -->
+                <StackPanel x:Name="ShowsLevelHost" Spacing="0">
+                    <!-- v2.9 — "Continue Watching" row: shows the user has
+                         started but not finished, with the next-unwatched
+                         episode label. Built in code-behind; hidden when
+                         empty. -->
+                    <StackPanel x:Name="ContinueWatchingHost" Visibility="Collapsed"
+                                Spacing="6" Margin="0,0,0,18">
+                        <TextBlock Text="▶ CONTINUE WATCHING"
+                                   Margin="24,4,24,0"
+                                   FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                                   Opacity="0.75"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled"
+                                      VerticalScrollMode="Disabled"
+                                      Height="312" Padding="24,0,24,0">
+                            <ItemsRepeater x:Name="ContinueWatchingRepeater">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Orientation="Horizontal" Spacing="14"/>
+                                </ItemsRepeater.Layout>
+                            </ItemsRepeater>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <ItemsRepeater x:Name="ShowsRepeater" Margin="24,0,24,24">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="170" MinItemHeight="300"
+                                               MinColumnSpacing="14" MinRowSpacing="14"
+                                               ItemsStretch="Fill"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:TvShowListItem">
+                                <local:TvShowCard Show="{x:Bind}"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
 
                 <!-- LEVEL 2: Show header + Seasons grid -->
                 <StackPanel x:Name="SeasonsPanel" Visibility="Collapsed" Spacing="0">
@@ -124,6 +150,41 @@
                                                                 Opening="OnShowListsFlyoutOpening"/>
                                                 </Button.Flyout>
                                             </Button>
+                                        </StackPanel>
+
+                                        <!-- v2.9 — show tags row. Chips
+                                             with ✕ to remove, "+ Add tag"
+                                             autocomplete suggests existing
+                                             tags and accepts new names.
+                                             Backend mirrors movie tags. -->
+                                        <StackPanel x:Name="ShowTagsRow" Orientation="Horizontal" Spacing="6"
+                                                    Margin="0,2,0,0">
+                                            <TextBlock Text="🏷" FontSize="13"
+                                                       Foreground="#D8D8D8"
+                                                       VerticalAlignment="Center" Opacity="0.8"/>
+                                            <ItemsControl x:Name="ShowTagChipsRepeater">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" Spacing="6"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
+                                            <Button x:Name="AddShowTagBtn" Click="OnAddShowTagClick"
+                                                    Background="#22FFFFFF"
+                                                    BorderBrush="#33FFFFFF"
+                                                    BorderThickness="1" CornerRadius="12"
+                                                    Padding="10,3"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="+ Add tag" FontSize="11"
+                                                           Foreground="#D8D8D8"/>
+                                            </Button>
+                                            <AutoSuggestBox x:Name="AddShowTagBox" Visibility="Collapsed"
+                                                            PlaceholderText="Tag name (Enter to add)"
+                                                            Width="180"
+                                                            QuerySubmitted="OnAddShowTagSubmitted"
+                                                            TextChanged="OnAddShowTagTextChanged"
+                                                            LostFocus="OnAddShowTagBlur"
+                                                            VerticalAlignment="Center"/>
                                         </StackPanel>
                                         <!-- Cast strip -->
                                         <ItemsRepeater x:Name="CastRepeater" Margin="0,6,0,0">

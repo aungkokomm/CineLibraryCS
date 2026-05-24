@@ -82,6 +82,8 @@ public class MovieDetail
     public List<Actor> Actors { get; set; } = new();
     public List<string> Sets { get; set; } = new();
     public List<(string Source, double Value, int? Votes)> AllRatings { get; set; } = new();
+    /// <summary>v2.9 — free-form personal tags assigned to this movie.</summary>
+    public List<string> Tags { get; set; } = new();
 
     public string RatingText => Rating.HasValue ? $"★ {Rating:F1}" : "";
     public string RuntimeText => Runtime.HasValue ? $"{Runtime} min" : "";

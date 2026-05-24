@@ -32,8 +32,11 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterRatingBand = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
+    [ObservableProperty] private bool _isRecentlyWatched = false;
     [ObservableProperty] private bool _hasNoteOnly = false;
     [ObservableProperty] private int? _userListId = null;
+    [ObservableProperty] private int? _tagId = null;
+    [ObservableProperty] private string? _tagName = null;
     /// <summary>Total rows that match the current filter, before paging.</summary>
     [ObservableProperty] private int _filterTotal = 0;
     [ObservableProperty] private int? _collectionId = null;
@@ -107,6 +110,12 @@ public partial class LibraryViewModel : ObservableObject
         IsLoading = false;
     }
 
+    /// <summary>
+    /// v2.9 — Public snapshot of the current filter set for use by the
+    /// 🎲 Surprise Me button (which needs the same WHERE clause without paging).
+    /// </summary>
+    public DatabaseService.ListOptions BuildOptsForPick() => BuildOpts(0);
+
     private DatabaseService.ListOptions BuildOpts(int offset) => new(
         Search: string.IsNullOrWhiteSpace(SearchText) ? null : SearchText,
         SortKey: SortKey.ToString().ToLower() switch
@@ -131,8 +140,10 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly: FavoritesOnly,
         IsWatchlistOnly: IsWatchlistOnly,
         ContinueWatching: IsContinueWatching,
+        RecentlyWatchedOnly: IsRecentlyWatched,
         HasNoteOnly: HasNoteOnly,
         UserListId: UserListId,
+        TagId: TagId,
         DecadeStart: FilterDecadeStart,
         RatingBand: FilterRatingBand,
         Limit: PageSize,
@@ -252,6 +263,23 @@ public partial class LibraryViewModel : ObservableObject
         _ = LoadAsync();
     }
 
+    /// <summary>
+    /// v2.9 — "Recently Watched": everything you've touched at least once,
+    /// ordered by most recent activity. Differs from Continue Watching in
+    /// that it includes movies you've marked watched, not just ones you
+    /// stopped halfway through.
+    /// </summary>
+    public void ShowRecentlyWatched()
+    {
+        ResetAllFilters();
+        IsRecentlyWatched = true;
+        WatchedFilter = WatchedFilter.All;
+        SortKey = SortKey.LastPlayed;
+        SortDir = SortDir.Desc;
+        PageTitle = "🕓 Recently Watched";
+        _ = LoadAsync();
+    }
+
     public void ClearFilters()
     {
         ResetAllFilters();
@@ -265,6 +293,16 @@ public partial class LibraryViewModel : ObservableObject
         UserListId = listId;
         WatchedFilter = WatchedFilter.All;
         PageTitle = $"📑 {listName}";
+        _ = LoadAsync();
+    }
+
+    /// <summary>v2.9 — filter the library to movies carrying a given tag.</summary>
+    public void FilterByTag(int tagId, string tagName)
+    {
+        ResetAllFilters();
+        TagId = tagId;
+        TagName = tagName;
+        PageTitle = $"🏷 {tagName}";
         _ = LoadAsync();
     }
 
@@ -321,8 +359,11 @@ public partial class LibraryViewModel : ObservableObject
         FavoritesOnly = false;
         IsWatchlistOnly = false;
         IsContinueWatching = false;
+        IsRecentlyWatched = false;
         HasNoteOnly = false;
         UserListId = null;
+        TagId = null;
+        TagName = null;
         FilterDecadeStart = null;
         FilterRatingBand = null;
         SearchText = "";

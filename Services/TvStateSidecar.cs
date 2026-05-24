@@ -22,6 +22,9 @@ public static class TvStateSidecar
     {
         [JsonPropertyName("watched")]        public bool Watched { get; set; }
         [JsonPropertyName("lastPlayedUnix")] public long? LastPlayedUnix { get; set; }
+        // v2.9 — per-episode personal state.
+        [JsonPropertyName("favorite")]       public bool Favorite { get; set; }
+        [JsonPropertyName("note")]           public string? Note { get; set; }
     }
 
     public class State
@@ -32,13 +35,17 @@ public static class TvStateSidecar
         [JsonPropertyName("watchlist")] public bool Watchlist { get; set; }
         [JsonPropertyName("note")]      public string? Note { get; set; }
         [JsonPropertyName("lists")]     public List<string> Lists { get; set; } = new();
+        // v2.9 — show-level free-form tags.
+        [JsonPropertyName("tags")]      public List<string> Tags { get; set; } = new();
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeState> Episodes { get; set; } = new();
         [JsonPropertyName("updated")]   public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
         public bool HasContent =>
-            Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) || Lists.Count > 0 ||
-            Episodes.Values.Any(e => e.Watched || (e.LastPlayedUnix ?? 0) > 0);
+            Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) ||
+            Lists.Count > 0 || Tags.Count > 0 ||
+            Episodes.Values.Any(e => e.Watched || (e.LastPlayedUnix ?? 0) > 0
+                                 || e.Favorite || !string.IsNullOrWhiteSpace(e.Note));
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -109,22 +116,41 @@ public static class TvStateSidecar
         var folderAbs = Path.Combine($"{letter}:\\", folderRel.Replace('/', '\\'));
 
         state.Lists = db.GetUserListNamesForShow(showId);
+        state.Tags = db.GetTagNamesForShow(showId);
 
         using (var c = conn.CreateCommand())
         {
-            c.CommandText = "SELECT season, episode, is_watched, last_played_at FROM tv_episodes WHERE show_id=@id";
+            c.CommandText = "SELECT season, episode, is_watched, last_played_at, is_favorite, note FROM tv_episodes WHERE show_id=@id";
             c.Parameters.AddWithValue("@id", showId);
             using var r = c.ExecuteReader();
             while (r.Read())
             {
                 var watched = r.GetInt32(2) == 1;
                 var lp = r.IsDBNull(3) ? 0L : r.GetInt64(3);
-                if (!watched && lp == 0) continue;
+                var fav = !r.IsDBNull(4) && r.GetInt32(4) == 1;
+                var note = r.IsDBNull(5) ? null : r.GetString(5);
+                // Only persist rows that carry anything personal.
+                if (!watched && lp == 0 && !fav && string.IsNullOrWhiteSpace(note)) continue;
                 state.Episodes[Key(r.GetInt32(0), r.GetInt32(1))] =
-                    new EpisodeState { Watched = watched, LastPlayedUnix = lp > 0 ? lp : null };
+                    new EpisodeState
+                    {
+                        Watched = watched,
+                        LastPlayedUnix = lp > 0 ? lp : null,
+                        Favorite = fav,
+                        Note = note,
+                    };
             }
         }
         return (folderAbs, state);
+    }
+
+    /// <summary>v2.9 — convenience: compose + write current DB state.</summary>
+    public static void Sync(
+        DatabaseService db, int showId, IReadOnlyDictionary<string, string> connected)
+    {
+        var composed = Compose(db, showId, connected);
+        if (composed == null) return;
+        TryWrite(composed.Value.FolderAbs, composed.Value.State);
     }
 
     /// <summary>
@@ -192,7 +218,8 @@ public static class TvStateSidecar
             link.ExecuteNonQuery();
         }
 
-        // Per-episode watched — OR-merge (DB true stays true).
+        // Per-episode watched + favorite + note — OR-merge (DB-true wins),
+        // note only filled when DB note is empty.
         foreach (var (code, est) in s.Episodes)
         {
             var m = System.Text.RegularExpressions.Regex.Match(code, @"[Ss](\d+)[Ee](\d+)");
@@ -203,14 +230,47 @@ public static class TvStateSidecar
             upd.Transaction = tx;
             upd.CommandText = @"UPDATE tv_episodes
                    SET is_watched = CASE WHEN is_watched=1 OR @w=1 THEN 1 ELSE 0 END,
-                       last_played_at = MAX(last_played_at, @lp)
+                       last_played_at = MAX(last_played_at, @lp),
+                       is_favorite = CASE WHEN is_favorite=1 OR @f=1 THEN 1 ELSE 0 END,
+                       note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END
                  WHERE show_id=@id AND season=@se AND episode=@ep";
             upd.Parameters.AddWithValue("@w", est.Watched ? 1 : 0);
             upd.Parameters.AddWithValue("@lp", est.LastPlayedUnix ?? 0);
+            upd.Parameters.AddWithValue("@f", est.Favorite ? 1 : 0);
+            upd.Parameters.AddWithValue("@n", (object?)est.Note ?? DBNull.Value);
             upd.Parameters.AddWithValue("@id", showId);
             upd.Parameters.AddWithValue("@se", season);
             upd.Parameters.AddWithValue("@ep", ep);
             upd.ExecuteNonQuery();
+        }
+
+        // v2.9 — Tags (show-level) — additive, create-if-missing.
+        foreach (var tagName in s.Tags.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(tagName)) continue;
+            int tagId;
+            using (var find = conn.CreateCommand())
+            {
+                find.Transaction = tx;
+                find.CommandText = "SELECT id FROM tags WHERE name=@n";
+                find.Parameters.AddWithValue("@n", tagName);
+                var ex = find.ExecuteScalar();
+                if (ex != null && ex != DBNull.Value) tagId = Convert.ToInt32(ex);
+                else
+                {
+                    using var ins = conn.CreateCommand();
+                    ins.Transaction = tx;
+                    ins.CommandText = "INSERT INTO tags(name) VALUES(@n); SELECT last_insert_rowid();";
+                    ins.Parameters.AddWithValue("@n", tagName);
+                    tagId = Convert.ToInt32(ins.ExecuteScalar());
+                }
+            }
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = "INSERT OR IGNORE INTO tv_show_tags(show_id, tag_id) VALUES(@s,@t)";
+            link.Parameters.AddWithValue("@s", showId);
+            link.Parameters.AddWithValue("@t", tagId);
+            link.ExecuteNonQuery();
         }
     }
 }

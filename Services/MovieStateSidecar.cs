@@ -35,6 +35,7 @@ public static class MovieStateSidecar
         [JsonPropertyName("watchlist")]     public bool Watchlist { get; set; }
         [JsonPropertyName("lastPlayedUnix")]public long? LastPlayedUnix { get; set; }
         [JsonPropertyName("lists")]         public List<string> Lists { get; set; } = new();
+        [JsonPropertyName("tags")]          public List<string> Tags { get; set; } = new();
         [JsonPropertyName("note")]          public string? Note { get; set; }
         [JsonPropertyName("updated")]       public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
@@ -44,7 +45,8 @@ public static class MovieStateSidecar
             Watched || Favorite || Watchlist ||
             (LastPlayedUnix.HasValue && LastPlayedUnix.Value > 0) ||
             !string.IsNullOrWhiteSpace(Note) ||
-            Lists.Count > 0;
+            Lists.Count > 0 ||
+            Tags.Count > 0;
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -139,7 +141,23 @@ public static class MovieStateSidecar
             Note             = r.IsDBNull(6) ? null : r.GetString(6),
         };
         state.Lists = db.GetUserListNamesForMovie(movieId);
+        state.Tags = db.GetTagNamesForMovie(movieId);
         return (folderAbs, state);
+    }
+
+    /// <summary>
+    /// v2.9 — convenience wrapper used by callers that just want "sync
+    /// whatever the DB currently has for this movie to its sidecar". Used
+    /// by the detail dialog after tag mutations.
+    /// </summary>
+    public static void Sync(
+        DatabaseService db,
+        int movieId,
+        IReadOnlyDictionary<string, string> connectedDrives)
+    {
+        var composed = Compose(db, movieId, connectedDrives);
+        if (composed == null) return;
+        TryWrite(composed.Value.FolderAbs, composed.Value.State);
     }
 
     /// <summary>
@@ -206,6 +224,44 @@ public static class MovieStateSidecar
             if (string.IsNullOrWhiteSpace(listName)) continue;
             EnsureMovieInList(conn, tx, movieId, listName);
         }
+
+        // Tags — additive. Same pattern: ensure tag row, link movie.
+        foreach (var tagName in s.Tags.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(tagName)) continue;
+            EnsureMovieTag(conn, tx, movieId, tagName);
+        }
+    }
+
+    private static void EnsureMovieTag(
+        SqliteConnection conn, SqliteTransaction tx, int movieId, string tagName)
+    {
+        int tagId;
+        using (var find = conn.CreateCommand())
+        {
+            find.Transaction = tx;
+            find.CommandText = "SELECT id FROM tags WHERE name=@n";
+            find.Parameters.AddWithValue("@n", tagName);
+            var existing = find.ExecuteScalar();
+            if (existing != null && existing != DBNull.Value)
+            {
+                tagId = Convert.ToInt32(existing);
+            }
+            else
+            {
+                using var ins = conn.CreateCommand();
+                ins.Transaction = tx;
+                ins.CommandText = "INSERT INTO tags(name) VALUES(@n); SELECT last_insert_rowid();";
+                ins.Parameters.AddWithValue("@n", tagName);
+                tagId = Convert.ToInt32(ins.ExecuteScalar());
+            }
+        }
+        using var link = conn.CreateCommand();
+        link.Transaction = tx;
+        link.CommandText = "INSERT OR IGNORE INTO movie_tags(movie_id, tag_id) VALUES(@m, @t)";
+        link.Parameters.AddWithValue("@m", movieId);
+        link.Parameters.AddWithValue("@t", tagId);
+        link.ExecuteNonQuery();
     }
 
     private static void EnsureMovieInList(

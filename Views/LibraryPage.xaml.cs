@@ -92,12 +92,54 @@ public sealed partial class LibraryPage : Page
         AddAccelerator(VirtualKey.Up, VirtualKeyModifiers.None,
             (_, a) => { if (TryScrollByRow(-1)) a.Handled = true; });
 
+        // v2.9 — Card / selection shortcuts. Gated on text-edit focus so
+        // typing F or W into the search box doesn't toggle anything.
+        //   /        focuses the search box (streaming-style search shortcut)
+        //   F        toggle favorite on the current selection
+        //   W        toggle watchlist on the current selection
+        //   Delete   remove from current list (when viewing a list)
+        AddAccelerator((VirtualKey)0xBF /* Oem2 = / */, VirtualKeyModifiers.None, (_, a) =>
+        {
+            if (IsTextEditFocused()) return;
+            SearchBox.Focus(FocusState.Programmatic);
+            a.Handled = true;
+        });
+        AddAccelerator(VirtualKey.F, VirtualKeyModifiers.None, (_, a) =>
+        {
+            if (IsTextEditFocused() || _selectedIds.Count == 0) return;
+            OnSelToggleFav(this, new RoutedEventArgs());
+            a.Handled = true;
+        });
+        AddAccelerator(VirtualKey.W, VirtualKeyModifiers.None, (_, a) =>
+        {
+            if (IsTextEditFocused() || _selectedIds.Count == 0) return;
+            OnSelToggleWatchlist(this, new RoutedEventArgs());
+            a.Handled = true;
+        });
+        AddAccelerator(VirtualKey.Delete, VirtualKeyModifiers.None, (_, a) =>
+        {
+            if (IsTextEditFocused() || _selectedIds.Count == 0) return;
+            if (_vm.UserListId == null) return;  // only meaningful in a list view
+            OnSelRemoveFromCurrentList(this, new RoutedEventArgs());
+            a.Handled = true;
+        });
+
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.Movies.CollectionChanged += (_, _) => UpdateEmptyState();
 
         // v2.8.2 — tap a show card in the "TV shows in this list" row to
         // open that show on the TV page.
         ShowsInListRepeater.Tapped += (s, e) =>
+        {
+            var d = e.OriginalSource as DependencyObject;
+            while (d != null && d is not TvShowCard)
+                d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
+            if (d is TvShowCard card && card.Show != null && App.MainWindow is MainWindow mw)
+                mw.OpenTvShow(card.Show.Id);
+        };
+
+        // v2.9 — same tap behaviour for the "TV shows matching" search row.
+        ShowsInSearchRepeater.Tapped += (s, e) =>
         {
             var d = e.OriginalSource as DependencyObject;
             while (d != null && d is not TvShowCard)
@@ -815,7 +857,75 @@ public sealed partial class LibraryPage : Page
             UpdateClearFiltersButton();
             UpdateFilterChips();
             RefreshShowsInList();
+            RefreshShowsInSearch();
+            // v2.9 — Recently Added / Recently Watched / On This Day are
+            // accessed via sidebar entries instead of home rows now; the
+            // horizontal rows interfered with vertical scrolling through
+            // the main grid.
         });
+    }
+
+    // v2.9 — Recently Added / Recently Watched / On This Day rows used to
+    // live at the top of the Library home, but a horizontal scroll row
+    // inside a vertical ScrollViewer steals the mouse wheel and makes the
+    // main grid feel unscrollable. They're now sidebar entries only.
+
+    // ── v2.9 TV-in-search row ────────────────────────────────────────────────
+
+    private string? _lastShowsSearchTerm;
+
+    /// <summary>
+    /// When the search box has a term, also surface matching TV shows above
+    /// the movie grid. Re-queried only when the search term actually changes.
+    /// </summary>
+    private void RefreshShowsInSearch()
+    {
+        var q = (_vm.SearchText ?? "").Trim();
+        if (q.Length < 2)
+        {
+            ShowsInSearchSection.Visibility = Visibility.Collapsed;
+            ShowsInSearchRepeater.ItemsSource = null;
+            _lastShowsSearchTerm = null;
+            return;
+        }
+        if (q == _lastShowsSearchTerm) return;
+        _lastShowsSearchTerm = q;
+
+        var shows = AppState.Instance.Db.SearchTvShows(q, AppState.Instance.Connected, limit: 24);
+        if (shows.Count == 0)
+        {
+            ShowsInSearchSection.Visibility = Visibility.Collapsed;
+            ShowsInSearchRepeater.ItemsSource = null;
+            return;
+        }
+        ShowsInSearchHeader.Text = shows.Count == 1
+            ? "TV SHOW MATCHING"
+            : $"TV SHOWS MATCHING ({shows.Count})";
+        ShowsInSearchRepeater.ItemsSource = shows;
+        ShowsInSearchSection.Visibility = Visibility.Visible;
+    }
+
+    // ── v2.9 Surprise Me 🎲 ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Filter-aware random pick. Uses the current LibraryViewModel filters so
+    /// the dice are rolled across whatever the user is looking at — random
+    /// 90s comedy, random movie in this list, random favorite, etc. Falls
+    /// back to an unfiltered random unwatched if the filter set is empty.
+    /// </summary>
+    private void OnSurpriseMeClick(object sender, RoutedEventArgs e)
+    {
+        var opts = _vm.BuildOptsForPick();
+        var id = AppState.Instance.Db.GetRandomMovieIdMatching(opts, AppState.Instance.Connected);
+        if (id == null)
+        {
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("No movies match the current filter — try clearing some filters");
+            return;
+        }
+        var dialog = new MovieDetailDialog(id.Value);
+        dialog.WatchlistChanged += (_, _) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        dialog.Activate();
     }
 
     private int? _lastShownListId = -1;  // sentinel so first call always runs
@@ -867,8 +977,12 @@ public sealed partial class LibraryPage : Page
             AddChip("Watchlist", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
         if (_vm.IsContinueWatching)
             AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
+        if (_vm.IsRecentlyWatched)
+            AddChip("Recent", "🕓",     () => DropFilter(() => _vm.IsRecentlyWatched = false));
         if (_vm.HasNoteOnly)
             AddChip("Notes", "📝",      () => DropFilter(() => _vm.HasNoteOnly = false));
+        if (_vm.TagId != null && !string.IsNullOrEmpty(_vm.TagName))
+            AddChip("Tag",   _vm.TagName, () => DropFilter(() => { _vm.TagId = null; _vm.TagName = null; }));
         ActiveFilterChips.Visibility = ActiveFilterChips.Items.Count > 0
             ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -893,11 +1007,12 @@ public sealed partial class LibraryPage : Page
     private bool AnyFilterActive() =>
         !string.IsNullOrEmpty(_vm.SearchText) ||
         _vm.WatchedFilter != WatchedFilter.All ||
-        _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching || _vm.HasNoteOnly ||
+        _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
+        _vm.IsRecentlyWatched || _vm.HasNoteOnly ||
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
         _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||
-        _vm.UserListId != null;
+        _vm.UserListId != null || _vm.TagId != null;
 
     private void AddChip(string label, string? value, Action onClear)
     {
@@ -985,11 +1100,12 @@ public sealed partial class LibraryPage : Page
         var parts = (item.Tag as string ?? "title:asc").Split(':');
         _vm.SortKey = parts[0] switch
         {
-            "year"       => SortKey.Year,
-            "rating"     => SortKey.Rating,
-            "runtime"    => SortKey.Runtime,
-            "date_added" => SortKey.DateAdded,
-            _            => SortKey.Title
+            "year"        => SortKey.Year,
+            "rating"      => SortKey.Rating,
+            "runtime"     => SortKey.Runtime,
+            "date_added"  => SortKey.DateAdded,
+            "last_played" => SortKey.LastPlayed,
+            _             => SortKey.Title
         };
         _vm.SortDir = parts.Length > 1 && parts[1] == "desc" ? SortDir.Desc : SortDir.Asc;
     }

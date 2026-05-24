@@ -67,6 +67,10 @@ public partial class TvEpisodeItem : ObservableObject
     public bool IsOnline { get; set; }
 
     [ObservableProperty] private bool _isWatched;
+    // v2.9 — per-episode personal state. ObservableProperty so the card
+    // updates instantly when toggled from the details dialog.
+    [ObservableProperty] private bool _isFavorite;
+    [ObservableProperty] private string? _note;
 
     public string Code => $"S{Season:D2}E{Episode:D2}";
     public string Header => $"{Code} · {Title}";
@@ -101,6 +105,9 @@ public class TvEpisodeDetail
     public string? ContainerExt { get; set; }
     public long? FileSizeBytes { get; set; }
     public bool IsWatched { get; set; }
+    // v2.9 — per-episode personal state.
+    public bool IsFavorite { get; set; }
+    public string? Note { get; set; }
     public string VolumeSerial { get; set; } = "";
 
     public string Code => $"S{Season:D2}E{Episode:D2}";
@@ -139,6 +146,34 @@ public class TvEpisodeDetail
     }
 }
 
+/// <summary>
+/// v2.9 — "Continue Watching" card on the TV Shows page. One entry per show
+/// the user has started (≥1 watched + ≥1 unwatched). Carries enough to
+/// display a show poster + "Next: SxxExx · Title" label and to launch the
+/// next episode straight from the row.
+/// </summary>
+public class TvContinueWatchingItem
+{
+    public int ShowId { get; set; }
+    public string ShowTitle { get; set; } = "";
+    public string? LocalPoster { get; set; }
+    public string VolumeSerial { get; set; } = "";
+    public bool IsOnline { get; set; }
+    public int EpisodeId { get; set; }
+    public int Season { get; set; }
+    public int Episode { get; set; }
+    public string EpisodeTitle { get; set; } = "";
+    public string? VideoFileRelPath { get; set; }
+    public int TotalEpisodes { get; set; }
+    public int WatchedEpisodes { get; set; }
+
+    public string Code => $"S{Season:D2}E{Episode:D2}";
+    public string NextLabel => $"Next: {Code} · {EpisodeTitle}";
+    public string ProgressText => $"{WatchedEpisodes}/{TotalEpisodes}";
+    public double ProgressFraction =>
+        TotalEpisodes > 0 ? (double)WatchedEpisodes / TotalEpisodes : 0;
+}
+
 /// <summary>Full show detail for the show header (poster, plot, cast).</summary>
 public class TvShowDetail
 {
@@ -164,4 +199,6 @@ public class TvShowDetail
     public List<Actor> Actors { get; set; } = new();
     public int EpisodeCount { get; set; }
     public int WatchedCount { get; set; }
+    /// <summary>v2.9 — free-form personal tags assigned to this show.</summary>
+    public List<string> Tags { get; set; } = new();
 }

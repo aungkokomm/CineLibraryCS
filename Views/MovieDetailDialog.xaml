@@ -197,6 +197,39 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
 
+                <!-- v2.9 — Free-form tags. Chips with ✕ to remove; an
+                     "+ Add tag" affordance opens an autocomplete that
+                     suggests existing tags and accepts new names. The
+                     whole row hides when there are no tags AND the input
+                     is collapsed. -->
+                <StackPanel x:Name="TagsRow" Orientation="Horizontal" Spacing="6"
+                            Margin="0,10,0,0">
+                    <TextBlock Text="🏷" FontSize="14" VerticalAlignment="Center" Opacity="0.7"/>
+                    <ItemsControl x:Name="TagChipsRepeater">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <Button x:Name="AddTagBtn" Click="OnAddTagClick"
+                            Background="{ThemeResource ChipBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="12"
+                            Padding="10,3"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="+ Add tag" FontSize="11"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </Button>
+                    <AutoSuggestBox x:Name="AddTagBox" Visibility="Collapsed"
+                                    PlaceholderText="Tag name (Enter to add)"
+                                    Width="180"
+                                    QuerySubmitted="OnAddTagSubmitted"
+                                    TextChanged="OnAddTagTextChanged"
+                                    LostFocus="OnAddTagBlur"
+                                    VerticalAlignment="Center"/>
+                </StackPanel>
+
                 <!-- File info panel (v2.2.2) — sits right under the action row -->
                 <Border x:Name="FileInfoPanel" Visibility="Collapsed"
                         Margin="0,12,0,0" Padding="12,8"

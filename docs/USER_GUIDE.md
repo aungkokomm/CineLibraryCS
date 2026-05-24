@@ -23,16 +23,19 @@ of movies in under five minutes.
 6. [Tracking what you've watched](#tracking-what-youve-watched)
 7. [TV Shows](#tv-shows)
 8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
-9. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-10. [State that travels with your drives](#state-that-travels-with-your-drives)
-11. [Statistics](#statistics)
-12. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-13. [Themes and sidebar](#themes-and-sidebar)
-14. [Keyboard shortcuts](#keyboard-shortcuts)
-15. [Exporting your catalog](#exporting-your-catalog)
-16. [Updates](#updates)
-17. [Where your data lives](#where-your-data-lives)
-18. [Troubleshooting](#troubleshooting)
+9. [Tags — your own labels](#tags--your-own-labels)
+10. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+11. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+12. [State that travels with your drives](#state-that-travels-with-your-drives)
+13. [Backup and restore](#backup-and-restore)
+14. [Statistics](#statistics)
+15. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+16. [Themes and sidebar](#themes-and-sidebar)
+17. [Keyboard shortcuts](#keyboard-shortcuts)
+18. [Exporting your catalog](#exporting-your-catalog)
+19. [Updates](#updates)
+20. [Where your data lives](#where-your-data-lives)
+21. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -342,6 +345,96 @@ movies. From there you can:
   uncheck).
 - Multi-select and bulk-remove (see next section).
 
+### Sharing a list
+
+Right-click any list in the sidebar to get two sharing actions:
+
+- **📂 Copy movies to folder…** — copy the actual on-disk movie folders
+  (videos + nfo + posters) to a destination drive. Use this when you
+  want to take a list with you on a USB stick.
+- **📤 Export as image…** — save a clean poster-grid PNG of the list
+  with its name, count, and date. Use this to share "my top 10 heist
+  movies" anywhere. Doesn't touch your video files.
+
+---
+
+## Tags — your own labels
+
+Lists are great for curated buckets ("Movies for movie night"). **Tags**
+are for cross-cutting labels you might apply to many movies that don't
+belong together: "rewatched", "comfort", "Christmas", "long-haul flight",
+"director's cut". Tags differ from lists in three ways:
+
+- A movie can have many tags
+- Tags have no order — they're just labels
+- Adding a tag is one click + a name
+
+### Adding a tag
+
+In the movie detail dialog, look for the **🏷 + Add tag** button under
+the action row. Click it, start typing — existing tags suggest as you
+go. Press Enter to apply. The same flow works for TV shows on the show
+page.
+
+### Filtering by tag
+
+Every tag you've used shows up under **🏷 TAGS** in the sidebar with a
+count badge. Click any tag → the library filters to that tag. A
+removable filter chip appears at the top.
+
+You can also click a tag chip in the detail dialog to jump straight to
+that filtered view.
+
+### Removing a tag
+
+In the detail dialog, click the **✕** on any tag chip. That movie or
+show drops the tag; if no items still carry the tag, it disappears from
+the sidebar.
+
+### Tags travel with the drive
+
+Like lists, favorites, and notes, tags are saved into the drive's
+sidecar file. Plug the drive into another PC running CineLibrary and
+your tags come back on the next scan.
+
+---
+
+## Discovery
+
+Three places to find things to watch without browsing the whole grid.
+
+### 🕓 Recently Watched
+
+Sidebar entry under DISCOVER. Lists everything you've played, freshest
+first. Hidden when you've never watched anything yet.
+
+### 📅 On This Day
+
+Sidebar entry that only appears when there's something to surface for
+today. Click it for a dedicated page split into two sections:
+
+- **🎞 You watched on this date** — movies you've played on this
+  calendar date in past years.
+- **🎬 Released on this date** — films that came out on this date in
+  past years (cinema anniversaries — works even on a fresh install,
+  with no watch history of your own).
+
+Both fall on the *same day of the year*, regardless of year. Comes
+back tomorrow with a different set.
+
+### 🎲 Surprise me
+
+Two flavours:
+
+- **Sidebar "Surprise me"** — random pick from anything unwatched in
+  your library. Use when you have no filter set and just want a pick.
+- **🎲 button on the Library toolbar** — *filter-aware*. Honours
+  whatever you're currently looking at — random comedy from the 90s,
+  random movie in this list, random tagged "rewatched". If nothing
+  matches the filter, you'll get a toast.
+
+Both prefer movies on online drives so you can actually play the pick.
+
 ---
 
 ## Multi-select — pick many, act once
@@ -479,6 +572,52 @@ re-create it on the next change.
 
 ---
 
+## Backup and restore
+
+The sidecars give you per-drive resilience. The **Backup** entry under
+**TOOLS** in the sidebar gives you whole-library resilience — one JSON
+file covers every favorite, watchlist entry, note, list, tag, watched
+flag, last-played time, per-episode favorite/note, and watch-history
+event.
+
+### Export a backup
+
+Click **Backup** → **📤 Export backup…** → pick a destination
+(Documents, OneDrive, anywhere). You get a single `.json` file with the
+current date in its name. Save it where your usual backups live.
+
+### Restore on a new PC (or after a wipe)
+
+On the new install, first scan in your drives the normal way so the
+catalog rebuilds. Then click **Backup** → **📥 Import backup…** → pick
+the file. The summary line tells you what merged:
+
+```
+Imported: 47 movies, 6 shows, 89 episodes, 2 new lists,
+4 new tags, 312 history events. Skipped: 3 (drive not mounted).
+```
+
+Anything skipped is on a drive that isn't currently plugged in —
+re-import after mounting it and the rest will merge in.
+
+### Conflict rule
+
+Backup imports are **additive — your DB wins on conflicts**:
+
+- Re-importing the same file is a no-op.
+- A movie marked watched in either the DB or the backup ends up
+  watched. Same for favorite and watchlist.
+- Notes that are non-empty in the DB are preserved; otherwise the
+  backup note fills in.
+- `last_played_at` becomes the most recent of the two values.
+- Lists and tags are union-merged (created if missing, additively
+  linked).
+- Watch-history events are always appended.
+
+Nothing is ever removed by an import.
+
+---
+
 ## Statistics
 
 The **Statistics** page (sidebar) is a single-page view of your
@@ -535,8 +674,12 @@ small displays.
 
 | Shortcut         | Action                                       |
 |------------------|----------------------------------------------|
-| `Ctrl+F`         | Focus the search box                         |
+| `/`              | Focus the search box                         |
+| `Ctrl+F`         | Focus the search box (alternate)             |
 | `Esc`            | Clear search, then clear multi-select        |
+| `F`              | Toggle favorite on the current selection     |
+| `W`              | Toggle watchlist on the current selection    |
+| `Delete`         | Remove selection from the current list view  |
 | `Ctrl+A`         | Select every card currently visible          |
 | `Ctrl+click`     | Toggle a single card into the selection      |
 | `Shift+click`    | Range-select from the last clicked card      |
@@ -546,6 +689,13 @@ small displays.
 | `PgDn` / `PgUp`  | Scroll the movie grid one viewport up/down   |
 | `Home` / `End`   | Jump to the top / bottom of the movie list   |
 | `↑` / `↓`        | Scroll by one row of cards                   |
+
+Card shortcuts (`F`, `W`, `Delete`) operate on the **current
+multi-selection**. Select one or more cards first with click,
+Ctrl+click, or Shift+click — then the key applies to all of them.
+
+The card shortcuts and `/` are gated on text-edit focus, so typing
+those letters into the search box still works normally.
 
 Navigation shortcuts skip themselves when the search box has focus, so
 typing in the search field still works normally.
