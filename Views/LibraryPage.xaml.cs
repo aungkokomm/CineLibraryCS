@@ -979,6 +979,8 @@ public sealed partial class LibraryPage : Page
             AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
         if (_vm.IsRecentlyWatched)
             AddChip("Recent", "🕓",     () => DropFilter(() => _vm.IsRecentlyWatched = false));
+        if (_vm.IsRecentlyAdded)
+            AddChip("New", "🆕",        () => DropFilter(() => _vm.IsRecentlyAdded = false));
         if (_vm.HasNoteOnly)
             AddChip("Notes", "📝",      () => DropFilter(() => _vm.HasNoteOnly = false));
         if (_vm.TagId != null && !string.IsNullOrEmpty(_vm.TagName))
@@ -1008,7 +1010,7 @@ public sealed partial class LibraryPage : Page
         !string.IsNullOrEmpty(_vm.SearchText) ||
         _vm.WatchedFilter != WatchedFilter.All ||
         _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
-        _vm.IsRecentlyWatched || _vm.HasNoteOnly ||
+        _vm.IsRecentlyWatched || _vm.IsRecentlyAdded || _vm.HasNoteOnly ||
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
         _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||

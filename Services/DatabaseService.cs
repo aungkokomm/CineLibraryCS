@@ -1266,6 +1266,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         bool IsWatchlistOnly = false,
         bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
         bool RecentlyWatchedOnly = false, // v2.9 — true = last_played_at > 0 (any watched state)
+        bool RecentlyAddedOnly = false,   // v2.9.0 fix — true = restrict to top N most-recently-added
+        int RecentlyAddedTopN = 50,
         bool HasNoteOnly = false,       // v2.8.2 — only movies carrying a note
         int? UserListId = null,
         int? TagId = null,              // v2.9 — filter movies by tag id
@@ -1343,6 +1345,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
         if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
+        if (opts.RecentlyAddedOnly)
+            where.Add($"m.id IN (SELECT id FROM movies WHERE is_missing=0 ORDER BY date_added DESC, id DESC LIMIT {Math.Max(1, opts.RecentlyAddedTopN)})");
         if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
         if (opts.TagId != null) where.Add("EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id=m.id AND mt.tag_id=@tagId)");
         if (opts.DecadeStart != null)
