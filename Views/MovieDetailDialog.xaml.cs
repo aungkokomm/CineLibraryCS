@@ -231,6 +231,8 @@ public sealed partial class MovieDetailDialog : Window
         PopulateFileInfo(m);
         // Lists this movie is on (v2.5) — chip row with per-list ✕.
         RefreshListChips();
+        // v2.9 — Free-form tags chip row + autocomplete.
+        RefreshTagChips();
 
         // Studio — clickable HyperlinkButton (was a plain TextBlock)
         if (m.Studio != null)
@@ -837,6 +839,128 @@ public sealed partial class MovieDetailDialog : Window
             sp.Children.Add(x);
             border.Child = sp;
             return border;
+        }
+
+        // ── v2.9 Tags ────────────────────────────────────────────────────
+
+        /// <summary>Rebuild the tag chip row from DB state. Mirrors RefreshListChips.</summary>
+        private void RefreshTagChips()
+        {
+            TagChipsRepeater.Items.Clear();
+            if (_movie == null) return;
+            _movie.Tags = AppState.Instance.Db.GetTagNamesForMovie(_movie.Id);
+            foreach (var name in _movie.Tags)
+                TagChipsRepeater.Items.Add(BuildTagChip(name));
+        }
+
+        private UIElement BuildTagChip(string tagName)
+        {
+            var border = new Border
+            {
+                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
+                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 3, 4, 3),
+            };
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+            var label = new HyperlinkButton
+            {
+                Content = tagName,
+                FontSize = 12,
+                Padding = new Thickness(0),
+                MinHeight = 0,
+            };
+            label.Click += (_, _) =>
+            {
+                if (_movie == null) return;
+                NavigateAndClose(mw => mw.NavigateLibraryByTag(tagName));
+            };
+            sp.Children.Add(label);
+            var x = new Button
+            {
+                Content = "✕",
+                FontSize = 10,
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Padding = new Thickness(4, 0, 4, 0),
+                MinWidth = 18,
+                MinHeight = 18,
+            };
+            ToolTipService.SetToolTip(x, $"Remove tag “{tagName}”");
+            x.Click += (_, _) =>
+            {
+                if (_movie == null) return;
+                var tagId = AppState.Instance.Db.EnsureTag(tagName);  // safe lookup-or-create
+                // RemoveMovieTag raises PersonalStateChanged → AppState
+                // auto-writes the movie sidecar with current tags.
+                AppState.Instance.Db.RemoveMovieTag(_movie.Id, tagId);
+                RefreshTagChips();
+                WatchlistChanged?.Invoke(this, EventArgs.Empty);
+            };
+            sp.Children.Add(x);
+            border.Child = sp;
+            return border;
+        }
+
+        private void OnAddTagClick(object sender, RoutedEventArgs e)
+        {
+            AddTagBtn.Visibility = Visibility.Collapsed;
+            AddTagBox.Text = "";
+            AddTagBox.Visibility = Visibility.Visible;
+            AddTagBox.Focus(FocusState.Programmatic);
+        }
+
+        private void OnAddTagBlur(object sender, RoutedEventArgs e)
+        {
+            // Collapse the input when it loses focus without a submission.
+            // Brief delay so a click on a suggestion has time to fire.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!AddTagBox.FocusState.Equals(FocusState.Programmatic))
+                {
+                    AddTagBox.Visibility = Visibility.Collapsed;
+                    AddTagBtn.Visibility = Visibility.Visible;
+                }
+            });
+        }
+
+        private void OnAddTagTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        {
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+            var q = (sender.Text ?? "").Trim();
+            if (q.Length == 0) { sender.ItemsSource = null; return; }
+            var existing = AppState.Instance.Db.GetAllTags()
+                .Where(t => t.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.Name)
+                .Take(8)
+                .ToList();
+            sender.ItemsSource = existing;
+        }
+
+        private void OnAddTagSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+        {
+            if (_movie == null) return;
+            var raw = args.ChosenSuggestion as string ?? sender.Text;
+            var name = (raw ?? "").Trim();
+            if (name.Length == 0) return;
+            try
+            {
+                var tagId = AppState.Instance.Db.EnsureTag(name);
+                // AddMovieTag raises PersonalStateChanged → AppState auto-
+                // writes the movie sidecar with the new tag set.
+                AppState.Instance.Db.AddMovieTag(_movie.Id, tagId);
+                RefreshTagChips();
+                WatchlistChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Add tag failed: {ex.Message}");
+            }
+            sender.Text = "";
+            AddTagBox.Visibility = Visibility.Collapsed;
+            AddTagBtn.Visibility = Visibility.Visible;
         }
 
         // ── Lists (v1.9.2) — add/remove this movie to/from any user list ─────

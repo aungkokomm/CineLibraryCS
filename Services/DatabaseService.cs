@@ -375,6 +375,63 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             }
         }
 
+        // ── v2.9 Phase 2 (Memory) ───────────────────────────────────────────
+
+        // Watch events — append-only log of every play / mark-watched /
+        // mark-unwatched interaction, for both movies and TV episodes.
+        // Powers "Recently Watched" and "On This Day" features. item_kind
+        // is 'movie' or 'episode'; item_id refers to the matching table's
+        // primary key. No FK so deletions don't cascade — history survives
+        // even if a drive is unplugged and a row is later pruned.
+        Exec(@"
+CREATE TABLE IF NOT EXISTS watch_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_kind  TEXT NOT NULL,
+    item_id    INTEGER NOT NULL,
+    watched_at INTEGER NOT NULL,
+    action     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_watch_events_lookup
+    ON watch_events(item_kind, item_id, watched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_watch_events_when
+    ON watch_events(watched_at DESC);
+");
+
+        // Free-form tags — independent of lists. Movies and shows reference
+        // the same `tags` rows so a tag like "rewatched" can carry across.
+        Exec(@"
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL COLLATE NOCASE,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+);
+CREATE TABLE IF NOT EXISTS movie_tags (
+    movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+    tag_id   INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+    added_at INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (movie_id, tag_id)
+);
+CREATE TABLE IF NOT EXISTS tv_show_tags (
+    show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
+    tag_id  INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+    added_at INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (show_id, tag_id)
+);
+");
+
+        // Per-episode favorite + note columns. Defensive ALTER so re-runs are no-ops.
+        var epCols = new HashSet<string>();
+        using (var ec = _conn.CreateCommand())
+        {
+            ec.CommandText = "PRAGMA table_info(tv_episodes)";
+            using var er = ec.ExecuteReader();
+            while (er.Read()) epCols.Add(er.GetString(1));
+        }
+        if (!epCols.Contains("is_favorite"))
+            Exec("ALTER TABLE tv_episodes ADD COLUMN is_favorite INTEGER DEFAULT 0");
+        if (!epCols.Contains("note"))
+            Exec("ALTER TABLE tv_episodes ADD COLUMN note TEXT");
+
         // Create indexes for performance
         CreateIndexes();
     }
@@ -845,8 +902,10 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
     {
         Exec(@"
 CREATE INDEX IF NOT EXISTS idx_movies_title ON movies(title);
+CREATE INDEX IF NOT EXISTS idx_movies_sort_title ON movies(sort_title);
 CREATE INDEX IF NOT EXISTS idx_movies_year ON movies(year);
 CREATE INDEX IF NOT EXISTS idx_movies_volume ON movies(volume_serial);
+CREATE INDEX IF NOT EXISTS idx_movies_date_added ON movies(date_added DESC);
 CREATE INDEX IF NOT EXISTS idx_movie_genres_genre_id ON movie_genres(genre_id);
 CREATE INDEX IF NOT EXISTS idx_movie_genres_movie_id ON movie_genres(movie_id);
 CREATE INDEX IF NOT EXISTS idx_movie_directors_director_id ON movie_directors(director_id);
@@ -856,6 +915,11 @@ CREATE INDEX IF NOT EXISTS idx_watched ON movies(is_watched) WHERE is_watched = 
 CREATE INDEX IF NOT EXISTS idx_last_played ON movies(last_played_at) WHERE last_played_at > 0;
 CREATE INDEX IF NOT EXISTS idx_user_list_movies_movie ON user_list_movies(movie_id);
 CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id);
+-- v2.9 — TV ordering, tag reverse-lookup, episode last-played
+CREATE INDEX IF NOT EXISTS idx_tv_shows_sort_title ON tv_shows(sort_title);
+CREATE INDEX IF NOT EXISTS idx_tv_episodes_last_played ON tv_episodes(last_played_at) WHERE last_played_at > 0;
+CREATE INDEX IF NOT EXISTS idx_movie_tags_tag ON movie_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         ");
     }
 
@@ -1201,8 +1265,10 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         bool FavoritesOnly = false,
         bool IsWatchlistOnly = false,
         bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
+        bool RecentlyWatchedOnly = false, // v2.9 — true = last_played_at > 0 (any watched state)
         bool HasNoteOnly = false,       // v2.8.2 — only movies carrying a note
         int? UserListId = null,
+        int? TagId = null,              // v2.9 — filter movies by tag id
         int? DecadeStart = null,        // e.g. 1980 → year in [1980..1989]
         string? RatingBand = null,      // bucket key: "9","8","7","6","5","0"
         int Limit = 60,
@@ -1276,7 +1342,9 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
         if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
+        if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
         if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
+        if (opts.TagId != null) where.Add("EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id=m.id AND mt.tag_id=@tagId)");
         if (opts.DecadeStart != null)
             where.Add("m.year >= @decLo AND m.year <= @decHi");
         if (opts.RatingBand != null)
@@ -1299,6 +1367,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
         if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
         if (opts.UserListId != null) cmd.Parameters.AddWithValue("@listId", opts.UserListId);
+        if (opts.TagId != null) cmd.Parameters.AddWithValue("@tagId", opts.TagId);
         if (opts.DecadeStart != null)
         {
             cmd.Parameters.AddWithValue("@decLo", opts.DecadeStart.Value);
@@ -1467,6 +1536,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         movie.Actors = GetMovieActors(id);
         movie.Sets = GetMovieSets(id);
         movie.AllRatings = GetMovieRatings(id);
+        movie.Tags = GetTagNamesForMovie(id);
         return movie;
     }
 
@@ -1572,10 +1642,23 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void ToggleWatched(int id)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "UPDATE movies SET is_watched = 1 - is_watched WHERE id=@id";
-        cmd.Parameters.AddWithValue("@id", id);
-        cmd.ExecuteNonQuery();
+        int newState = 0;
+        using (var cmd = _conn.CreateCommand())
+        {
+            // RETURNING gives us the post-toggle value so we can log the
+            // right event (and bump last_played_at only on 0→1).
+            cmd.CommandText = @"UPDATE movies SET
+                                    is_watched = 1 - is_watched,
+                                    last_played_at = CASE
+                                        WHEN is_watched = 0 THEN strftime('%s','now')
+                                        ELSE last_played_at END
+                                WHERE id=@id
+                                RETURNING is_watched";
+            cmd.Parameters.AddWithValue("@id", id);
+            var o = cmd.ExecuteScalar();
+            if (o != null && o != DBNull.Value) newState = Convert.ToInt32(o);
+        }
+        LogWatchEvent("movie", id, newState == 1 ? "marked_watched" : "marked_unwatched");
         RaisePersonalStateChanged(id);
     }
 
@@ -2335,7 +2418,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
                    e.subtitle_languages, e.video_width, e.video_height, e.video_codec,
                    e.hdr_type, e.audio_codec, e.audio_channels, e.audio_languages,
                    e.duration_seconds, e.container_ext, e.file_size_bytes, e.is_watched,
-                   s.title, s.volume_serial
+                   s.title, s.volume_serial, e.is_favorite, e.note
               FROM tv_episodes e JOIN tv_shows s ON s.id=e.show_id
              WHERE e.id=@id";
         cmd.Parameters.AddWithValue("@id", episodeId);
@@ -2366,6 +2449,8 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
             IsWatched = r.GetInt32(22) == 1,
             ShowTitle = r.IsDBNull(23) ? "" : r.GetString(23),
             VolumeSerial = r.GetString(24),
+            IsFavorite = !r.IsDBNull(25) && r.GetInt32(25) == 1,
+            Note = r.IsDBNull(26) ? null : r.GetString(26),
         };
     }
 
@@ -2462,7 +2547,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
             SELECT id, season, episode, title, plot, aired, runtime, rating,
-                   local_thumb, video_file_rel_path, is_watched
+                   local_thumb, video_file_rel_path, is_watched, is_favorite, note
               FROM tv_episodes WHERE show_id=@id AND season=@se ORDER BY episode";
         cmd.Parameters.AddWithValue("@id", showId);
         cmd.Parameters.AddWithValue("@se", season);
@@ -2483,6 +2568,8 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
                 LocalThumb = r.IsDBNull(8) ? null : r.GetString(8),
                 VideoFileRelPath = r.IsDBNull(9) ? null : r.GetString(9),
                 IsWatched = r.GetInt32(10) == 1,
+                IsFavorite = !r.IsDBNull(11) && r.GetInt32(11) == 1,
+                Note = r.IsDBNull(12) ? null : r.GetString(12),
                 VolumeSerial = serial,
                 IsOnline = online,
             });
@@ -2554,6 +2641,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
             using var cr = c.ExecuteReader();
             if (cr.Read()) { d.EpisodeCount = cr.GetInt32(0); d.WatchedCount = cr.IsDBNull(1) ? 0 : cr.GetInt32(1); }
         }
+        d.Tags = GetTagNamesForShow(showId);
         return d;
     }
 
@@ -2572,6 +2660,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
             var o = cmd.ExecuteScalar();
             if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
         }
+        LogWatchEvent("episode", episodeId, watched ? "marked_watched" : "marked_unwatched");
         if (showId != 0) RaiseTvShowStateChanged(showId);
     }
 
@@ -2586,6 +2675,7 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
             var o = cmd.ExecuteScalar();
             if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
         }
+        LogWatchEvent("episode", episodeId, "played");
         if (showId != 0) RaiseTvShowStateChanged(showId);
     }
 
@@ -2656,7 +2746,414 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.CommandText = "UPDATE movies SET last_played_at = strftime('%s','now') WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
+        LogWatchEvent("movie", movieId, "played");
         RaisePersonalStateChanged(movieId);
+    }
+
+    // ── v2.9 Watch history ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Append a row to watch_events. Never throws — history logging is a
+    /// best-effort side channel; a failure here should never block the
+    /// primary action that triggered it.
+    /// </summary>
+    private void LogWatchEvent(string kind, int itemId, string action)
+    {
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"INSERT INTO watch_events(item_kind, item_id, watched_at, action)
+                                VALUES(@k, @id, strftime('%s','now'), @a)";
+            cmd.Parameters.AddWithValue("@k", kind);
+            cmd.Parameters.AddWithValue("@id", itemId);
+            cmd.Parameters.AddWithValue("@a", action);
+            cmd.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LogWatchEvent failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Top-N most recently played movies for the "🕓 Recently Watched" row.
+    /// Uses movies.last_played_at, which we bump from both Play and
+    /// mark-watched. Items with last_played_at=0 (never touched) are
+    /// excluded.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MovieListItem> GetRecentlyWatchedMovies(
+        Dictionary<string, string> connected, int limit = 12)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+                   m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
+                   (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
+                     JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
+                   m.is_watchlist
+              FROM movies m
+              LEFT JOIN drives d ON d.volume_serial=m.volume_serial
+             WHERE m.is_missing = 0 AND m.last_played_at > 0
+             ORDER BY m.last_played_at DESC
+             LIMIT @lim";
+        cmd.Parameters.AddWithValue("@lim", limit);
+        var list = new List<MovieListItem>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(9);
+            list.Add(new MovieListItem
+            {
+                Id = r.GetInt32(0),
+                Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+                Runtime = r.IsDBNull(4) ? null : r.GetInt32(4),
+                LocalPoster = r.IsDBNull(5) ? null : r.GetString(5),
+                IsMissing = r.GetInt32(6) == 1,
+                IsFavorite = r.GetInt32(7) == 1,
+                IsWatched = r.GetInt32(8) == 1,
+                VolumeSerial = serial,
+                DriveLabel = r.IsDBNull(10) ? null : r.GetString(10),
+                GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
+                IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
+                IsOnline = connected.ContainsKey(serial),
+            });
+        }
+        return list;
+    }
+
+    public enum OnThisDayReason { Watched, Released }
+    public record OnThisDayMatch(MovieListItem Movie, OnThisDayReason Reason, int YearsAgo);
+
+    /// <summary>
+    /// Movies tied to today's calendar day — either you watched them on
+    /// this date in a past year (Reason=Watched), or they were released
+    /// on this date (Reason=Released). The Released branch turns the
+    /// banner into a small cinema-history calendar, so new users without
+    /// much watch history still get something most days. A movie appearing
+    /// in both sources is returned once with Reason=Watched (more personal
+    /// wins).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<OnThisDayMatch> GetOnThisDayItems(
+        Dictionary<string, string> connected, int limit = 12)
+    {
+        var matches = new List<OnThisDayMatch>();
+        var seen = new HashSet<int>();
+        int nowYear = DateTime.Now.Year;
+
+        // ── Source 1: you watched it on this date in a past year ─────────
+        // Read events directly so we catch every historical touch, not
+        // just the most recent last_played_at on each movie.
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+                       m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
+                       (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
+                         JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
+                       m.is_watchlist,
+                       MAX(e.watched_at) AS most_recent_match,
+                       CAST(strftime('%Y', e.watched_at, 'unixepoch', 'localtime') AS INTEGER) AS match_year
+                  FROM watch_events e
+                  JOIN movies m ON m.id = e.item_id
+                  LEFT JOIN drives d ON d.volume_serial = m.volume_serial
+                 WHERE e.item_kind = 'movie'
+                   AND m.is_missing = 0
+                   AND strftime('%m-%d', e.watched_at, 'unixepoch', 'localtime')
+                       = strftime('%m-%d', 'now', 'localtime')
+                   AND strftime('%Y', e.watched_at, 'unixepoch', 'localtime')
+                       < strftime('%Y', 'now', 'localtime')
+                 GROUP BY m.id
+                 ORDER BY most_recent_match DESC
+                 LIMIT @lim";
+            cmd.Parameters.AddWithValue("@lim", limit);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var movie = ReadMovieRow(r, connected);
+                var matchYear = r.IsDBNull(14) ? nowYear - 1 : r.GetInt32(14);
+                matches.Add(new OnThisDayMatch(movie, OnThisDayReason.Watched, nowYear - matchYear));
+                seen.Add(movie.Id);
+            }
+        }
+
+        // ── Source 2: released on this date in a past year ───────────────
+        // m.premiered is a TEXT ISO date "YYYY-MM-DD" when available.
+        // Some nfos only give "YYYY" — length<10 rows are skipped.
+        int releasedBudget = limit - matches.Count;
+        if (releasedBudget > 0)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+                       m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
+                       (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
+                         JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
+                       m.is_watchlist,
+                       NULL AS most_recent_match,
+                       CAST(substr(m.premiered, 1, 4) AS INTEGER) AS prem_year
+                  FROM movies m
+                  LEFT JOIN drives d ON d.volume_serial = m.volume_serial
+                 WHERE m.is_missing = 0
+                   AND m.premiered IS NOT NULL
+                   AND length(m.premiered) >= 10
+                   AND substr(m.premiered, 6, 5) = strftime('%m-%d', 'now', 'localtime')
+                   AND CAST(substr(m.premiered, 1, 4) AS INTEGER)
+                       < CAST(strftime('%Y', 'now', 'localtime') AS INTEGER)
+                 ORDER BY prem_year DESC
+                 LIMIT @lim";
+            cmd.Parameters.AddWithValue("@lim", releasedBudget + seen.Count);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var movie = ReadMovieRow(r, connected);
+                if (seen.Contains(movie.Id)) continue;  // already in Watched
+                var premYear = r.IsDBNull(14) ? nowYear - 1 : r.GetInt32(14);
+                matches.Add(new OnThisDayMatch(movie, OnThisDayReason.Released, nowYear - premYear));
+                seen.Add(movie.Id);
+                if (matches.Count >= limit) break;
+            }
+        }
+        return matches;
+    }
+
+    /// <summary>
+    /// Cheap "is there anything today?" probe used by the sidebar to decide
+    /// whether to show the On This Day entry. Combines the two sources of
+    /// GetOnThisDayItems but bails as soon as a match is found.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool HasOnThisDayMatches()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT 1 FROM watch_events
+             WHERE item_kind='movie'
+               AND strftime('%m-%d', watched_at, 'unixepoch', 'localtime') = strftime('%m-%d', 'now', 'localtime')
+               AND strftime('%Y', watched_at, 'unixepoch', 'localtime') < strftime('%Y', 'now', 'localtime')
+             LIMIT 1";
+        var v = cmd.ExecuteScalar();
+        if (v != null && v != DBNull.Value) return true;
+
+        using var cmd2 = _conn.CreateCommand();
+        cmd2.CommandText = @"
+            SELECT 1 FROM movies
+             WHERE is_missing=0
+               AND premiered IS NOT NULL
+               AND length(premiered) >= 10
+               AND substr(premiered, 6, 5) = strftime('%m-%d', 'now', 'localtime')
+               AND CAST(substr(premiered, 1, 4) AS INTEGER)
+                   < CAST(strftime('%Y', 'now', 'localtime') AS INTEGER)
+             LIMIT 1";
+        var v2 = cmd2.ExecuteScalar();
+        return v2 != null && v2 != DBNull.Value;
+    }
+
+    /// <summary>
+    /// Shared MovieListItem mapping. Expects columns 0..12 in the same
+    /// shape as GetMovies. Used by GetOnThisDayItems' two branches so the
+    /// SELECT lists stay identical and easy to keep in sync.
+    /// </summary>
+    private static MovieListItem ReadMovieRow(
+        Microsoft.Data.Sqlite.SqliteDataReader r,
+        IReadOnlyDictionary<string, string> connected)
+    {
+        var serial = r.GetString(9);
+        return new MovieListItem
+        {
+            Id = r.GetInt32(0),
+            Title = r.GetString(1),
+            Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+            Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+            Runtime = r.IsDBNull(4) ? null : r.GetInt32(4),
+            LocalPoster = r.IsDBNull(5) ? null : r.GetString(5),
+            IsMissing = r.GetInt32(6) == 1,
+            IsFavorite = r.GetInt32(7) == 1,
+            IsWatched = r.GetInt32(8) == 1,
+            VolumeSerial = serial,
+            DriveLabel = r.IsDBNull(10) ? null : r.GetString(10),
+            GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
+            IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
+            IsOnline = connected.ContainsKey(serial),
+        };
+    }
+
+    /// <summary>
+    /// Count of distinct movies the user has played at least once. Cheaper
+    /// than re-querying the full Recently Watched list; used for the
+    /// sidebar entry's badge.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetRecentlyWatchedCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE last_played_at > 0 AND is_missing=0";
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
+    // ── v2.9 Tags ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Find an existing tag (case-insensitive) or create it. Trims and
+    /// rejects empty / whitespace-only names. Returns the tag id.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int EnsureTag(string name)
+    {
+        var clean = (name ?? "").Trim();
+        if (clean.Length == 0) throw new ArgumentException("Tag name is empty", nameof(name));
+
+        // Lookup (NOCASE collation set on the column).
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT id FROM tags WHERE name = @n";
+            sel.Parameters.AddWithValue("@n", clean);
+            var existing = sel.ExecuteScalar();
+            if (existing != null && existing != DBNull.Value) return Convert.ToInt32(existing);
+        }
+        using (var ins = _conn.CreateCommand())
+        {
+            ins.CommandText = "INSERT INTO tags(name) VALUES(@n) RETURNING id";
+            ins.Parameters.AddWithValue("@n", clean);
+            return Convert.ToInt32(ins.ExecuteScalar());
+        }
+    }
+
+    /// <summary>
+    /// Permanently remove a tag. Cascades to movie_tags / tv_show_tags via FK.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void DeleteTag(int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM tags WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", tagId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public record TagSummary(int Id, string Name, int MovieCount, int ShowCount);
+
+    /// <summary>Every tag with its current movie and show counts.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<TagSummary> GetAllTags()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT t.id, t.name,
+                   (SELECT COUNT(*) FROM movie_tags mt WHERE mt.tag_id = t.id) AS mc,
+                   (SELECT COUNT(*) FROM tv_show_tags st WHERE st.tag_id = t.id) AS sc
+              FROM tags t
+             ORDER BY t.name COLLATE NOCASE";
+        var list = new List<TagSummary>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new TagSummary(r.GetInt32(0), r.GetString(1), r.GetInt32(2), r.GetInt32(3)));
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<string> GetTagNamesForMovie(int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT t.name FROM movie_tags mt
+                            JOIN tags t ON t.id = mt.tag_id
+                            WHERE mt.movie_id = @id
+                            ORDER BY t.name COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        var list = new List<string>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(r.GetString(0));
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<string> GetTagNamesForShow(int showId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT t.name FROM tv_show_tags st
+                            JOIN tags t ON t.id = st.tag_id
+                            WHERE st.show_id = @id
+                            ORDER BY t.name COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("@id", showId);
+        var list = new List<string>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) list.Add(r.GetString(0));
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddMovieTag(int movieId, int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO movie_tags(movie_id, tag_id) VALUES(@m, @t)";
+        cmd.Parameters.AddWithValue("@m", movieId);
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemoveMovieTag(int movieId, int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM movie_tags WHERE movie_id=@m AND tag_id=@t";
+        cmd.Parameters.AddWithValue("@m", movieId);
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
+        RaisePersonalStateChanged(movieId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddShowTag(int showId, int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO tv_show_tags(show_id, tag_id) VALUES(@s, @t)";
+        cmd.Parameters.AddWithValue("@s", showId);
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemoveShowTag(int showId, int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM tv_show_tags WHERE show_id=@s AND tag_id=@t";
+        cmd.Parameters.AddWithValue("@s", showId);
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
+        RaiseTvShowStateChanged(showId);
+    }
+
+    // ── v2.9 Per-episode favorite + note ─────────────────────────────────────
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetEpisodeFavorite(int episodeId, bool fav)
+    {
+        int showId = 0;
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_episodes SET is_favorite=@v WHERE id=@id RETURNING show_id";
+        cmd.Parameters.AddWithValue("@v", fav ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        var o = cmd.ExecuteScalar();
+        if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
+        if (showId != 0) RaiseTvShowStateChanged(showId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetEpisodeNote(int episodeId, string? note)
+    {
+        int showId = 0;
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_episodes SET note=@n WHERE id=@id RETURNING show_id";
+        cmd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(note) ? (object)DBNull.Value : note);
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        var o = cmd.ExecuteScalar();
+        if (o != null && o != DBNull.Value) showId = Convert.ToInt32(o);
+        if (showId != 0) RaiseTvShowStateChanged(showId);
     }
 
     /// <summary>
@@ -2715,6 +3212,227 @@ CREATE INDEX IF NOT EXISTS idx_user_list_movies_list ON user_list_movies(list_id
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
         RaisePersonalStateChanged(movieId);
+    }
+
+    // ── Discovery (v2.9) ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// v2.9 — "Continue Watching" for TV. One entry per show that's been
+    /// started but not finished (≥1 watched AND ≥1 unwatched episode); the
+    /// "next" episode is the lowest (season, episode) among unwatched. Sorted
+    /// by the show's most recently played episode so the show you touched
+    /// last week floats above the show you touched a year ago. Online-aware:
+    /// online shows come first, offline shows tail (so the user always sees
+    /// a row even if the relevant drive is unplugged, but actionable items
+    /// are on top).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvContinueWatchingItem> GetTvContinueWatching(
+        IReadOnlyDictionary<string, string> connected, int limit = 12)
+    {
+        var list = new List<Models.TvContinueWatchingItem>();
+        using var cmd = _conn.CreateCommand();
+        // We pick the next-unwatched episode in a subquery (ordered by season
+        // then episode), then join its row in. The two EXISTS clauses gate
+        // "show is in progress" — neither fully unwatched nor fully watched.
+        cmd.CommandText = @"
+            SELECT s.id, s.title, s.local_poster, s.volume_serial,
+                   e.id, e.season, e.episode, COALESCE(e.title, '') AS ep_title,
+                   e.video_file_rel_path,
+                   (SELECT COUNT(*) FROM tv_episodes ee WHERE ee.show_id=s.id) AS total_eps,
+                   (SELECT COUNT(*) FROM tv_episodes ee WHERE ee.show_id=s.id AND ee.is_watched=1) AS watched_eps,
+                   (SELECT MAX(last_played_at) FROM tv_episodes ee WHERE ee.show_id=s.id) AS last_played
+              FROM tv_shows s
+              JOIN tv_episodes e ON e.id = (
+                  SELECT ee.id FROM tv_episodes ee
+                   WHERE ee.show_id = s.id AND ee.is_watched = 0
+                   ORDER BY ee.season, ee.episode LIMIT 1
+              )
+             WHERE s.is_missing = 0
+               AND EXISTS (SELECT 1 FROM tv_episodes ee WHERE ee.show_id=s.id AND ee.is_watched=1)
+               AND EXISTS (SELECT 1 FROM tv_episodes ee WHERE ee.show_id=s.id AND ee.is_watched=0)
+             ORDER BY last_played DESC, s.sort_title
+             LIMIT @lim";
+        cmd.Parameters.AddWithValue("@lim", limit);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(3);
+            list.Add(new Models.TvContinueWatchingItem
+            {
+                ShowId = r.GetInt32(0),
+                ShowTitle = r.GetString(1),
+                LocalPoster = r.IsDBNull(2) ? null : r.GetString(2),
+                VolumeSerial = serial,
+                IsOnline = connected.ContainsKey(serial),
+                EpisodeId = r.GetInt32(4),
+                Season = r.GetInt32(5),
+                Episode = r.GetInt32(6),
+                EpisodeTitle = r.GetString(7),
+                VideoFileRelPath = r.IsDBNull(8) ? null : r.GetString(8),
+                TotalEpisodes = r.GetInt32(9),
+                WatchedEpisodes = r.GetInt32(10),
+            });
+        }
+        // Online shows first, but keep last-played ordering inside each bucket.
+        return list
+            .OrderByDescending(i => i.IsOnline)
+            .ToList();
+    }
+
+    /// <summary>
+    /// v2.9 — Top N most recently added movies for the "Recently Added" row
+    /// on the Library home. Honours connected-drive availability so offline
+    /// rows still surface (badge says OFFLINE), but online comes first.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MovieListItem> GetRecentlyAddedMovies(
+        Dictionary<string, string> connected, int limit = 12)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+                   m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
+                   (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
+                     JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
+                   m.is_watchlist
+              FROM movies m
+              LEFT JOIN drives d ON d.volume_serial=m.volume_serial
+             WHERE m.is_missing = 0
+             ORDER BY m.date_added DESC, m.id DESC
+             LIMIT @lim";
+        cmd.Parameters.AddWithValue("@lim", limit);
+        var list = new List<MovieListItem>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(9);
+            list.Add(new MovieListItem
+            {
+                Id = r.GetInt32(0),
+                Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+                Runtime = r.IsDBNull(4) ? null : r.GetInt32(4),
+                LocalPoster = r.IsDBNull(5) ? null : r.GetString(5),
+                IsMissing = r.GetInt32(6) == 1,
+                IsFavorite = r.GetInt32(7) == 1,
+                IsWatched = r.GetInt32(8) == 1,
+                VolumeSerial = serial,
+                DriveLabel = r.IsDBNull(10) ? null : r.GetString(10),
+                GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
+                IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
+                IsOnline = connected.ContainsKey(serial),
+            });
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// v2.9 — Filter-aware "Surprise Me". Same WHERE as GetMovies for the
+    /// supplied ListOptions, but ORDER BY RANDOM() LIMIT 1. Lets the toolbar
+    /// dice button pick from whatever the user is currently viewing (e.g.
+    /// random comedy from the 90s, random movie in a list). Returns null if
+    /// the filter set is empty.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int? GetRandomMovieIdMatching(ListOptions opts, Dictionary<string, string> connected)
+    {
+        var (whereStr, _) = BuildMovieListWhere(opts);
+        // Prefer movies on connected drives so the user can actually play
+        // the pick. Fall back to any match if every match happens to be on
+        // an offline drive (still better than "no result").
+        if (connected.Count > 0)
+        {
+            var serials = string.Join(",", connected.Keys.Select(s => $"'{s.Replace("'", "''")}'"));
+            var extraWhere = string.IsNullOrEmpty(whereStr)
+                ? $"WHERE m.volume_serial IN ({serials}) AND m.is_missing=0"
+                : whereStr + $" AND m.volume_serial IN ({serials}) AND m.is_missing=0";
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = $"SELECT m.id FROM movies m {extraWhere} ORDER BY RANDOM() LIMIT 1";
+            BindMovieListParams(cmd, opts, includePaging: false);
+            var v = cmd.ExecuteScalar();
+            if (v != null && v != DBNull.Value) return Convert.ToInt32(v);
+        }
+        // Fallback — any matching movie regardless of online status.
+        using (var fb = _conn.CreateCommand())
+        {
+            var extraWhere = string.IsNullOrEmpty(whereStr) ? "WHERE m.is_missing=0" : whereStr + " AND m.is_missing=0";
+            fb.CommandText = $"SELECT m.id FROM movies m {extraWhere} ORDER BY RANDOM() LIMIT 1";
+            BindMovieListParams(fb, opts, includePaging: false);
+            var v = fb.ExecuteScalar();
+            return v == null || v == DBNull.Value ? null : Convert.ToInt32(v);
+        }
+    }
+
+    /// <summary>
+    /// v2.9 — Title/original-title search across TV shows so the global
+    /// search box on the Library page also surfaces shows. Multi-token AND
+    /// (same shape as the movie search): each whitespace-separated word has
+    /// to match somewhere. Returns at most `limit` items, ordered by
+    /// sort_title for stable display.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> SearchTvShows(
+        string query, IReadOnlyDictionary<string, string> connected, int limit = 24)
+    {
+        var list = new List<Models.TvShowListItem>();
+        if (string.IsNullOrWhiteSpace(query)) return list;
+        var tokens = TokenizeSearch(query);
+        if (tokens.Length == 0) return list;
+
+        var clauses = new List<string>();
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            var p = $"@q{i}";
+            clauses.Add($@"(s.title LIKE {p} ESCAPE '\' OR s.original_title LIKE {p} ESCAPE '\'
+                OR s.plot LIKE {p} ESCAPE '\'
+                OR CAST(s.year AS TEXT) LIKE {p} ESCAPE '\'
+                OR EXISTS (SELECT 1 FROM tv_show_actors sa JOIN actors a ON a.id=sa.actor_id
+                            WHERE sa.show_id=s.id AND a.name LIKE {p} ESCAPE '\'))");
+        }
+        var whereStr = "WHERE s.is_missing=0 AND " + string.Join(" AND ", clauses);
+
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT s.id, s.title, s.year, s.rating, s.local_poster, s.is_missing,
+                   s.volume_serial, d.label, s.is_favorite, s.is_watchlist,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id) AS ep_count,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id=s.id AND e.is_watched=1) AS watched_count,
+                   (SELECT GROUP_CONCAT(g.name, ', ') FROM tv_show_genres sg
+                     JOIN genres g ON g.id=sg.genre_id WHERE sg.show_id=s.id) AS genres
+              FROM tv_shows s
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+              {whereStr}
+             ORDER BY s.sort_title, s.title
+             LIMIT @lim";
+        for (int i = 0; i < tokens.Length; i++)
+            cmd.Parameters.AddWithValue($"@q{i}", $"%{EscapeLike(tokens[i])}%");
+        cmd.Parameters.AddWithValue("@lim", limit);
+
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var serial = r.GetString(6);
+            list.Add(new Models.TvShowListItem
+            {
+                Id = r.GetInt32(0),
+                Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                Rating = r.IsDBNull(3) ? null : r.GetDouble(3),
+                LocalPoster = r.IsDBNull(4) ? null : r.GetString(4),
+                IsMissing = r.GetInt32(5) == 1,
+                VolumeSerial = serial,
+                DriveLabel = r.IsDBNull(7) ? null : r.GetString(7),
+                IsFavorite = r.GetInt32(8) == 1,
+                IsWatchlist = r.GetInt32(9) == 1,
+                EpisodeCount = r.GetInt32(10),
+                WatchedCount = r.GetInt32(11),
+                GenresCsv = r.IsDBNull(12) ? null : r.GetString(12),
+                IsOnline = connected.ContainsKey(serial),
+            });
+        }
+        return list;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

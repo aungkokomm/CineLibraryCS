@@ -5,6 +5,19 @@
 
 ဤလက်စွဲသည် သင့်အား အသစ်တပ်ဆင်ချိန်မှ ငါးမိနစ်အတွင်း ထောင်ချီသော ရုပ်ရှင် Catalog တစ်ခု ဖန်တီးနိုင်သည်အထိ လမ်းညွှန် တွဲခေါ်ပေးပါလိမ့်မည်။
 
+> **v2.9.0 အသစ်များ**
+> - **🟣 TV အတွက် Continue Watching** — စတင်ထားပြီး မပြီးဆုံးသေးသော Show များအတွက် နောက်ထပ်ကြည့်မဲ့ episode ကို ထိပ်တွင်ပြသပါသည်။
+> - **🕓 Recently Watched** — အသစ်ဆုံးကြည့်ထားသည်များကို sidebar မှ တစ်ချက်တည်းနှင့် ပြန်ရှာနိုင်ပါသည်။
+> - **📅 On This Day** — ယနေ့ရက်စွဲ၌ ယခင်နှစ်များက ကြည့်ခဲ့သော ရုပ်ရှင်များ၊ ထွက်ရှိခဲ့သော ရုပ်ရှင်များကို ပြသပါသည်။
+> - **🏷 Tags** — ရုပ်ရှင်နှင့် Show များကို "rewatched", "Christmas" စသည် ကိုယ်ပိုင် label များဖြင့် တွဲမှတ်နိုင်ပါသည်။
+> - **★ Episode အလိုက် Favorite နှင့် Note** — episode တစ်ခုစီကို မှတ်သားနိုင်ပြီ။
+> - **🎲 Filter-aware Surprise Me** — လက်ရှိ filter အတိုင်း ကျပန်းရွေးနိုင်သော 🎲 ခလုတ်။
+> - **🔍 Search တွင် TV Shows** — search box သည် ရုပ်ရှင်နှင့်အတူ TV Show များကိုပါ ရှာတွေ့သည်။
+> - **💾 Backup / Restore** — ကိုယ်ပိုင်ဒေတာအားလုံးကို JSON file တစ်ခုထဲ၌ export လုပ်နိုင်/import လုပ်နိုင်သည်။
+> - **📤 List ကို image အဖြစ် Export** — list တစ်ခုကို poster grid PNG အဖြစ် ထုတ်ယူနိုင်သည်။
+> - **⌨️ Keyboard shortcuts တိုးချဲ့** — `/` search၊ `F` favorite၊ `W` watchlist၊ `Delete` list မှ ဖယ်ရှား။
+> - **⚡ စွမ်းဆောင်ရည် တိုးတက်** — code quality နှင့် performance pass။ စာကြည့်တိုက်ကြီးများတွင် ပိုမြန်လာသည်။
+>
 > **v2.8.0 အသစ်များ** — **TV Shows!** `tvshow.nfo` ပါသော folder များကို
 > TV Show အဖြစ် မှတ်ပါသည်။ Show တစ်ခုလျှင် စာမျက်နှာတစ်ခု (poster, plot,
 > cast, season-by-season episode row များ၊ episode တစ်ခုစီ watched

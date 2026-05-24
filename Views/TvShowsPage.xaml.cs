@@ -66,17 +66,44 @@ public sealed partial class TvShowsPage : Page
 
         var root = new StackPanel { Spacing = 12 };
 
-        // Header line: code · aired · runtime · rating
+        // Header line: code · aired · runtime · rating + ★ favorite toggle
+        var headerRow = new Grid();
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var meta = new List<string>();
         if (!string.IsNullOrEmpty(d.AiredText)) meta.Add(d.AiredText);
         if (!string.IsNullOrEmpty(d.RuntimeText)) meta.Add(d.RuntimeText);
         if (!string.IsNullOrEmpty(d.RatingText)) meta.Add(d.RatingText);
-        root.Children.Add(new TextBlock
+        headerRow.Children.Add(new TextBlock
         {
             Text = $"{d.Code}   ·   {string.Join("   ·   ", meta)}",
             FontSize = 12,
             Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            VerticalAlignment = VerticalAlignment.Center,
         });
+        var favBtn = new Button
+        {
+            Content = d.IsFavorite ? "★ Favorited" : "☆ Favorite",
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 4, 10, 4),
+            FontSize = 12,
+        };
+        favBtn.Click += (_, _) =>
+        {
+            d.IsFavorite = !d.IsFavorite;
+            // SetEpisodeFavorite raises TvShowStateChanged → AppState
+            // auto-syncs the show's sidecar, no explicit write needed.
+            AppState.Instance.Db.SetEpisodeFavorite(d.Id, d.IsFavorite);
+            ep.IsFavorite = d.IsFavorite;  // pushes the badge update to the card
+            favBtn.Content = d.IsFavorite ? "★ Favorited" : "☆ Favorite";
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        };
+        Grid.SetColumn(favBtn, 1);
+        headerRow.Children.Add(favBtn);
+        root.Children.Add(headerRow);
 
         // Plot
         if (!string.IsNullOrWhiteSpace(d.Plot))
@@ -131,6 +158,35 @@ public sealed partial class TvShowsPage : Page
         AddRow("Duration", d.DurationText);
         AddRow("File size", d.FileSizeText);
 
+        // v2.9 — Personal note for this episode. Saves on blur; empty
+        // string clears the note row. Sidecar is best-effort.
+        root.Children.Add(new TextBlock
+        {
+            Text = "Your note",
+            FontSize = 11,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 100,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Margin = new Thickness(0, 6, 0, 0),
+        });
+        var noteBox = new TextBox
+        {
+            Text = d.Note ?? "",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 70,
+            PlaceholderText = "Anything you want to remember about this episode…",
+        };
+        noteBox.LostFocus += (_, _) =>
+        {
+            var fresh = noteBox.Text?.Trim();
+            if ((fresh ?? "") == (d.Note ?? "")) return;
+            d.Note = fresh;
+            AppState.Instance.Db.SetEpisodeNote(d.Id, fresh);  // auto-syncs sidecar
+            ep.Note = fresh;
+        };
+        root.Children.Add(noteBox);
+
         var dlg = new ContentDialog
         {
             Title = $"{d.ShowTitle} — {d.Title}",
@@ -166,9 +222,9 @@ public sealed partial class TvShowsPage : Page
 
     private void ShowLevel()
     {
-        BackBtn.Visibility      = _level == Level.Shows ? Visibility.Collapsed : Visibility.Visible;
-        ShowsRepeater.Visibility = _level == Level.Shows ? Visibility.Visible : Visibility.Collapsed;
-        SeasonsPanel.Visibility  = _level == Level.Show  ? Visibility.Visible : Visibility.Collapsed;
+        BackBtn.Visibility       = _level == Level.Shows ? Visibility.Collapsed : Visibility.Visible;
+        ShowsLevelHost.Visibility = _level == Level.Shows ? Visibility.Visible : Visibility.Collapsed;
+        SeasonsPanel.Visibility   = _level == Level.Show  ? Visibility.Visible : Visibility.Collapsed;
 
         if (_level == Level.Shows) LoadShows();
         else LoadShow();
@@ -183,7 +239,201 @@ public sealed partial class TvShowsPage : Page
         foreach (var s in shows) _shows.Add(s);
         SubText.Text = shows.Count == 1 ? "1 show" : $"{shows.Count} shows";
         EmptyState.Visibility = shows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LoadContinueWatching();
     }
+
+    // ── v2.9 Continue Watching row ───────────────────────────────────────────
+
+    /// <summary>
+    /// Builds the "▶ Continue Watching" strip at the top of the shows grid.
+    /// Hidden when there are no in-progress shows. Each card shows the show
+    /// poster + "Next: SxxExx · Title" label; tapping it opens the show
+    /// page so the user can hit ▶ Play next (or pick a different episode).
+    /// </summary>
+    private void LoadContinueWatching()
+    {
+        var items = AppState.Instance.Db.GetTvContinueWatching(AppState.Instance.Connected, limit: 12);
+        if (items.Count == 0)
+        {
+            ContinueWatchingHost.Visibility = Visibility.Collapsed;
+            ContinueWatchingRepeater.ItemsSource = null;
+            return;
+        }
+        var cards = new List<FrameworkElement>(items.Count);
+        foreach (var it in items) cards.Add(BuildContinueWatchingCard(it));
+        ContinueWatchingRepeater.ItemsSource = cards;
+        ContinueWatchingHost.Visibility = Visibility.Visible;
+    }
+
+    private FrameworkElement BuildContinueWatchingCard(TvContinueWatchingItem it)
+    {
+        var card = new Grid
+        {
+            Width = 200,
+            Height = 290,
+        };
+        ToolTipService.SetToolTip(card, $"{it.ShowTitle}\n{it.NextLabel}");
+
+        var border = new Border
+        {
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            CornerRadius = new CornerRadius(12),
+        };
+        border.Shadow = new Microsoft.UI.Xaml.Media.ThemeShadow();
+        border.Translation = new System.Numerics.Vector3(0, 0, 16);
+
+        var inner = new Grid();
+
+        // Poster (or placeholder)
+        var poster = new Image { Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill };
+        inner.Children.Add(poster);
+
+        var placeholder = new Grid
+        {
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["PlaceholderBgBrush"],
+        };
+        placeholder.Children.Add(new TextBlock
+        {
+            Text = "📺",
+            FontSize = 44,
+            Opacity = 0.85,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        inner.Children.Add(placeholder);
+
+        // Hide placeholder once the poster image loads.
+        if (!string.IsNullOrEmpty(it.LocalPoster))
+        {
+            placeholder.Visibility = Visibility.Visible;
+            poster.ImageOpened += (_, _) => placeholder.Visibility = Visibility.Collapsed;
+            LoadShowImage(poster, it.LocalPoster, 260);
+        }
+
+        // ▶ overlay (large, centered) — signals "play next"
+        var playOverlay = new Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0x66, 0, 0, 0)),
+            CornerRadius = new CornerRadius(28),
+            Width = 56, Height = 56,
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 10, 10, 0),
+            Child = new TextBlock
+            {
+                Text = "▶",
+                FontSize = 22,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        inner.Children.Add(playOverlay);
+
+        // Offline badge top-left
+        if (!it.IsOnline)
+        {
+            var badge = new Border
+            {
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(0xCC, 0, 0, 0)),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(6),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = new TextBlock
+                {
+                    Text = "OFFLINE",
+                    FontSize = 9,
+                    FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+                },
+            };
+            inner.Children.Add(badge);
+        }
+
+        // Bottom gradient + meta strip
+        var stripBorder = new Border
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            CornerRadius = new CornerRadius(0, 0, 12, 12),
+            Padding = new Thickness(10, 8, 10, 10),
+        };
+        var grad = new Microsoft.UI.Xaml.Media.LinearGradientBrush
+        {
+            StartPoint = new Windows.Foundation.Point(0, 0),
+            EndPoint = new Windows.Foundation.Point(0, 1),
+        };
+        grad.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Offset = 0,    Color = Windows.UI.Color.FromArgb(0x00, 0, 0, 0) });
+        grad.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Offset = 0.35, Color = Windows.UI.Color.FromArgb(0xAA, 0, 0, 0) });
+        grad.GradientStops.Add(new Microsoft.UI.Xaml.Media.GradientStop { Offset = 1,    Color = Windows.UI.Color.FromArgb(0xF2, 0, 0, 0) });
+        stripBorder.Background = grad;
+
+        var strip = new StackPanel { Spacing = 4 };
+        strip.Children.Add(new TextBlock
+        {
+            Text = it.ShowTitle,
+            FontSize = 13,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 1,
+        });
+        strip.Children.Add(new TextBlock
+        {
+            Text = it.NextLabel,
+            FontSize = 11,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA)), // brand purple-ish
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 2,
+            TextWrapping = TextWrapping.WrapWholeWords,
+        });
+
+        // Progress bar
+        var progBack = new Border
+        {
+            Height = 4,
+            CornerRadius = new CornerRadius(2),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)),
+            Margin = new Thickness(0, 2, 0, 0),
+        };
+        var progFill = new Border
+        {
+            Height = 4,
+            CornerRadius = new CornerRadius(2),
+            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"],
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        // Bind width to fraction × parent width via SizeChanged once measured.
+        var fraction = it.ProgressFraction;
+        progBack.SizeChanged += (s, _) =>
+        {
+            if (s is Border b && b.ActualWidth > 0)
+                progFill.Width = Math.Max(2, b.ActualWidth * fraction);
+        };
+        progBack.Child = progFill;
+        strip.Children.Add(progBack);
+
+        stripBorder.Child = strip;
+        inner.Children.Add(stripBorder);
+
+        border.Child = inner;
+        card.Children.Add(border);
+
+        // Tap → open the show. The user can then hit ▶ Play next, which
+        // launches this same next-unwatched episode.
+        card.Tapped += (_, _) => OpenShow(it.ShowId);
+
+        // Visual lift on hover (subtle)
+        card.PointerEntered += (_, _) => card.Translation = new System.Numerics.Vector3(0, -4, 24);
+        card.PointerExited += (_, _) => card.Translation = System.Numerics.Vector3.Zero;
+        return card;
+    }
+
 
     private TvShowDetail? _detail;
 
@@ -371,6 +621,7 @@ public sealed partial class TvShowsPage : Page
         }
 
         UpdateShowButtons();
+        RefreshShowTagChips();
 
         // Cast
         CastRepeater.ItemsSource = _detail.Actors;
@@ -632,6 +883,127 @@ public sealed partial class TvShowsPage : Page
         bool any = watched < total;
         PlayNextBtn.Content = watched == 0 ? "▶ Play S01E01" : (any ? "▶ Play next" : "✓ All watched");
         PlayNextBtn.IsEnabled = any;
+    }
+
+    // ── v2.9 Show tags ───────────────────────────────────────────────────────
+
+    /// <summary>Rebuild the show's tag chip row from DB state.</summary>
+    private void RefreshShowTagChips()
+    {
+        ShowTagChipsRepeater.Items.Clear();
+        if (_detail == null) return;
+        _detail.Tags = AppState.Instance.Db.GetTagNamesForShow(_detail.Id);
+        foreach (var name in _detail.Tags)
+            ShowTagChipsRepeater.Items.Add(BuildShowTagChip(name));
+    }
+
+    private FrameworkElement BuildShowTagChip(string tagName)
+    {
+        var border = new Border
+        {
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(10, 3, 4, 3),
+        };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        var label = new HyperlinkButton
+        {
+            Content = tagName,
+            FontSize = 12,
+            Padding = new Thickness(0),
+            MinHeight = 0,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
+        };
+        var captured = tagName;
+        label.Click += (_, _) =>
+        {
+            if (App.MainWindow is MainWindow mw) mw.NavigateLibraryByTag(captured);
+        };
+        sp.Children.Add(label);
+        var x = new Button
+        {
+            Content = "✕",
+            FontSize = 10,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)),
+            Padding = new Thickness(4, 0, 4, 0),
+            MinWidth = 18,
+            MinHeight = 18,
+        };
+        ToolTipService.SetToolTip(x, $"Remove tag “{tagName}”");
+        x.Click += (_, _) =>
+        {
+            if (_detail == null) return;
+            var tagId = AppState.Instance.Db.EnsureTag(tagName);
+            // RemoveShowTag raises TvShowStateChanged → AppState auto-syncs sidecar
+            AppState.Instance.Db.RemoveShowTag(_detail.Id, tagId);
+            RefreshShowTagChips();
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        };
+        sp.Children.Add(x);
+        border.Child = sp;
+        return border;
+    }
+
+    private void OnAddShowTagClick(object sender, RoutedEventArgs e)
+    {
+        AddShowTagBtn.Visibility = Visibility.Collapsed;
+        AddShowTagBox.Text = "";
+        AddShowTagBox.Visibility = Visibility.Visible;
+        AddShowTagBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnAddShowTagBlur(object sender, RoutedEventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (AddShowTagBox.FocusState != FocusState.Programmatic)
+            {
+                AddShowTagBox.Visibility = Visibility.Collapsed;
+                AddShowTagBtn.Visibility = Visibility.Visible;
+            }
+        });
+    }
+
+    private void OnAddShowTagTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        var q = (sender.Text ?? "").Trim();
+        if (q.Length == 0) { sender.ItemsSource = null; return; }
+        var existing = AppState.Instance.Db.GetAllTags()
+            .Where(t => t.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.Name)
+            .Take(8)
+            .ToList();
+        sender.ItemsSource = existing;
+    }
+
+    private void OnAddShowTagSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (_detail == null) return;
+        var raw = args.ChosenSuggestion as string ?? sender.Text;
+        var name = (raw ?? "").Trim();
+        if (name.Length == 0) return;
+        try
+        {
+            var tagId = AppState.Instance.Db.EnsureTag(name);
+            AppState.Instance.Db.AddShowTag(_detail.Id, tagId);
+            RefreshShowTagChips();
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Add show tag failed: {ex.Message}");
+        }
+        sender.Text = "";
+        AddShowTagBox.Visibility = Visibility.Collapsed;
+        AddShowTagBtn.Visibility = Visibility.Visible;
     }
 
     private async Task ShowOfflineDialog(string title)

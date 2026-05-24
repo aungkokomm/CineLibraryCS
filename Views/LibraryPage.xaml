@@ -102,7 +102,25 @@
                     <ComboBoxItem Tag="runtime:asc"    Content="Runtime ↑"/>
                     <ComboBoxItem Tag="date_added:desc" Content="Date Added ↓"/>
                     <ComboBoxItem Tag="date_added:asc"  Content="Date Added ↑"/>
+                    <ComboBoxItem Tag="last_played:desc" Content="Last Watched ↓"/>
+                    <ComboBoxItem Tag="last_played:asc"  Content="Last Watched ↑"/>
                 </ComboBox>
+
+                <!-- v2.9 — Surprise Me 🎲: filter-aware random pick. Honours
+                     whatever is currently filtered/searched/listed, so you
+                     can "random pick from current view". The existing
+                     sidebar 'Surprise me' stays as the unfiltered version. -->
+                <Button x:Name="SurpriseMeBtn" Click="OnSurpriseMeClick"
+                        Background="{ThemeResource InputBgBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource InputBorderBrush}"
+                        Padding="10,8"
+                        Height="36" Width="36"
+                        VerticalAlignment="Center"
+                        ToolTipService.ToolTip="Surprise me — random pick from current view">
+                    <TextBlock Text="🎲" FontSize="16"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                </Button>
 
                 <SplitButton Content="Export" Click="OnExportCsvDefault"
                              Background="{ThemeResource InputBgBrush}"
@@ -210,6 +228,33 @@
                       VerticalScrollBarVisibility="Auto"
                       ViewChanged="OnScrollChanged">
           <StackPanel>
+            <!-- v2.9 — TV shows matching the current search query.
+                 Sits at the very top of the page when the user types
+                 something the search picks up across both movies and
+                 shows. Hidden when search is empty. -->
+            <StackPanel x:Name="ShowsInSearchSection" Visibility="Collapsed" Spacing="8" Margin="0,0,0,8">
+                <TextBlock x:Name="ShowsInSearchHeader" Text="TV SHOWS MATCHING"
+                           Margin="24,4,24,0"
+                           FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                           Opacity="0.75"
+                           Foreground="{ThemeResource MutedBrush}"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                              Height="312" Padding="24,0,24,0">
+                    <ItemsRepeater x:Name="ShowsInSearchRepeater">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Horizontal" Spacing="14"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:TvShowListItem">
+                                <local:TvShowCard Show="{x:Bind}"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+            </StackPanel>
+
             <!-- v2.8.2 — when viewing a user list that also contains TV
                  shows, show them as a row at the top (lists are independent
                  buckets that hold both movies and shows). -->

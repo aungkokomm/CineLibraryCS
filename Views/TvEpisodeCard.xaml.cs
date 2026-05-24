@@ -59,8 +59,11 @@ public sealed partial class TvEpisodeCard : UserControl
 
     private void OnEpPropChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (Episode != null && e.PropertyName == nameof(TvEpisodeItem.IsWatched))
+        if (Episode == null) return;
+        if (e.PropertyName == nameof(TvEpisodeItem.IsWatched))
             ApplyWatchedVisual(Episode.IsWatched);
+        else if (e.PropertyName == nameof(TvEpisodeItem.IsFavorite))
+            ApplyFavoriteVisual(Episode.IsFavorite);
     }
 
     private void Populate(TvEpisodeItem ep)
@@ -70,6 +73,7 @@ public sealed partial class TvEpisodeCard : UserControl
         MetaText.Text = string.Join("  ·  ", new[] { ep.RuntimeText, ep.RatingText }
             .Where(s => !string.IsNullOrEmpty(s)));
         ApplyWatchedVisual(ep.IsWatched);
+        ApplyFavoriteVisual(ep.IsFavorite);
         LoadThumbAsync(ep.LocalThumb);
     }
 
@@ -78,6 +82,11 @@ public sealed partial class TvEpisodeCard : UserControl
         WatchedBadge.Visibility = watched ? Visibility.Visible : Visibility.Collapsed;
         WatchedDim.Visibility = watched ? Visibility.Visible : Visibility.Collapsed;
         WatchedToggleBtn.Content = watched ? "✓ Watched" : "○ Mark watched";
+    }
+
+    private void ApplyFavoriteVisual(bool fav)
+    {
+        FavBadge.Visibility = fav ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnPlay(object sender, RoutedEventArgs e)

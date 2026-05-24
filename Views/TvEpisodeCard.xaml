@@ -40,13 +40,21 @@
                         <TextBlock x:Name="CodeText" FontSize="11" FontWeight="Bold" Foreground="White"/>
                     </Border>
 
-                    <!-- Watched check badge -->
-                    <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="11"
-                            Width="22" Height="22" VerticalAlignment="Top" HorizontalAlignment="Right"
-                            Margin="6" Visibility="Collapsed">
-                        <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
+                    <!-- v2.9 — Favorite + Watched badges stacked at top-right.
+                         Both can be visible simultaneously. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4"
+                                VerticalAlignment="Top" HorizontalAlignment="Right" Margin="6">
+                        <Border x:Name="FavBadge" Background="#CC000000" CornerRadius="11"
+                                Width="22" Height="22" Visibility="Collapsed">
+                            <TextBlock Text="★" FontSize="12" FontWeight="Bold" Foreground="#F59E0B"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="11"
+                                Width="22" Height="22" Visibility="Collapsed">
+                            <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Hover overlay: big play -->
                     <Border x:Name="HoverOverlay" CornerRadius="10,10,0,0"
