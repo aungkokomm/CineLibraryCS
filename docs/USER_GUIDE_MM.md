@@ -553,6 +553,6 @@ CineLibrary ပိတ်ပါ။ Exe ဘေးရှိ `CineLibrary-Data\` ဖ
 - **Latest ဆွဲချင်သလား?**
   [Releases page](https://github.com/aungkokomm/CineLibraryCS/releases) တွင် changelog စစ်ပါ။
 - **ပါဝင်ကူညီချင်လား?**
-  PR များ ကြိုဆိုသည်။ Codebase သည် C# / WinUI 3 ဖြင့် `Microsoft.Data.Sqlite` သုံးထားသော ရိုးရှင်းသည့် ဖွဲ့စည်းပုံ ဖြစ်သည် — ဝင်ရောက်လုပ်ကိုင်ရန် လွယ်ကူသည်။
+  Pull Request များ ကြိုဆိုပါသည်။ Codebase သည် C# / WinUI 3 ဖြင့် `Microsoft.Data.Sqlite` သုံးထားသော ရိုးရှင်းသည့် ဖွဲ့စည်းပုံ ဖြစ်သည် — ဝင်ရောက်လုပ်ကိုင်ရန် လွယ်ကူသည်။
 
 Happy cataloging. 🎬
