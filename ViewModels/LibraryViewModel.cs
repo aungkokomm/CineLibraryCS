@@ -33,6 +33,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private bool _isWatchlistOnly = false;
     [ObservableProperty] private bool _isContinueWatching = false;
     [ObservableProperty] private bool _isRecentlyWatched = false;
+    [ObservableProperty] private bool _isRecentlyAdded = false;
     [ObservableProperty] private bool _hasNoteOnly = false;
     [ObservableProperty] private int? _userListId = null;
     [ObservableProperty] private int? _tagId = null;
@@ -141,6 +142,7 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly: IsWatchlistOnly,
         ContinueWatching: IsContinueWatching,
         RecentlyWatchedOnly: IsRecentlyWatched,
+        RecentlyAddedOnly: IsRecentlyAdded,
         HasNoteOnly: HasNoteOnly,
         UserListId: UserListId,
         TagId: TagId,
@@ -240,6 +242,11 @@ public partial class LibraryViewModel : ObservableObject
     public void ShowRecentlyAdded()
     {
         ResetAllFilters();
+        // v2.9.1 — caps the view to the top-50 newest, so "Recently Added"
+        // actually means *recent*. Without this, the page just sorted the
+        // entire library by date_added and the header count showed the
+        // total library, which made it indistinguishable from All Movies.
+        IsRecentlyAdded = true;
         WatchedFilter = WatchedFilter.All;
         SortKey = SortKey.DateAdded;
         SortDir = SortDir.Desc;
@@ -360,6 +367,7 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly = false;
         IsContinueWatching = false;
         IsRecentlyWatched = false;
+        IsRecentlyAdded = false;
         HasNoteOnly = false;
         UserListId = null;
         TagId = null;
