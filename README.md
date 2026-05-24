@@ -11,7 +11,8 @@ A fast, native Windows catalog for your MediaElch-scraped **movies and TV shows*
 **Constantly evolving passion project! Always check the latest releases for updates.**
 
 Built with C# + WinUI 3.
-<img width="960" height="511" alt="image" src="https://github.com/user-attachments/assets/3007115a-36ff-441b-bda3-5411ad550ecd" />
+<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/55bb13bd-617f-41e5-948a-302b2f89701b" />
+
 
 
 
