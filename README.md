@@ -1,6 +1,6 @@
 # CineLibrary
 
-A fast, native Windows catalog for your MediaElch-scraped **movies and TV shows**. Browse, search and play across multiple external drives.
+Fast native Windows **Movie & and TV Shows** Catalog for properly scraped collections. Browse, search and play across multiple external drives.
 
 ***Stop letting your movies gather dust in forgotten directories.***  
 ***Treat them with CineLibrary — making your collection visible, searchable, and alive again.***  
