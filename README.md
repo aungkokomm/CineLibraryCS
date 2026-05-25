@@ -107,6 +107,7 @@ Grab the latest portable build from [Releases](https://github.com/aungkokomm/Cin
 Run CineLibrary-vx.x.x-Portable-Setup.exe
 Follow instructions, at finish. 
 To strat, following guides might keep you up and running.
+
 📖 **New here?** The [User Guide](docs/USER_GUIDE.md) walks you from a fresh install to running a catalog of thousands of movies in under five minutes.
 
 📖 **မြန်မာဘာသာ?** [မြန်မာဘာသာ လက်စွဲ](docs/USER_GUIDE_MM.md) တွင် ဖတ်ရှုနိုင်သည်။
