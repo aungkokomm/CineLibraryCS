@@ -61,11 +61,51 @@ Built with C# + WinUI 3.
 
 ## Download
 
-> ⚠️ **Prerequisite:** Your movies must already be organised in folders and scraped with [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) before using CineLibrary. MediaElch writes the `.nfo` metadata files and poster/fanart images that CineLibrary reads. 
+> ⚠️ **Prerequisite:**  
+
+Proceed to download **CineLibrary** only if your 
+Movies are 
+```
+H:\Movies\
+├── Inception (2010)\
+│   ├── Inception.mkv
+│   ├── Inception.nfo
+│   ├── poster.jpg
+│   └── fanart.jpg
+├── The Matrix (1999)\
+│   ├── The Matrix.mp4
+│   ├── The Matrix.nfo
+│   └── poster.jpg
+└── ...
+```
+and TV Shows are 
+```
+H:\TV\Dark\
+├── tvshow.nfo                       ← show metadata
+├── poster.jpg  fanart.jpg
+├── .actors\                         ← cast thumbnails
+├── Dark - S01E01 - Secrets.mkv
+├── Dark - S01E01 - Secrets.nfo
+├── Dark - S01E01 - Secrets-thumb.jpg
+├── Dark - S01E02 - Lies.mkv
+└── …
+```
+organized like structure above examples. 
+To clean file names and scrape we recommend following tools. 
+
+[MediaElch](https://mediaelch.github.io/mediaelch-doc/) 
+
+[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) 
+
+`.nfo` metadata files and poster/fanart images that CineLibrary reads.
 
 
-Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). Unzip anywhere and run `CineLibrary.exe` — no install required.
+**Once your Movies and TV Shows are organized and Scraped in above structure, only then use CineLibrary, otherwise CineLibray won't help**
 
+Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). 
+Run CineLibrary-vx.x.x-Portable-Setup.exe
+Follow instructions, at finish. 
+To strat, following guides might keep you up and running.
 📖 **New here?** The [User Guide](docs/USER_GUIDE.md) walks you from a fresh install to running a catalog of thousands of movies in under five minutes.
 
 📖 **မြန်မာဘာသာ?** [မြန်မာဘာသာ လက်စွဲ](docs/USER_GUIDE_MM.md) တွင် ဖတ်ရှုနိုင်သည်။
