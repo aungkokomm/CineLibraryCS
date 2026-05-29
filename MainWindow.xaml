@@ -57,19 +57,55 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Logo — v2.6 wordmark with a gold ▶ accent inside a
-                     purple tile. Click opens the About dialog. -->
+                <!-- Logo — v2.9 wordmark with a gold ▶ accent inside a
+                     purple tile. The tile uses a deep violet gradient + a
+                     faint top-edge highlight so it reads as a crisp, lifted
+                     badge instead of the flat pale lavender it was before.
+                     Click opens the About dialog. -->
                 <Button Grid.Row="0" Click="OnAboutClick"
                         Background="Transparent" BorderThickness="0"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         Padding="14,12,14,8">
                     <StackPanel x:Name="LogoPanel" Orientation="Horizontal" Spacing="10">
-                        <Border Background="{StaticResource BrandPurpleBrush}"
-                                CornerRadius="8" Width="32" Height="32">
-                            <TextBlock Text="▶" FontSize="14" FontWeight="Bold"
-                                       Foreground="{StaticResource BrandGoldBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Margin="2,0,0,0"/>
+                        <Border CornerRadius="9" Width="32" Height="32"
+                                BorderBrush="#55FFFFFF" BorderThickness="1">
+                            <Border.Background>
+                                <!-- Vivid violet gradient: bright purple top,
+                                     deep indigo-violet base — echoes the app
+                                     icon's rich purple body. -->
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0.4,1">
+                                    <GradientStop Offset="0" Color="#C13AEB"/>
+                                    <GradientStop Offset="1" Color="#5B21B6"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <!-- Child is clipped to the parent's corner radius. -->
+                            <Grid>
+                                <!-- Glossy top sheen — soft white highlight over
+                                     the upper half, fading to nothing. -->
+                                <Border>
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0"    Color="#4DFFFFFF"/>
+                                            <GradientStop Offset="0.55" Color="#00FFFFFF"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <!-- Tiny sparkle, top-left, nodding to the icon. -->
+                                <TextBlock Text="✦" FontSize="7" Foreground="#CCFFFFFF"
+                                           HorizontalAlignment="Left" VerticalAlignment="Top"
+                                           Margin="5,4,0,0"/>
+                                <!-- Glossy white play triangle (vector, crisp). -->
+                                <Polygon Points="0,0 0,13 11,6.5"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         Margin="2,0,0,0">
+                                    <Polygon.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Offset="0" Color="#FFFFFF"/>
+                                            <GradientStop Offset="1" Color="#E9D5FF"/>
+                                        </LinearGradientBrush>
+                                    </Polygon.Fill>
+                                </Polygon>
+                            </Grid>
                         </Border>
                         <StackPanel x:Name="LogoTextPanel" VerticalAlignment="Center"
                                     Orientation="Horizontal" Spacing="0">

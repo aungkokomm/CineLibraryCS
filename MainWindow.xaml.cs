@@ -55,8 +55,13 @@ public sealed partial class MainWindow : Window
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
         var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-        appWindow.Resize(new SizeInt32(1400, 900));
+        appWindow.Resize(new SizeInt32(1400, 900));   // restore-size used when the user un-maximizes
         appWindow.Title = "CineLibrary";
+
+        // v2.9 — start maximized. The 1400×900 above becomes the size the
+        // window restores to when the user clicks the restore button.
+        if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+            presenter.Maximize();
 
         // Set custom titlebar icon
         try
@@ -181,11 +186,23 @@ public sealed partial class MainWindow : Window
         if (AppState.Instance.GetPref("sidebarCollapsed", "false") == "true")
             ApplySidebarCollapsed(true);
 
-        await _vm.InitializeAsync();
-        RefreshSidebar();
+        // v2.9 — faster perceived startup. Previously we awaited the full
+        // sidebar data fetch (drives + collections + stats) BEFORE showing
+        // the library, so the main content waited on queries the user isn't
+        // even looking at yet. Now:
+        //   1. Prime the connected-drive set (fast — just enumerates drive
+        //      letters) so the grid's first paint shows correct ONLINE/OFFLINE.
+        //   2. Show the library immediately; its grid load runs in the
+        //      background, in parallel with the sidebar fetch below.
+        //   3. Fill the sidebar, rendering it immediately (skip the 150 ms
+        //      debounce that exists to coalesce mid-session bursts).
+        await Task.Run(() => AppState.Instance.RefreshConnected());
+
         NavigateTo("library");
-        // Initial active highlight on All Movies (v1.9.3)
-        SetActiveNav(BtnAllMovies);
+        SetActiveNav(BtnAllMovies);   // initial active highlight on All Movies
+
+        await _vm.InitializeAsync();
+        RefreshSidebarImmediate();
 
         // Fire-and-forget update check. Silent on no-network. Skipped versions
         // are remembered via the prefs table so the user isn't nagged.
@@ -1549,7 +1566,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.9.1",
+            Title = "CineLibrary v2.9.2",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

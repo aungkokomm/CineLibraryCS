@@ -16,9 +16,19 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.9.1</Version>
-    <AssemblyVersion>2.9.1.0</AssemblyVersion>
-    <FileVersion>2.9.1.0</FileVersion>
+    <Version>2.9.2</Version>
+    <AssemblyVersion>2.9.2.0</AssemblyVersion>
+    <FileVersion>2.9.2.0</FileVersion>
+
+    <!--
+      v2.9.2 — faster cold start. ReadyToRun precompiles the app's IL to
+      native code at publish time, so the runtime doesn't have to JIT most
+      methods on launch. Only affects the Publish output (the portable
+      installer payload), not the inner-loop Build. Trade-off: a larger
+      publish folder, which is fine for a desktop app where launch speed
+      matters more than on-disk size.
+    -->
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
