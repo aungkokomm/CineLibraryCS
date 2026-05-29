@@ -11,7 +11,8 @@ Fast native Windows **Movie & and TV Shows** Catalog for properly scraped collec
 **Constantly evolving passion project! Always check the latest releases for updates.**
 
 Built with C# + WinUI 3.
-<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/55bb13bd-617f-41e5-948a-302b2f89701b" />
+<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/90569891-4157-49d7-96b8-0e1553f1f23b" />
+
 
 
 
