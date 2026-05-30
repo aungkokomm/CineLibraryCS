@@ -45,12 +45,21 @@
         <!-- ═══ MAIN CONTENT ROW ═══ -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="SidebarCol" Width="260"/>
+                <ColumnDefinition x:Name="SidebarCol" Width="252"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- ═══ SIDEBAR ═══ -->
-            <Grid x:Name="SidebarGrid" Grid.Column="0" Background="{ThemeResource SidebarBrush}">
+            <!-- v2.9.3 — the sidebar is a floating rounded card: it sits
+                 inset from the window edges (margin) on its own rounded
+                 surface, like the Claude desktop app. The gap reveals the
+                 window background behind it. Nothing inside the pane
+                 changed — only this wrapper + the column width (bumped to
+                 keep the inner content the same 240 px as before). -->
+            <Border x:Name="SidebarCard" Grid.Column="0"
+                    Margin="8,6,4,8" CornerRadius="10"
+                    Background="{ThemeResource SidebarBrush}">
+            <Grid x:Name="SidebarGrid">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -534,6 +543,7 @@
                     </StackPanel>
                 </Border>
             </Grid>
+            </Border>
 
             <!-- ═══ MAIN CONTENT ═══ -->
             <Frame x:Name="ContentFrame" Grid.Column="1" Background="{ThemeResource BgBrush}"/>

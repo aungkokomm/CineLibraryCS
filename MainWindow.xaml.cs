@@ -1489,7 +1489,7 @@ public sealed partial class MainWindow : Window
         void AddRow(string keys, string what)
         {
             var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var kb = new Border
@@ -1500,6 +1500,7 @@ public sealed partial class MainWindow : Window
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(8, 2, 8, 2),
                 HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
             };
             kb.Child = new TextBlock { Text = keys, FontSize = 12, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };
             kb.SetValue(Grid.ColumnProperty, 0);
@@ -1519,16 +1520,61 @@ public sealed partial class MainWindow : Window
             panel.Children.Add(row);
         }
 
-        AddRow("Ctrl + F",      "Focus search box");
-        AddRow("Esc",           "Clear search");
-        AddRow("Ctrl + B",      "Toggle sidebar");
+        void AddHeader(string text)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = text,
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                CharacterSpacing = 120,
+                Opacity = 0.7,
+                Margin = new Thickness(0, 10, 0, 2),
+                Foreground = (SolidColorBrush)Application.Current.Resources["MutedBrush"],
+            });
+        }
+
+        AddHeader("SEARCH & GENERAL");
+        AddRow("/",                "Focus the search box");
+        AddRow("Ctrl + F",         "Focus the search box");
+        AddRow("Esc",              "Clear search, then clear selection");
+        AddRow("Ctrl + B",         "Toggle the sidebar");
         AddRow("Ctrl + Shift + /", "Show this shortcuts dialog");
-        AddRow("Ctrl + Q",      "Quit CineLibrary");
+        AddRow("Ctrl + Q",         "Quit CineLibrary");
+
+        AddHeader("SELECTION & ACTIONS");
+        AddRow("Ctrl + A",     "Select every card on screen");
+        AddRow("Ctrl + click", "Add / remove a single card");
+        AddRow("Shift + click","Range-select from the last card");
+        AddRow("F",            "Toggle favorite on the selection");
+        AddRow("W",            "Toggle watchlist on the selection");
+        AddRow("Delete",       "Remove selection from the current list");
+
+        AddHeader("NAVIGATION");
+        AddRow("PgDn / PgUp",  "Scroll one viewport");
+        AddRow("Home / End",   "Jump to top / bottom");
+        AddRow("↑ / ↓", "Scroll by one row of cards");
+
+        var note = new TextBlock
+        {
+            Text = "Card shortcuts (F, W, Delete) act on the current selection — "
+                 + "click one or more cards first. They pause while you're typing in the search box.",
+            FontSize = 12,
+            Opacity = 0.75,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 14, 0, 0),
+            Foreground = (SolidColorBrush)Application.Current.Resources["MutedBrush"],
+        };
 
         var dialog = new ContentDialog
         {
             Title = "Keyboard shortcuts",
-            Content = panel,
+            Content = new ScrollViewer
+            {
+                Content = new StackPanel { Children = { panel, note } },
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = 520,
+            },
             CloseButtonText = "Close",
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
@@ -1566,7 +1612,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.9.2",
+            Title = "CineLibrary v2.9.3",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
@@ -1640,13 +1686,15 @@ public sealed partial class MainWindow : Window
         if (collapsed)
         {
             SidebarCol.Width = new GridLength(0);
-            SidebarGrid.Visibility = Visibility.Collapsed;
+            // Hide the whole floating card (not just the inner grid) so no
+            // rounded sliver / margin is left behind when collapsed.
+            SidebarCard.Visibility = Visibility.Collapsed;
             SidebarReopenBtn.Visibility = Visibility.Visible;
         }
         else
         {
-            SidebarCol.Width = new GridLength(260);
-            SidebarGrid.Visibility = Visibility.Visible;
+            SidebarCol.Width = new GridLength(252);   // keep in sync with SidebarCol default (240 inner + 12 margin)
+            SidebarCard.Visibility = Visibility.Visible;
             SidebarReopenBtn.Visibility = Visibility.Collapsed;
         }
         AppState.Instance.SetPref("sidebarCollapsed", collapsed ? "true" : "false");

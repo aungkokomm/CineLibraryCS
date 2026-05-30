@@ -87,8 +87,7 @@
                         <Button x:Name="WatchedToggleBtn" Grid.Column="1" Click="OnToggleWatched"
                                 Background="Transparent" BorderThickness="0"
                                 CornerRadius="6" Padding="6,2" FontSize="12"
-                                Foreground="{ThemeResource MutedBrush}"
-                                ToolTipService.ToolTip="Toggle watched"/>
+                                Foreground="{ThemeResource MutedBrush}"/>
                     </Grid>
                 </Grid>
             </Grid>

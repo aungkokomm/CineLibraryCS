@@ -62,10 +62,10 @@
                 <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6"
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Button x:Name="WatchedBtn" Style="{StaticResource IconButtonStyle}"
-                            Click="OnToggleWatched" ToolTipService.ToolTip="Toggle watched"
+                            Click="OnToggleWatched"
                             FontSize="15"/>
                     <Button x:Name="FavBtn" Style="{StaticResource IconButtonStyle}"
-                            Click="OnToggleFav" ToolTipService.ToolTip="Toggle favorite"
+                            Click="OnToggleFav"
                             FontSize="15"/>
                 </StackPanel>
             </Grid>

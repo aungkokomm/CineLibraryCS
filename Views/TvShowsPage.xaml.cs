@@ -272,7 +272,9 @@ public sealed partial class TvShowsPage : Page
             Width = 200,
             Height = 290,
         };
-        ToolTipService.SetToolTip(card, $"{it.ShowTitle}\n{it.NextLabel}");
+        // No ToolTip: this row's cards live in a horizontal scroller and the
+        // show title + next-episode label are already shown on the card, so
+        // a tooltip would only add the WinUI orphaned-tooltip-on-scroll bug.
 
         var border = new Border
         {
