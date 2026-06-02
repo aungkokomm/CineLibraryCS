@@ -31,11 +31,12 @@ of movies in under five minutes.
 14. [Statistics](#statistics)
 15. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
 16. [Themes and sidebar](#themes-and-sidebar)
-17. [Keyboard shortcuts](#keyboard-shortcuts)
-18. [Exporting your catalog](#exporting-your-catalog)
-19. [Updates](#updates)
-20. [Where your data lives](#where-your-data-lives)
-21. [Troubleshooting](#troubleshooting)
+17. [Settings](#settings)
+18. [Keyboard shortcuts](#keyboard-shortcuts)
+19. [Exporting your catalog](#exporting-your-catalog)
+20. [Updates](#updates)
+21. [Where your data lives](#where-your-data-lives)
+22. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -657,16 +658,48 @@ movies snap back to color within a second.
 
 ### Theme
 
-Click the theme button in the bottom-left of the sidebar to cycle
-between **System → Dark → Light**. CineLibrary uses Mica backdrop on
-Windows 11 for a native feel and remembers your choice between
-sessions.
+Click the theme button in the bottom of the sidebar to cycle between
+**System → Dark → Light**. CineLibrary uses Mica backdrop on Windows 11
+for a native feel and remembers your choice between sessions. You can
+also set the theme from **Settings** (below).
 
 ### Collapsing the sidebar
 
 `Ctrl+B` collapses or expands the sidebar (or click the `⮜` button at
 the bottom-left). Collapsed mode gives the grid more room — useful on
 small displays.
+
+---
+
+## Settings
+
+Click the **⚙️ gear icon** at the bottom of the sidebar to open
+**Settings**. Everything here is saved between sessions and applies
+instantly — no restart.
+
+### Theme
+
+Light / Dark / System — the same choice as the quick theme button,
+shown as a simple picker.
+
+### Card drop shadows
+
+**Off by default.** Turn this on to give each movie card a soft shadow
+that lifts it off the grid. It's a small touch of depth — purely
+cosmetic.
+
+Why it's off by default: a resting shadow on every card adds a little
+work while you scroll. On most machines you'll never notice, but
+leaving it off keeps scrolling as smooth as possible on every PC. If
+you like the look and your scrolling stays buttery, turn it on and
+enjoy.
+
+### Reduce motion
+
+**Off by default.** When on, hovering a movie card no longer zooms and
+lifts it — the card stays still and just shows its quick-action
+buttons. Turn this on if the hover animation bothers you, or to shave a
+little extra work on lower-end graphics.
 
 ---
 
