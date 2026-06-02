@@ -42,6 +42,10 @@ public sealed partial class MainWindow : Window
             throw;
         }
 
+        // v3.0.0 — load UI preferences (card shadows, reduce motion) before any
+        // card is built so they paint with the right look on first render.
+        UiSettings.Load();
+
         InitializeComponent();
 
         // Extend content into titlebar for Mica effect + use our custom drag region
@@ -151,11 +155,16 @@ public sealed partial class MainWindow : Window
         CurrentTheme = theme;
         if (Content is FrameworkElement root)
             root.RequestedTheme = theme;
-        ThemeBtn.Content = theme switch
+        // v3.0.0 — monochrome FontIcon glyph instead of a colour emoji so it
+        // sits cleanly next to the other footer icons.
+        //   Light  → Brightness (sun)   E706
+        //   Dark   → QuietHours (moon)  E708
+        //   System → TVMonitor          E7F4
+        ThemeIcon.Glyph = theme switch
         {
-            ElementTheme.Dark    => "🌙",
-            ElementTheme.Light   => "☀️",
-            _                    => "🖥️",
+            ElementTheme.Light => "",
+            ElementTheme.Dark  => "",
+            _                  => "",
         };
         AppState.Instance.SetPref("theme", theme.ToString());
     }
@@ -169,6 +178,98 @@ public sealed partial class MainWindow : Window
             _                    => ElementTheme.Default,
         };
         ApplyTheme(next);
+    }
+
+    // ── v3.0.0 Settings dialog ────────────────────────────────────────────
+
+    /// <summary>
+    /// Settings dialog: theme (mirrors the quick toggle), card shadows, and
+    /// reduce motion. Both visual extras default off, persisted via prefs,
+    /// and applied live (cards listen to UiSettings.Changed).
+    /// </summary>
+    private async void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
+
+        TextBlock Header(string t) => new()
+        {
+            Text = t, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 120, Opacity = 0.7, Foreground = muted,
+            Margin = new Thickness(0, 12, 0, 4),
+        };
+
+        var panel = new StackPanel { Spacing = 6, MinWidth = 360 };
+
+        // ── Appearance ──
+        panel.Children.Add(Header("APPEARANCE"));
+
+        // Theme — three-way segmented choice that mirrors the quick toggle.
+        var themeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 };
+        RadioButton ThemeChip(string label, ElementTheme value)
+        {
+            var rb = new RadioButton
+            {
+                Content = label,
+                GroupName = "theme",
+                IsChecked = CurrentTheme == value,
+                MinWidth = 0,
+                Margin = new Thickness(0, 0, 14, 0),
+            };
+            rb.Checked += (_, _) => ApplyTheme(value);
+            return rb;
+        }
+        themeRow.Children.Add(ThemeChip("Light",  ElementTheme.Light));
+        themeRow.Children.Add(ThemeChip("Dark",   ElementTheme.Dark));
+        themeRow.Children.Add(ThemeChip("System", ElementTheme.Default));
+        panel.Children.Add(new TextBlock { Text = "Theme", FontSize = 13 });
+        panel.Children.Add(themeRow);
+
+        // Card shadows
+        var shadowToggle = new ToggleSwitch
+        {
+            Header = "Card drop shadows",
+            IsOn = UiSettings.CardShadows,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        shadowToggle.Toggled += (_, _) => UiSettings.SetCardShadows(shadowToggle.IsOn);
+        panel.Children.Add(shadowToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "A subtle shadow that lifts each movie card. Off by default for the smoothest scrolling.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
+        // Reduce motion
+        var motionToggle = new ToggleSwitch
+        {
+            Header = "Reduce motion",
+            IsOn = UiSettings.ReduceMotion,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        motionToggle.Toggled += (_, _) => UiSettings.SetReduceMotion(motionToggle.IsOn);
+        panel.Children.Add(motionToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Turns off the zoom/lift animation when you hover a card. Easier on the eyes and on low-end GPUs.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
+        var dialog = new ContentDialog
+        {
+            Title = "Settings",
+            Content = new ScrollViewer
+            {
+                Content = panel,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = 520,
+            },
+            CloseButtonText = "Done",
+            XamlRoot = Content.XamlRoot,
+            RequestedTheme = CurrentTheme,
+        };
+        try { await dialog.ShowAsync(); } catch { }
     }
 
     private async Task InitAsync()
@@ -1612,7 +1713,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v2.9.3",
+            Title = "CineLibrary v3.0.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

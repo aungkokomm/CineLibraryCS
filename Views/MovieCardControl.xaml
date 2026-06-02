@@ -15,7 +15,8 @@
                 <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1"/>
             </TransformGroup>
         </Grid.RenderTransform>
-        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="10">
+        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="10"
+                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1">
             <Border.Shadow>
                 <ThemeShadow/>
             </Border.Shadow>

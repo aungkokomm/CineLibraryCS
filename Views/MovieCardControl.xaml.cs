@@ -13,6 +13,11 @@ namespace CineLibraryCS.Views;
 
 public sealed partial class MovieCardControl : UserControl
 {
+    // Resting Z-depth used when "Card shadows" is enabled. Hover lifts to 24;
+    // this sits a bit below that so the resting shadow is clearly visible but
+    // calmer than hover. (Was 5 — too shallow to perceive in the tight grid.)
+    private const float RestZ = 16f;
+
     public static readonly DependencyProperty MovieProperty =
         DependencyProperty.Register(nameof(Movie), typeof(MovieListItem), typeof(MovieCardControl),
             new PropertyMetadata(null, OnMovieChanged));
@@ -89,22 +94,41 @@ public sealed partial class MovieCardControl : UserControl
         flyout.Opening += (_, _) => RebuildContextFlyout(flyout);
         ContextFlyout = flyout;
 
+        // v3.0.0 — card shadows + hover motion are now user settings (both
+        // off by default). RestZ is the faint resting depth used only when
+        // "Card shadows" is on; hover lifts to a deeper shadow. "Reduce
+        // motion" skips the zoom/lift animation entirely.
+        ApplyRestingShadow();
         PointerEntered += (_, _) =>
         {
             HoverOverlay.Visibility = Visibility.Visible;
-            // v2.6 — fade the overlay in (200 ms cubic) instead of snap
-            AnimateOverlay(0, 1, 200);
-            CardLift.Y = -4;
-            CardScale.ScaleX = 1.025; CardScale.ScaleY = 1.025;
-            // Lift the card into Z so ThemeShadow casts a real shadow.
-            CardBorder.Translation = new System.Numerics.Vector3(0, 0, 24);
+            if (UiSettings.ReduceMotion)
+            {
+                HoverOverlay.Opacity = 1;   // no fade, no zoom
+            }
+            else
+            {
+                AnimateOverlay(0, 1, 200);  // v2.6 — fade in (200 ms cubic)
+                CardLift.Y = -4;
+                CardScale.ScaleX = 1.025; CardScale.ScaleY = 1.025;
+            }
+            // Hover shadow only when card shadows are enabled.
+            CardBorder.Translation = new System.Numerics.Vector3(0, 0, UiSettings.CardShadows ? 24f : 0f);
         };
         PointerExited += (_, _) =>
         {
-            AnimateOverlay(HoverOverlay.Opacity, 0, 160);
-            CardLift.Y = 0;
-            CardScale.ScaleX = 1; CardScale.ScaleY = 1;
-            CardBorder.Translation = new System.Numerics.Vector3(0, 0, 0);
+            if (UiSettings.ReduceMotion)
+            {
+                HoverOverlay.Opacity = 0;
+                HoverOverlay.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                AnimateOverlay(HoverOverlay.Opacity, 0, 160);
+                CardLift.Y = 0;
+                CardScale.ScaleX = 1; CardScale.ScaleY = 1;
+            }
+            ApplyRestingShadow();
         };
         // Single tap → open details after a short delay (so a double-tap
         // gets a chance to suppress it). Double tap → play directly.
@@ -193,10 +217,23 @@ public sealed partial class MovieCardControl : UserControl
         // can't end up with two copies of the handler attached.
         GlobalSizeChanged -= OnGlobalSizeChanged;
         GlobalSizeChanged += OnGlobalSizeChanged;
+        // React live when the user flips "Card shadows" in Settings.
+        UiSettings.Changed -= OnUiSettingsChanged;
+        UiSettings.Changed += OnUiSettingsChanged;
+        ApplyRestingShadow();
     }
 
     private void OnCardUnloaded(object sender, RoutedEventArgs e)
-        => GlobalSizeChanged -= OnGlobalSizeChanged;
+    {
+        GlobalSizeChanged -= OnGlobalSizeChanged;
+        UiSettings.Changed -= OnUiSettingsChanged;
+    }
+
+    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyRestingShadow);
+
+    /// <summary>Resting shadow depth — 0 when "Card shadows" is off (the default).</summary>
+    private void ApplyRestingShadow()
+        => CardBorder.Translation = new System.Numerics.Vector3(0, 0, UiSettings.CardShadows ? RestZ : 0f);
 
     private void ApplySize()
     {
