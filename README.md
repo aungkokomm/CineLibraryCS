@@ -1,73 +1,70 @@
-# CineLibrary
+<div align="center">
 
-Fast native Windows **Movie & and TV Shows** Catalog for properly scraped collections. Browse, search and play across multiple external drives.
+# 🎬 CineLibrary
 
-***Stop letting your movies gather dust in forgotten directories.***  
-***Treat them with CineLibrary — making your collection visible, searchable, and alive again.***  
+**A fast, native Windows catalog for your MediaElch-scraped movies & TV shows.**
 
-***CineLibrary: where your movies stop hiding and start shining.***
+Browse, search, and play across any number of external drives — offline, portable, no telemetry.
 
-
-**Constantly evolving passion project! Always check the latest releases for updates.**
-
-Built with C# + WinUI 3.
-<img width="960" height="510" alt="image" src="https://github.com/user-attachments/assets/04036db0-58b7-4291-bced-8624fac16e93" />
-
-
-
-
-
-
-
-✨ **Richer, deeper movie details than ever before** — discover the stories behind your collection in a whole new way.
-<img width="960" height="457" alt="image" src="https://github.com/user-attachments/assets/bc89a995-5aea-4bc1-864e-6188b9df28ff" />
-
-
-
+[![Latest release](https://img.shields.io/github/v/release/aungkokomm/CineLibraryCS?style=for-the-badge&label=latest)](https://github.com/aungkokomm/CineLibraryCS/releases/latest)
 ![GitHub Repo stars](https://img.shields.io/github/stars/aungkokomm/CineLibraryCS?style=for-the-badge)
 ![GitHub all releases](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge)
-![GitHub License](https://img.shields.io/github/license/aungkokomm/CineLibraryCS?style=for-the-badge)
+![License](https://img.shields.io/github/license/aungkokomm/CineLibraryCS?style=for-the-badge)
 
+<img width="960" height="510" alt="CineLibrary — All Movies grid with sidebar" src="https://github.com/user-attachments/assets/04036db0-58b7-4291-bced-8624fac16e93" />
 
-## What's new in v2.9 🎬
+</div>
 
-- **🟣 Continue Watching for TV** — a row at the top of the TV Shows page showing the next unwatched episode for every show you've started.
-- **🕓 Recently Watched** — new sidebar entry that lists everything you've played, freshest first.
-- **📅 On This Day** — a dedicated page that surfaces movies you watched on this calendar date in past years *plus* movies that were released on this date in past years (cinema anniversaries).
-- **🏷 Free-form tags** — tag movies and shows with anything ("rewatched", "comfort", "Christmas", "long-haul flight"). Tags appear in the sidebar and filter the library with one click.
-- **★ Per-episode favorite & note** — mark individual episodes as favorites and jot a note in the episode dialog.
-- **🎲 Filter-aware Surprise Me** — new dice button on the Library toolbar picks a random movie from the *current* filtered view.
-- **🔍 TV in global search** — the search box now matches TV shows alongside movies.
-- **💾 Backup / restore** — one-click JSON export of every favorite, watchlist entry, note, list, tag, watched flag, and watch-history event. Importable on another PC to merge your state in.
-- **📤 Export a list as image** — right-click any list → save a clean PNG poster grid you can share.
-- **⌨️ More keyboard shortcuts** — `/` focus search, `F` favorite, `W` watchlist, `Delete` remove from current list.
-- **⚡ Faster across the board** — full code-quality + performance pass; new DB indexes, debounced sidebar refresh, leaner image cache. Big libraries feel snappier.
+> ***Stop letting your movies gather dust in forgotten directories.***
+> CineLibrary makes your whole collection visible, searchable, and alive again.
 
-## Features
+**A constantly evolving passion project** — check the [latest release](https://github.com/aungkokomm/CineLibraryCS/releases/latest) for what's new.
 
-- **📺 TV Shows** — folders with `tvshow.nfo` are detected as shows. Each show has a single page: poster, plot, cast, season-by-season episode rows, per-episode watched / favorite / note tracking, a "▶ Play next unwatched" button, and a watched-progress roll-up. Personal state travels with the drive just like movies.
-- **Multi-drive library** — index movies and shows across external drives; knows which are currently online
-- **MediaElch-compatible** — reads `movie.nfo` / `tvshow.nfo` + episode `.nfo`, posters, fanart, episode thumbnails; caches artwork locally so offline drives still show thumbnails
-- **Grid + list views** — with S/M/L/XL thumbnail sizes (like Windows Explorer)
-- **Full-text search** — title, actor, director, plot — now matching TV shows too
-- **Filters** — by drive, genre, collection, decade, rating, favorites, watched, notes, tags
-- **Collapsible sidebar** with drives, collections, lists, and tags
-- **Resizable movie detail window** — hero fanart, poster, chips, plot, cast, tags
-- **Export** — CSV, HTML, or as a poster-grid image
-- **Keyboard shortcuts** — `/` focus search, `F` favorite, `W` watchlist, `Esc` clear, `Ctrl+F` search, `Ctrl+B` toggle sidebar
-- **Light / Dark / System themes** with Mica backdrop
-- **Continue Watching** for both movies and TV
-- **Recently Watched, Recently Added, On This Day, Surprise me**
-- **Notes in the movie detail dialog and per-episode notes for TV**
-- **My Lists** — group movies and shows your way. Copy a list to a folder, or export as an image
-- **Backup / restore** of all personal state to a JSON file
+---
 
-## Download
+## What is CineLibrary?
 
-> ⚠️ **Prerequisite:**  
+CineLibrary is a native Windows app (C# + WinUI 3) that turns your already-organized movie and TV folders into a clean, fast, browsable catalog — posters, rich details, search, and playback — across as many external drives as you own.
 
-Proceed to download **CineLibrary** only if your 
-Movies are 
+Unplug a drive and its titles don't vanish; they fade to **offline** (posters and metadata intact) and wake up when you plug it back in. It's **free and open-source**, runs **portably** from any folder, and asks for nothing — no account, no subscription, no telemetry.
+
+CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive.
+
+---
+
+## 📸 Screenshots
+
+✨ **Richer, deeper movie details than ever before** — discover the stories behind your collection in a whole new way.
+
+<img width="960" height="457" alt="CineLibrary — movie detail view" src="https://github.com/user-attachments/assets/bc89a995-5aea-4bc1-864e-6188b9df28ff" />
+
+---
+
+## ✨ Highlights
+
+- **📺 Movies & TV shows** — full show pages with seasons, episodes, per-episode watched/favorite/notes, and "▶ Play next unwatched."
+- **💾 Multi-drive, offline-aware** — index any number of external drives; offline ones stay visible with posters intact.
+- **🔎 Fast search & filters** — title, actor, director, plot; filter by genre, decade, rating, collection, tags, watched status.
+- **🏷️ Your own organization** — favorites, watchlist, notes, free-form tags, and custom lists.
+- **🧭 Discovery** — Continue Watching, Recently Watched, Recently Added, On This Day, and a filter-aware Surprise Me.
+- **💾 Backup & restore** — export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.
+- **🪪 State travels with the drive** — watched/favorite/notes/tags live next to each title, so they survive a drive move to another PC.
+- **⚙️ Settings** — Light/Dark/System theme, optional card shadows, reduce-motion.
+- **🚀 Native & quick** — cold start under a second; smooth scrolling through thousands of posters.
+
+> Full per-version notes live on the [**Releases**](https://github.com/aungkokomm/CineLibraryCS/releases) page.
+
+---
+
+## 📋 Before you start
+
+> ⚠️ **CineLibrary reads metadata — it does not create it.** Your movie and TV folders must already be organized and scraped (each title in its own folder with a `.nfo` file and poster). If they aren't yet, use **[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials)** or **[MediaElch](https://mediaelch.github.io/mediaelch-doc/)** first — otherwise CineLibrary will have nothing to show.
+
+<details>
+<summary><b>Expected folder layout (click to expand)</b></summary>
+
+**Movies**
+
 ```
 H:\Movies\
 ├── Inception (2010)\
@@ -81,11 +78,13 @@ H:\Movies\
 │   └── poster.jpg
 └── ...
 ```
-and TV Shows are 
+
+**TV shows**
+
 ```
 H:\TV\Dark\
 ├── tvshow.nfo                       ← show metadata
-├── poster.jpg  fanart.jpg
+├── poster.jpg   fanart.jpg
 ├── .actors\                         ← cast thumbnails
 ├── Dark - S01E01 - Secrets.mkv
 ├── Dark - S01E01 - Secrets.nfo
@@ -93,65 +92,74 @@ H:\TV\Dark\
 ├── Dark - S01E02 - Lies.mkv
 └── …
 ```
-organized like structure above examples. 
 
-To clean file names and scrape we recommend following tools. 
+</details>
 
-[MediaElch](https://mediaelch.github.io/mediaelch-doc/) 
+**Requirements:** Windows 10 (build 19041) or Windows 11 · 64-bit.
 
-[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) 
+---
 
-`.nfo` metadata files and poster/fanart images that CineLibrary reads.
+## ⬇️ Download & install
 
+1. Grab the latest **[portable installer](https://github.com/aungkokomm/CineLibraryCS/releases/latest)** — `CineLibrary-vX.Y.Z-Portable-Setup.exe`.
+2. Run it and pick any folder — Desktop, external drive, USB stick. CineLibrary is fully portable; its data lives in `CineLibrary-Data\` right next to the exe.
+3. Launch **CineLibrary** → open **Drives** → **Add folder**, point it at your movie/TV root, and let it scan.
 
-**Once your Movies and TV Shows are organized and Scraped in above structure, only then use CineLibrary, otherwise CineLibray won't help**
+Move the whole folder to another PC anytime — your library comes with it.
 
-Grab the latest portable build from [Releases](https://github.com/aungkokomm/CineLibraryCS/releases). 
-Run CineLibrary-vx.x.x-Portable-Setup.exe
-Follow instructions, at finish. 
-To strat, following guides might keep you up and running.
+📖 New here? The **[User Guide](docs/USER_GUIDE.md)** takes you from a fresh install to thousands of cataloged titles in about five minutes.
+📖 မြန်မာဘာသာ — **[မြန်မာ လက်စွဲ](docs/USER_GUIDE_MM.md)**။
 
-📖 **New here?** The [User Guide](docs/USER_GUIDE.md) walks you from a fresh install to running a catalog of thousands of movies in under five minutes.
+---
 
-📖 **မြန်မာဘာသာ?** [မြန်မာဘာသာ လက်စွဲ](docs/USER_GUIDE_MM.md) တွင် ဖတ်ရှုနိုင်သည်။
+## 🧩 Companion app — CineLibrary Essentials
 
+Folders not tidy yet? **[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials)** renames, organizes, and scrapes rich Kodi/Plex/Jellyfin-ready metadata in a few clicks. The recommended flow:
 
+1. **Tidy & scrape** with CineLibrary Essentials (or MediaElch).
+2. **Point CineLibrary** at the cleaned folders.
+3. **Browse, search, and watch.**
 
-## Build from source
+---
 
-Requirements:
+## ⚙️ How it works
 
-- Windows 10 20H1+ (19041) or Windows 11
-- Visual Studio 2022+ with **.NET desktop development** and **Windows App SDK** workloads
-- .NET 8 SDK
+1. Scrape each folder with MediaElch / CineLibrary Essentials (Kodi-style `.nfo` + `poster.jpg` / `fanart.jpg`).
+2. Launch CineLibrary → **Drives** → **Add folder**.
+3. CineLibrary reads the `.nfo` files, caches the artwork, and writes everything to a local SQLite index.
+4. Disconnect the drive — titles still appear (marked **OFFLINE**) with posters and metadata intact.
+
+---
+
+## 🛠️ Build from source
+
+**Requirements:** Windows 10 20H1+ (19041) / Windows 11 · Visual Studio 2022+ with **.NET desktop development** and **Windows App SDK** workloads · .NET 8 SDK.
 
 ```powershell
 git clone https://github.com/aungkokomm/CineLibraryCS.git
-cd CineLibrary
+cd CineLibraryCS
 msbuild CineLibraryCS.csproj -t:Build -p:Configuration=Debug -p:Platform=x64
 ```
 
-To produce a self-contained portable build:
+Self-contained portable build:
 
 ```powershell
 msbuild CineLibraryCS.csproj -t:Publish -p:Configuration=Release -p:Platform=x64 -p:PublishDir=publish\
 ```
 
-## How it works
+---
 
-1. Use **MediaElch** (or any tool that produces Kodi-style `movie.nfo` + `poster.jpg` / `fanart.jpg`) to scrape each movie folder on your drives.
-2. Launch CineLibrary → **Drives** → **Scan** (or pick a folder on that drive).
-3. CineLibrary reads the nfo files, caches the posters, and writes everything to a local SQLite index.
-4. Disconnect the drive — the movies still appear (marked OFFLINE) with posters and metadata intact.
+## 📂 Where your data lives
 
-## Data location
+- **Dev build:** `CineLibrary-Data\` next to the `.csproj`.
+- **Portable build:** `CineLibrary-Data\` next to `CineLibrary.exe`.
 
-- **Dev build**: `CineLibrary-Data/` next to the `.csproj`
-- **Portable build**: `CineLibrary-Data/` next to `CineLibrary.exe`
-SQLite DB + cached artwork live there. Back it up to keep your favorites/watched state across machines.
+The SQLite database and cached artwork live there. Back it up to carry your favorites and watched state across machines (or use **Settings → Backup**).
 
-## License & Commitment
-CineLibrary is free and open source software.  
-It will always remain free, no subscriptions, no paywalls.  
-Built for myself, shared with you.
+---
 
+## 📜 License & commitment
+
+CineLibrary is **free and open-source** software, released under the MIT License.
+
+It will always remain free — no subscriptions, no paywalls, no telemetry. Built for myself, shared with you.
