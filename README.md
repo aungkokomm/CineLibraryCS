@@ -11,7 +11,8 @@ Browse, search, and play across any number of external drives — offline, porta
 ![GitHub all releases](https://img.shields.io/github/downloads/aungkokomm/CineLibraryCS/total?style=for-the-badge)
 ![License](https://img.shields.io/github/license/aungkokomm/CineLibraryCS?style=for-the-badge)
 
-<img width="960" height="510" alt="CineLibrary — All Movies grid with sidebar" src="https://github.com/user-attachments/assets/04036db0-58b7-4291-bced-8624fac16e93" />
+<img width="960" height="511" alt="image" src="https://github.com/user-attachments/assets/abfa7f1c-b5c7-419c-b4bd-7224b8fc82d7" />
+
 
 </div>
 
