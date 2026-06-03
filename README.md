@@ -46,7 +46,7 @@ CineLibrary is a **reader, not a scraper**: it expects folders that already carr
 
 - **📺 Movies & TV shows** — full show pages with seasons, episodes, per-episode watched/favorite/notes, and "▶ Play next unwatched."
 - **💾 Multi-drive, offline-aware** — index any number of external drives; offline ones stay visible with posters intact.
-- **🔎 Fast search & filters** — title, actor, director, plot; filter by genre, decade, rating, collection, tags, watched status.
+- **🔎 Fast search & filters** — title, actor, director, year; filter by genre, decade, rating, collection, tags, watched status.
 - **🏷️ Your own organization** — favorites, watchlist, notes, free-form tags, and custom lists.
 - **🧭 Discovery** — Continue Watching, Recently Watched, Recently Added, On This Day, and a filter-aware Surprise Me.
 - **💾 Backup & restore** — export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.

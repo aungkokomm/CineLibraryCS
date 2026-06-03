@@ -55,14 +55,29 @@
             <!-- v2.6 — Search box wrapped in a focus-aware Border so the
                  focus ring is the brand purple, plus a small "Esc"
                  affordance shown while there's text to clear. -->
-            <Grid Grid.Column="2" Margin="20,0">
+            <Grid Grid.Column="2" Margin="20,0" ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <AutoSuggestBox Grid.Column="0"
+                <!-- v3.1 — search scope: narrow what the box matches. -->
+                <ComboBox Grid.Column="0" x:Name="ScopeCombo"
+                          SelectionChanged="OnScopeChanged"
+                          SelectedIndex="0"
+                          MinWidth="96" Height="36"
+                          VerticalAlignment="Center"
+                          Background="{ThemeResource InputBgBrush}"
+                          Foreground="{ThemeResource TextBrush}"
+                          BorderBrush="{ThemeResource InputBorderBrush}"
+                          ToolTipService.ToolTip="What the search matches">
+                    <ComboBoxItem Tag="all"   Content="All"/>
+                    <ComboBoxItem Tag="title" Content="Title"/>
+                    <ComboBoxItem Tag="cast"  Content="Cast &amp; crew"/>
+                </ComboBox>
+                <AutoSuggestBox Grid.Column="1"
                                 x:Name="SearchBox"
-                                PlaceholderText="Search title, actor, director, plot…"
+                                PlaceholderText="Search title, actor, director…"
                                 QueryIcon="Find"
                                 TextChanged="OnSearchChanged"
                                 GotFocus="OnSearchBoxFocus"
@@ -70,7 +85,7 @@
                                 Background="{ThemeResource InputBgBrush}"
                                 BorderBrush="{ThemeResource InputBorderBrush}"
                                 Foreground="{ThemeResource TextBrush}"/>
-                <Border x:Name="SearchEscHint" Grid.Column="1" Visibility="Collapsed"
+                <Border x:Name="SearchEscHint" Grid.Column="2" Visibility="Collapsed"
                         Background="{ThemeResource ChipBrush}"
                         BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
                         CornerRadius="4" Padding="6,2" Margin="6,0,0,0"

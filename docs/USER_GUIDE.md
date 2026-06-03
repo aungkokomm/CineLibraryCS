@@ -166,9 +166,17 @@ Each collapsible section can be collapsed by clicking its header.
 
 ### Search
 
-The search box in the top bar matches across **title, actor, director,
-and plot**. Type as you go — results update live. Press `Ctrl+F` from
-anywhere to jump focus into the search box; press `Esc` to clear.
+The search box in the top bar matches across **title, original title,
+year, actor, and director** (and collection names). It deliberately
+doesn't search plot text — a short word like "hit" appears in hundreds
+of plot summaries, which used to bury the titles you actually wanted.
+Title matches are ranked first, so the closest result is at the top.
+Type as you go — results update live. Press `Ctrl+F` from anywhere to
+jump focus into the search box; press `Esc` to clear.
+
+The dropdown to the left of the search box sets the **scope**:
+**All** (the default), **Title** to match titles only, or **Cast &
+crew** to find everything an actor or director worked on.
 
 ### Filter pills
 

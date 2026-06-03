@@ -18,6 +18,8 @@ public partial class LibraryViewModel : ObservableObject
     private readonly AppState _state;
 
     [ObservableProperty] private string _searchText = "";
+    // v3.1 — search scope: "all" | "title" | "cast".
+    [ObservableProperty] private string _searchScope = "all";
     [ObservableProperty] private SortKey _sortKey = SortKey.Title;
     [ObservableProperty] private SortDir _sortDir = SortDir.Asc;
     [ObservableProperty] private WatchedFilter _watchedFilter = WatchedFilter.All;
@@ -119,6 +121,7 @@ public partial class LibraryViewModel : ObservableObject
 
     private DatabaseService.ListOptions BuildOpts(int offset) => new(
         Search: string.IsNullOrWhiteSpace(SearchText) ? null : SearchText,
+        SearchScope: SearchScope,
         SortKey: SortKey.ToString().ToLower() switch
         {
             "dateadded" => "date_added",
@@ -177,6 +180,12 @@ public partial class LibraryViewModel : ObservableObject
                 await LoadAsync();
             });
         }, token);
+    }
+
+    // v3.1 — changing the scope while a query is present re-runs the search.
+    partial void OnSearchScopeChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(SearchText)) _ = LoadAsync();
     }
 
     // ── Sort / View ──────────────────────────────────────────────────────────

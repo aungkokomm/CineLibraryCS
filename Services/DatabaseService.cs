@@ -11,6 +11,11 @@ public class DatabaseService : IDisposable
     private readonly SqliteConnection _conn;
     private readonly string _dataDir;
 
+    // v3.1 — true when the FTS5 full-text search index is available. If the
+    // SQLite build somehow lacks FTS5, this stays false and every search path
+    // falls back to the older LIKE matching, so search still works.
+    private bool _ftsAvailable;
+
     public DatabaseService(string dataDir)
     {
         _dataDir = dataDir;
@@ -21,6 +26,97 @@ public class DatabaseService : IDisposable
         ExecutePragmas();
         CreateSchema();
         RunMigrations();
+        SetupFullTextSearch();
+    }
+
+    // ── v3.1 Full-text search (FTS5) ──────────────────────────────────────────
+
+    /// <summary>
+    /// Create the FTS5 index (if the SQLite build supports it) and populate it
+    /// once for existing libraries. Columns are weighted at query time so a
+    /// title hit always outranks a plot hit.
+    /// </summary>
+    private void SetupFullTextSearch()
+    {
+        // v3.1.1 — FTS5 search is DISABLED for now. The index wasn't
+        // populating reliably on real libraries, which left search returning
+        // nothing — unacceptable for the app's most-used feature. With this
+        // off, FtsMatchFor() always returns null and every search uses the
+        // proven LIKE path (title + cast, no plot noise) plus the scope
+        // selector. The FTS code is kept (dormant) so it can be revisited
+        // once the population issue is fully understood.
+        _ftsAvailable = false;
+    }
+
+    private long ScalarLong(string sql)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = sql;
+        var v = cmd.ExecuteScalar();
+        return v == null || v == DBNull.Value ? 0 : Convert.ToInt64(v);
+    }
+
+    /// <summary>
+    /// Rebuild the whole movie search index from the catalog. Cheap even for
+    /// thousands of rows; called at the end of every scan and on first launch
+    /// after upgrading. Best-effort — never throws into the caller. The DELETE
+    /// and INSERT run as separate statements so there's no dependence on
+    /// multi-statement batching.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RebuildMovieSearchIndex()
+    {
+        if (!_ftsAvailable) return;
+        try
+        {
+            Exec("DELETE FROM movies_fts;");
+            Exec(@"
+                INSERT INTO movies_fts(rowid, title, original_title, people, collection, plot)
+                SELECT m.id,
+                       COALESCE(m.title, ''),
+                       COALESCE(m.original_title, ''),
+                       TRIM(
+                         COALESCE((SELECT GROUP_CONCAT(a.name, ' ') FROM movie_actors ma
+                                    JOIN actors a ON a.id = ma.actor_id WHERE ma.movie_id = m.id), '')
+                         || ' ' ||
+                         COALESCE((SELECT GROUP_CONCAT(d.name, ' ') FROM movie_directors md
+                                    JOIN directors d ON d.id = md.director_id WHERE md.movie_id = m.id), '')
+                       ),
+                       COALESCE((SELECT GROUP_CONCAT(s.name, ' ') FROM movie_sets ms
+                                  JOIN sets s ON s.id = ms.set_id WHERE ms.movie_id = m.id), ''),
+                       COALESCE(m.plot, '')
+                  FROM movies m;");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"RebuildMovieSearchIndex failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Build an FTS5 MATCH expression from the user's query + scope, or null
+    /// when FTS shouldn't/can't be used (then callers fall back to LIKE).
+    /// Each whitespace word becomes a prefix term; words are AND-ed; the scope
+    /// restricts which column the terms must match.
+    /// </summary>
+    private string? FtsMatchFor(ListOptions opts)
+    {
+        if (!_ftsAvailable || string.IsNullOrWhiteSpace(opts.Search)) return null;
+
+        // Pull out runs of letters/digits as words (so "spider-man" → spider,
+        // man and nothing in the query can be read as an FTS operator). Each
+        // word becomes a prefix term; words are AND-ed.
+        var words = System.Text.RegularExpressions.Regex.Matches(opts.Search, @"[\p{L}\p{N}]+");
+        string? column = opts.SearchScope switch
+        {
+            "title" => "{title original_title}",
+            "cast"  => "{people}",
+            _        => null,
+        };
+        var terms = new List<string>();
+        foreach (System.Text.RegularExpressions.Match w in words)
+            terms.Add(column != null ? $"{column} : {w.Value}*" : $"{w.Value}*");
+        return terms.Count == 0 ? null : string.Join(" AND ", terms);
     }
 
     // ── Schema ──────────────────────────────────────────────────────────────
@@ -1253,6 +1349,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     public record ListOptions(
         string? Search = null,
+        string SearchScope = "all",     // v3.1 — all | title | cast
         string SortKey = "title",
         string SortDir = "asc",
         string? DriveSerial = null,
@@ -1316,20 +1413,36 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var where = new List<string>();
         if (!string.IsNullOrWhiteSpace(opts.Search))
         {
-            // Multi-token AND: every word in the query has to match somewhere
-            // (title / original / plot / tagline / year / actor / director /
-            // collection). Order doesn't matter — "hanks forrest" finds
-            // "Forrest Gump" via Tom Hanks just as well as "forrest hanks".
-            var tokens = TokenizeSearch(opts.Search);
-            for (int i = 0; i < tokens.Length; i++)
+            var ftsMatch = FtsMatchFor(opts);
+            if (ftsMatch != null)
             {
-                var p = $"@q{i}";
-                where.Add($@"(m.title LIKE {p} ESCAPE '\' OR m.original_title LIKE {p} ESCAPE '\'
-                    OR m.plot LIKE {p} ESCAPE '\' OR m.tagline LIKE {p} ESCAPE '\'
-                    OR CAST(m.year AS TEXT) LIKE {p} ESCAPE '\'
-                    OR EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND a.name LIKE {p} ESCAPE '\')
-                    OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND d.name LIKE {p} ESCAPE '\')
-                    OR EXISTS (SELECT 1 FROM movie_sets ms JOIN sets s ON s.id=ms.set_id WHERE ms.movie_id=m.id AND s.name LIKE {p} ESCAPE '\'))");
+                // v3.1 — FTS5 path: word-aware, ranked, fast. The scope is
+                // baked into the MATCH expression (see FtsMatchFor).
+                where.Add("m.id IN (SELECT rowid FROM movies_fts WHERE movies_fts MATCH @ftsq)");
+            }
+            else
+            {
+                // Fallback LIKE path (used only if FTS5 isn't available). Plot
+                // and tagline are intentionally excluded — a short word like
+                // "hit" appears in hundreds of plot summaries and floods the
+                // results. Scope is honoured at a basic level.
+                var tokens = TokenizeSearch(opts.Search);
+                for (int i = 0; i < tokens.Length; i++)
+                {
+                    var p = $"@q{i}";
+                    var titleClause = $"m.title LIKE {p} ESCAPE '\\' OR m.original_title LIKE {p} ESCAPE '\\'";
+                    var castClause =
+                        $"EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND a.name LIKE {p} ESCAPE '\\')"
+                      + $" OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND d.name LIKE {p} ESCAPE '\\')";
+                    string clause = opts.SearchScope switch
+                    {
+                        "title" => titleClause,
+                        "cast"  => castClause,
+                        _        => $"{titleClause} OR CAST(m.year AS TEXT) LIKE {p} ESCAPE '\\' OR {castClause}"
+                                  + $" OR EXISTS (SELECT 1 FROM movie_sets ms JOIN sets s ON s.id=ms.set_id WHERE ms.movie_id=m.id AND s.name LIKE {p} ESCAPE '\\')",
+                    };
+                    where.Add($"({clause})");
+                }
             }
         }
         if (opts.DriveSerial != null) where.Add("m.volume_serial=@serial");
@@ -1360,9 +1473,17 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     {
         if (!string.IsNullOrWhiteSpace(opts.Search))
         {
-            var tokens = TokenizeSearch(opts.Search);
-            for (int i = 0; i < tokens.Length; i++)
-                cmd.Parameters.AddWithValue($"@q{i}", $"%{EscapeLike(tokens[i])}%");
+            var ftsMatch = FtsMatchFor(opts);
+            if (ftsMatch != null)
+            {
+                cmd.Parameters.AddWithValue("@ftsq", ftsMatch);
+            }
+            else
+            {
+                var tokens = TokenizeSearch(opts.Search);
+                for (int i = 0; i < tokens.Length; i++)
+                    cmd.Parameters.AddWithValue($"@q{i}", $"%{EscapeLike(tokens[i])}%");
+            }
         }
         if (opts.DriveSerial != null) cmd.Parameters.AddWithValue("@serial", opts.DriveSerial);
         if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
@@ -1414,6 +1535,32 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var sortDir = opts.SortDir == "desc" ? "DESC" : "ASC";
         var nullsLast = sortDir == "ASC" ? "NULLS LAST" : "NULLS FIRST";
 
+        // Search relevance ordering.
+        //  • FTS path: rank by bm25 with title weighted highest, plot lowest,
+        //    so the best textual match floats to the top.
+        //  • LIKE fallback: a simple CASE — title prefix, then title contains,
+        //    then everything else.
+        bool hasSearch = !string.IsNullOrWhiteSpace(opts.Search);
+        var ftsMatch = FtsMatchFor(opts);
+        bool useFts = ftsMatch != null;
+
+        var searchJoin = useFts
+            ? @"LEFT JOIN (
+                   SELECT rowid AS fid, bm25(movies_fts, 12.0, 8.0, 4.0, 2.0, 1.0) AS frank
+                     FROM movies_fts WHERE movies_fts MATCH @ftsq
+                ) fr ON fr.fid = m.id"
+            : "";
+
+        var relevanceOrder =
+            useFts ? "fr.frank ASC, "
+          : hasSearch
+                ? @"CASE
+                        WHEN m.title LIKE @relPrefix   ESCAPE '\' THEN 0
+                        WHEN m.title LIKE @relContains ESCAPE '\' THEN 1
+                        ELSE 2
+                      END, "
+          : "";
+
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $@"
             SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
@@ -1424,11 +1571,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.is_watchlist
             FROM movies m
             LEFT JOIN drives d ON d.volume_serial=m.volume_serial
+            {searchJoin}
             {whereStr}
-            ORDER BY {sortCol} {sortDir} {nullsLast}, m.sort_title ASC
+            ORDER BY {relevanceOrder}{sortCol} {sortDir} {nullsLast}, m.sort_title ASC
             LIMIT @lim OFFSET @off";
 
         BindMovieListParams(cmd, opts, includePaging: true);
+        if (hasSearch && !useFts)
+        {
+            var clean = EscapeLike(opts.Search.Trim());
+            cmd.Parameters.AddWithValue("@relPrefix", clean + "%");
+            cmd.Parameters.AddWithValue("@relContains", "%" + clean + "%");
+        }
 
         var list = new List<MovieListItem>();
         using var r = cmd.ExecuteReader();
@@ -3389,8 +3543,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         for (int i = 0; i < tokens.Length; i++)
         {
             var p = $"@q{i}";
+            // Title / original title / year / cast — no plot (same reason as
+            // the movie search: short words flood the results via plot text).
             clauses.Add($@"(s.title LIKE {p} ESCAPE '\' OR s.original_title LIKE {p} ESCAPE '\'
-                OR s.plot LIKE {p} ESCAPE '\'
                 OR CAST(s.year AS TEXT) LIKE {p} ESCAPE '\'
                 OR EXISTS (SELECT 1 FROM tv_show_actors sa JOIN actors a ON a.id=sa.actor_id
                             WHERE sa.show_id=s.id AND a.name LIKE {p} ESCAPE '\'))");

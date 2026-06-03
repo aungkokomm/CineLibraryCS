@@ -4,7 +4,7 @@
 ; self-contained, with its library data in CineLibrary-Data\ next to the exe.
 
 #define MyAppName       "CineLibrary"
-#define MyAppVersion    "3.0.1"
+#define MyAppVersion    "3.1.1"
 #define MyAppPublisher  "Aung Ko Ko Myint"
 #define MyAppURL        "https://github.com/aungkokomm/CineLibraryCS"
 #define MyAppExeName    "CineLibrary.exe"
@@ -36,6 +36,12 @@ CreateUninstallRegKey=yes
 ; No admin rights needed
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+
+; v3.1 — if CineLibrary is running during an update, close it via the
+; Restart Manager so the new exe always replaces the old one (otherwise
+; Windows can't overwrite a running .exe and the user keeps the old build).
+CloseApplications=yes
+RestartApplications=no
 
 ; 64-bit only
 ArchitecturesAllowed=x64compatible

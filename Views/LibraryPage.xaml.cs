@@ -1070,6 +1070,14 @@ public sealed partial class LibraryPage : Page
         UpdateSearchEscHint();
     }
 
+    // v3.1 — search scope (All / Title / Cast & crew).
+    private void OnScopeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_ready) return;
+        if (ScopeCombo.SelectedItem is ComboBoxItem item && item.Tag is string scope)
+            _vm.SearchScope = scope;
+    }
+
     private void OnSearchBoxFocus(object sender, RoutedEventArgs e)
     {
         SearchBox.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
