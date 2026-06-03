@@ -66,7 +66,7 @@
                         Background="#CC22C55E" CornerRadius="10"
                         Width="22" Height="22" Padding="0"
                         VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                        Margin="8,0,0,58" Visibility="Collapsed">
+                        Margin="8,0,0,70" Visibility="Collapsed">
                     <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
@@ -74,7 +74,7 @@
                 <!-- Rating bottom-right -->
                 <Border x:Name="RatingBadge" Style="{StaticResource PosterBadgeStyle}"
                         VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                        Margin="8,0,8,58" Visibility="Collapsed">
+                        Margin="8,0,8,70" Visibility="Collapsed">
                     <TextBlock x:Name="RatingText" FontSize="12" Foreground="#F59E0B" FontWeight="Bold"/>
                 </Border>
 
@@ -101,9 +101,11 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Info strip: strong dark gradient so white title is always readable -->
+                <!-- Info strip: strong dark gradient so white title is always
+                     readable. Height fits a 2-line title + the meta row without
+                     clipping the top line. -->
                 <Border VerticalAlignment="Bottom" CornerRadius="0,0,10,10"
-                        Height="54" Padding="8,6">
+                        Height="66" Padding="8,6">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Offset="0" Color="#00000000"/>

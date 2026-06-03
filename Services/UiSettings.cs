@@ -15,6 +15,10 @@ public static class UiSettings
 {
     private const string KeyCardShadows = "ui_cardShadows";
     private const string KeyReduceMotion = "ui_reduceMotion";
+    private const string KeyCardBorders = "ui_cardBorders";
+
+    /// <summary>Thin outline around movie cards. Default on.</summary>
+    public static bool CardBorders { get; private set; } = true;
 
     /// <summary>Faint resting drop shadow on movie cards. Default off.</summary>
     public static bool CardShadows { get; private set; }
@@ -28,8 +32,17 @@ public static class UiSettings
     /// <summary>Load persisted values. Call once at startup, after AppState.Initialize().</summary>
     public static void Load()
     {
+        CardBorders  = AppState.Instance.GetPref(KeyCardBorders,  "true")  == "true";
         CardShadows  = AppState.Instance.GetPref(KeyCardShadows,  "false") == "true";
         ReduceMotion = AppState.Instance.GetPref(KeyReduceMotion, "false") == "true";
+    }
+
+    public static void SetCardBorders(bool value)
+    {
+        if (CardBorders == value) return;
+        CardBorders = value;
+        AppState.Instance.SetPref(KeyCardBorders, value ? "true" : "false");
+        Changed?.Invoke();
     }
 
     public static void SetCardShadows(bool value)

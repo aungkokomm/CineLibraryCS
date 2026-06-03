@@ -98,7 +98,7 @@ public sealed partial class MovieCardControl : UserControl
         // off by default). RestZ is the faint resting depth used only when
         // "Card shadows" is on; hover lifts to a deeper shadow. "Reduce
         // motion" skips the zoom/lift animation entirely.
-        ApplyRestingShadow();
+        ApplyCardChrome();
         PointerEntered += (_, _) =>
         {
             HoverOverlay.Visibility = Visibility.Visible;
@@ -217,10 +217,10 @@ public sealed partial class MovieCardControl : UserControl
         // can't end up with two copies of the handler attached.
         GlobalSizeChanged -= OnGlobalSizeChanged;
         GlobalSizeChanged += OnGlobalSizeChanged;
-        // React live when the user flips "Card shadows" in Settings.
+        // React live when the user flips card borders / shadows in Settings.
         UiSettings.Changed -= OnUiSettingsChanged;
         UiSettings.Changed += OnUiSettingsChanged;
-        ApplyRestingShadow();
+        ApplyCardChrome();
     }
 
     private void OnCardUnloaded(object sender, RoutedEventArgs e)
@@ -229,7 +229,14 @@ public sealed partial class MovieCardControl : UserControl
         UiSettings.Changed -= OnUiSettingsChanged;
     }
 
-    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyRestingShadow);
+    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyCardChrome);
+
+    /// <summary>Re-apply card border + resting shadow from the current settings.</summary>
+    private void ApplyCardChrome()
+    {
+        CardBorder.BorderThickness = new Thickness(UiSettings.CardBorders ? 1 : 0);
+        ApplyRestingShadow();
+    }
 
     /// <summary>Resting shadow depth — 0 when "Card shadows" is off (the default).</summary>
     private void ApplyRestingShadow()
@@ -289,17 +296,24 @@ public sealed partial class MovieCardControl : UserControl
         MetaText.Text = $"{m.Year?.ToString() ?? "—"}{(m.Runtime.HasValue ? $" · {m.Runtime}m" : "")}";
         PlaceholderTitle.Text = m.Title;
 
-        // Status badge — compact dot + label
+        // Status badge.
+        //  • MISSING stays loud — it's a real problem (red dot + label).
+        //  • OFFLINE is quiet — just a small dim dot. When a drive is
+        //    unplugged that's the *normal* state for every title on it, so a
+        //    full "OFFLINE" pill on every card was needless noise.
         if (m.IsMissing)
         {
             StatusDot.Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
             StatusText.Text = "MISSING";
+            StatusText.Visibility = Visibility.Visible;
+            StatusBadge.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xCC, 0, 0, 0));
             StatusBadge.Visibility = Visibility.Visible;
         }
         else if (!m.IsOnline)
         {
             StatusDot.Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF));
-            StatusText.Text = "OFFLINE";
+            StatusText.Visibility = Visibility.Collapsed;   // dot only — no label
+            StatusBadge.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x66, 0, 0, 0));
             StatusBadge.Visibility = Visibility.Visible;
         }
         else
@@ -312,16 +326,16 @@ public sealed partial class MovieCardControl : UserControl
         WatchedToggleBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
         WatchlistToggleBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
 
+        // Rating lives once, in the meta row. (The old floating poster badge
+        // duplicated it — dropped for a cleaner card face.)
+        RatingBadge.Visibility = Visibility.Collapsed;
         if (m.Rating.HasValue)
         {
-            RatingText.Text = $"★ {m.Rating:F1}";
-            RatingBadge.Visibility = Visibility.Visible;
             RatingInline.Text = $"★ {m.Rating:F1}";
             RatingInline.Visibility = Visibility.Visible;
         }
         else
         {
-            RatingBadge.Visibility = Visibility.Collapsed;
             RatingInline.Visibility = Visibility.Collapsed;
         }
 

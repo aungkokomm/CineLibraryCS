@@ -224,13 +224,29 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock { Text = "Theme", FontSize = 13 });
         panel.Children.Add(themeRow);
 
+        // Card borders
+        var borderToggle = new ToggleSwitch
+        {
+            Header = "Card borders",
+            IsOn = UiSettings.CardBorders,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        borderToggle.Toggled += (_, _) => UiSettings.SetCardBorders(borderToggle.IsOn);
+        panel.Children.Add(borderToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "A thin outline around each movie card. Helps the cards stand out, especially in light theme.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
         // Card shadows
         var shadowToggle = new ToggleSwitch
         {
             Header = "Card drop shadows",
             IsOn = UiSettings.CardShadows,
             OffContent = "Off", OnContent = "On",
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
         };
         shadowToggle.Toggled += (_, _) => UiSettings.SetCardShadows(shadowToggle.IsOn);
         panel.Children.Add(shadowToggle);
@@ -1713,7 +1729,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.0.0",
+            Title = "CineLibrary v3.0.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
