@@ -30,10 +30,6 @@ public class ScannerService
             // v2.8 — second pass for TV shows. Separate transaction so a
             // failure in one domain can't roll back the other.
             ScanTvSync(volumeSerial, driveRoot, progress, ct, scanFolder);
-            // v3.1 — rebuild the full-text search index now that titles /
-            // people / plots may have changed. Best-effort; falls back to
-            // LIKE search if the index can't be built.
-            _db.RebuildMovieSearchIndex();
         }, ct);
     }
 

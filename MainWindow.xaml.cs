@@ -1729,7 +1729,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.1.1",
+            Title = "CineLibrary v3.1.3",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

@@ -38,14 +38,61 @@ public class DatabaseService : IDisposable
     /// </summary>
     private void SetupFullTextSearch()
     {
-        // v3.1.1 — FTS5 search is DISABLED for now. The index wasn't
-        // populating reliably on real libraries, which left search returning
-        // nothing — unacceptable for the app's most-used feature. With this
-        // off, FtsMatchFor() always returns null and every search uses the
-        // proven LIKE path (title + cast, no plot noise) plus the scope
-        // selector. The FTS code is kept (dormant) so it can be revisited
-        // once the population issue is fully understood.
+        // v3.1.2 — FTS5 search is DISABLED, and any leftover index is removed.
+        //
+        // Earlier 3.1.0 builds created a `movies_fts` virtual table and did
+        // partial / failed writes into it, which could leave its backing
+        // shadow tables corrupt. SQLite then reports "database disk image is
+        // malformed" on later writes (e.g. a drive scan). Dropping the table
+        // clears that corruption and leaves the rest of the catalog intact.
+        //
+        // Search itself uses the proven LIKE path (title + cast, no plot
+        // noise) plus the scope selector — FtsMatchFor() always returns null
+        // while this flag is false.
         _ftsAvailable = false;
+
+        // Remove EVERY database object that references the old movies_fts
+        // index — not just ones named "movies_fts*". A leftover trigger that
+        // mentions movies_fts in its body will fire on the next movie write
+        // (a scan) and fail with either "malformed" (if the table is still
+        // there and corrupt) or "no such table: movies_fts" (if it's gone).
+        // Dropping the referencing objects — by reading their definitions
+        // from sqlite_master — fixes both, and leaves the rest of the
+        // catalog (drives, movies, lists, tags, watched state) untouched.
+        try
+        {
+            var drops = new List<(string Type, string Name)>();
+            using (var q = _conn.CreateCommand())
+            {
+                q.CommandText =
+                    @"SELECT type, name FROM sqlite_master
+                       WHERE (sql LIKE '%movies_fts%' OR name LIKE 'movies_fts%')
+                         AND name NOT LIKE 'sqlite_%'";
+                using var r = q.ExecuteReader();
+                while (r.Read())
+                    drops.Add((r.IsDBNull(0) ? "" : r.GetString(0),
+                               r.IsDBNull(1) ? "" : r.GetString(1)));
+            }
+            // Drop triggers/views first (they reference the table), then the
+            // table itself.
+            foreach (var (type, name) in drops.OrderBy(d => d.Type == "table" ? 1 : 0))
+            {
+                if (string.IsNullOrEmpty(name)) continue;
+                var kw = type switch
+                {
+                    "trigger" => "TRIGGER",
+                    "view"    => "VIEW",
+                    "index"   => "INDEX",
+                    _          => "TABLE",
+                };
+                try { Exec($"DROP {kw} IF EXISTS \"{name}\";"); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"FTS cleanup: drop {type} {name} failed: {ex.Message}"); }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"FTS cleanup failed: {ex.Message}");
+        }
     }
 
     private long ScalarLong(string sql)
@@ -1579,7 +1626,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         BindMovieListParams(cmd, opts, includePaging: true);
         if (hasSearch && !useFts)
         {
-            var clean = EscapeLike(opts.Search.Trim());
+            var clean = EscapeLike((opts.Search ?? "").Trim());
             cmd.Parameters.AddWithValue("@relPrefix", clean + "%");
             cmd.Parameters.AddWithValue("@relContains", "%" + clean + "%");
         }
