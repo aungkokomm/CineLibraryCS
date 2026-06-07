@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using CineLibraryCS.Models;
 using CineLibraryCS.Services;
 using DriveInfo = CineLibraryCS.Models.DriveInfo;
@@ -390,8 +391,49 @@ public sealed partial class DrivesPage : Page
 
     private void OnBrowseDrive(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is string serial)
+        if (sender is FrameworkElement fe && fe.Tag is string serial)
             NavigateToLibrary?.Invoke(this, serial);
+    }
+
+    // ── Folder row hover-reveal (delete button) ───────────────────────────
+
+    private static void SetFolderDeleteOpacity(object sender, double opacity)
+    {
+        if (sender is Grid g)
+            foreach (var child in g.Children)
+                if (child is Button b) { b.Opacity = opacity; break; }
+    }
+
+    private void OnFolderPointerEntered(object sender, PointerRoutedEventArgs e)
+        => SetFolderDeleteOpacity(sender, 1);
+
+    private void OnFolderPointerExited(object sender, PointerRoutedEventArgs e)
+        => SetFolderDeleteOpacity(sender, 0);
+
+    // ── Drive card hover lift ─────────────────────────────────────────────
+
+    // Themed surface overlays (must match CardBrush / CardHoverBrush in
+    // Styles/Colors.xaml). Resolved from the card's ActualTheme because a
+    // plain Application.Resources lookup of a ThemeDictionary key returns the
+    // wrong theme variant (which painted dark cards white on hover).
+    private static Microsoft.UI.Xaml.Media.SolidColorBrush CardRestBrush(FrameworkElement el) =>
+        new(el.ActualTheme == ElementTheme.Light
+            ? Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF)   // #FFFFFF
+            : Windows.UI.Color.FromArgb(0xFF, 0x14, 0x14, 0x1F)); // #14141F
+
+    private static Microsoft.UI.Xaml.Media.SolidColorBrush CardHoverBrush(FrameworkElement el) =>
+        new(el.ActualTheme == ElementTheme.Light
+            ? Windows.UI.Color.FromArgb(0xFF, 0xED, 0xED, 0xFB)   // #EDEDFB
+            : Windows.UI.Color.FromArgb(0xFF, 0x1E, 0x1E, 0x2E)); // #1E1E2E
+
+    private void OnCardPointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border b) b.Background = CardHoverBrush(b);
+    }
+
+    private void OnCardPointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is Border b) b.Background = CardRestBrush(b);
     }
 
     // ── Clean up missing movies ───────────────────────────────────────────
@@ -437,7 +479,7 @@ public sealed partial class DrivesPage : Page
     {
         try
         {
-            if (sender is not Button btn || btn.Tag is not string serial) return;
+            if (sender is not FrameworkElement btn || btn.Tag is not string serial) return;
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
             if (drive == null) return;
 
@@ -488,7 +530,7 @@ public sealed partial class DrivesPage : Page
     {
         try
         {
-            if (sender is not Button btn || btn.Tag is not string serial) return;
+            if (sender is not FrameworkElement btn || btn.Tag is not string serial) return;
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
 
             // v2.7 — count how many movies on this drive carry personal state
@@ -566,7 +608,7 @@ public sealed partial class DrivesPage : Page
     {
         try
         {
-            if (sender is not Button btn || btn.Tag is not string serial) return;
+            if (sender is not FrameworkElement btn || btn.Tag is not string serial) return;
             var (written, skipped) = await Task.Run(() =>
                 AppState.Instance.SweepStateSidecars(serial));
             if (App.MainWindow is CineLibraryCS.MainWindow mw)

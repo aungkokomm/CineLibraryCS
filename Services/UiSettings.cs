@@ -16,6 +16,12 @@ public static class UiSettings
     private const string KeyCardShadows = "ui_cardShadows";
     private const string KeyReduceMotion = "ui_reduceMotion";
     private const string KeyCardBorders = "ui_cardBorders";
+    private const string KeyMica = "ui_mica";
+
+    /// <summary>Mica backdrop material behind the window (sidebar + content
+    /// float on it). Default on; turn off for a flat, solid look or on weaker
+    /// GPUs.</summary>
+    public static bool MicaEnabled { get; private set; } = true;
 
     /// <summary>Thin outline around movie cards. Default on.</summary>
     public static bool CardBorders { get; private set; } = true;
@@ -35,6 +41,15 @@ public static class UiSettings
         CardBorders  = AppState.Instance.GetPref(KeyCardBorders,  "true")  == "true";
         CardShadows  = AppState.Instance.GetPref(KeyCardShadows,  "false") == "true";
         ReduceMotion = AppState.Instance.GetPref(KeyReduceMotion, "false") == "true";
+        MicaEnabled  = AppState.Instance.GetPref(KeyMica,         "true")  == "true";
+    }
+
+    public static void SetMicaEnabled(bool value)
+    {
+        if (MicaEnabled == value) return;
+        MicaEnabled = value;
+        AppState.Instance.SetPref(KeyMica, value ? "true" : "false");
+        Changed?.Invoke();
     }
 
     public static void SetCardBorders(bool value)

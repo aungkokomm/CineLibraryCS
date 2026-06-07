@@ -37,8 +37,8 @@
                 </StackPanel>
             </Button>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                <TextBlock x:Name="TitleText" Text="ALL TV SHOWS" FontSize="18" FontWeight="Bold"
-                           Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+                <TextBlock x:Name="TitleText" Text="All TV shows" FontSize="24" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}"/>
                 <TextBlock x:Name="SubText" Text="" FontSize="12"
                            Foreground="{ThemeResource MutedBrush}"/>
             </StackPanel>

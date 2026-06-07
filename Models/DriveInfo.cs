@@ -22,9 +22,18 @@ public class DriveInfo
     public string LetterDisplay => CurrentLetter != null ? $"({CurrentLetter}:)" : "";
     public bool HasFolders => Folders.Count > 0;
     public bool HasMissing => MissingCount > 0;
-    public string MissingButtonText => MissingCount > 0 ? $"🧹 Clean up {MissingCount} missing" : "🧹 Clean up missing";
+    public string MissingButtonText => MissingCount > 0 ? $"Clean up {MissingCount}" : "Clean up";
     public Microsoft.UI.Xaml.Visibility MissingVisibility =>
         MissingCount > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    // v3.2 — compact, sleek Drives page helpers.
+    public string MovieCountText => $"{MovieCount} {(MovieCount == 1 ? "movie" : "movies")}";
+    public string TvShowCountText => $"{TvShowCount} {(TvShowCount == 1 ? "show" : "shows")}";
+    public string FolderCountText => $"{Folders.Count} {(Folders.Count == 1 ? "folder" : "folders")}";
+    public Microsoft.UI.Xaml.Visibility FoldersVisibility =>
+        Folders.Count > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+    public string MissingInfoText =>
+        $"{MissingCount} indexed movie(s) weren't found in the last scan — they may have been moved or deleted on the drive.";
 }
 
 public class DriveRoot

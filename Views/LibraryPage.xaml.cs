@@ -18,6 +18,9 @@ public sealed partial class LibraryPage : Page
     private readonly LibraryViewModel _vm;
     public LibraryViewModel ViewModel => _vm;
     public event EventHandler? SidebarRefreshRequested;
+    // Raised whenever the search text changes (incl. internal clears) so the
+    // global title-bar search box can stay in sync.
+    public event EventHandler<string>? SearchTextChanged;
 
     // ── Multi-select state (v2.5) ─────────────────────────────────────────
     private readonly HashSet<int> _selectedIds = new();
@@ -46,19 +49,14 @@ public sealed partial class LibraryPage : Page
         // Load density pref (S/M/L/XL)
         ApplyDensity(AppState.Instance.GetPref("gridDensity", "M"));
 
-        // Keyboard shortcuts
-        AddAccelerator(VirtualKey.F, VirtualKeyModifiers.Control, (_, a) =>
-        {
-            SearchBox.Focus(FocusState.Programmatic);
-            a.Handled = true;
-        });
+        // Keyboard shortcuts (Ctrl+F is handled globally in MainWindow,
+        // which focuses the title-bar search box).
         AddAccelerator(VirtualKey.Escape, VirtualKeyModifiers.None, (_, a) =>
         {
             // Esc clears search first, then selection — never both at once.
-            if (!string.IsNullOrEmpty(SearchBox.Text))
+            if (!string.IsNullOrEmpty(_vm.SearchText))
             {
-                SearchBox.Text = "";
-                _vm.SearchText = "";
+                _vm.SearchText = "";   // sync event clears the title-bar box
                 a.Handled = true;
                 return;
             }
@@ -730,7 +728,7 @@ public sealed partial class LibraryPage : Page
         FilterWatched.Style = pill;
         _vm.WatchedFilter = WatchedFilter.All;
         _vm.ClearFilters();
-        PageTitleText.Text = "ALL MOVIES";
+        PageTitleText.Text = "All movies";
         UpdateClearFiltersButton();
     }
 
@@ -827,10 +825,10 @@ public sealed partial class LibraryPage : Page
         else
             _vm.ClearFilters();
 
-        // Breadcrumb-style title: "ALL MOVIES › DRAMA"
+        // Breadcrumb-style title: "All movies › Drama"
         PageTitleText.Text = p.Label == null
-            ? "ALL MOVIES"
-            : $"ALL MOVIES › {p.Label.ToUpper()}";
+            ? "All movies"
+            : $"All movies › {p.Label}";
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -853,6 +851,8 @@ public sealed partial class LibraryPage : Page
                 LoadingRing.Visibility = _vm.IsLoading ? Visibility.Visible : Visibility.Collapsed;
                 UpdateEmptyState();
             }
+            if (e.PropertyName == nameof(LibraryViewModel.SearchText))
+                SearchTextChanged?.Invoke(this, _vm.SearchText ?? "");
             // Any filter-related VM change should reflect in the Clear button
             UpdateClearFiltersButton();
             UpdateFilterChips();
@@ -1000,7 +1000,7 @@ public sealed partial class LibraryPage : Page
         if (!AnyFilterActive())
         {
             _vm.PageTitle = "All Movies";
-            PageTitleText.Text = "ALL MOVIES";
+            PageTitleText.Text = "All movies";
         }
         _ = _vm.LoadAsync();
         UpdateClearFiltersButton();

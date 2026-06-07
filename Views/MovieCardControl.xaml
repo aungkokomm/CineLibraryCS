@@ -58,7 +58,7 @@
                 <Border x:Name="FavBadge" Style="{StaticResource PosterBadgeStyle}"
                         VerticalAlignment="Top" HorizontalAlignment="Right"
                         Margin="8" Visibility="Collapsed">
-                    <TextBlock Text="★" FontSize="13" Foreground="#F59E0B"/>
+                    <TextBlock Text="★" FontSize="13" Foreground="{StaticResource BrandGoldBrush}"/>
                 </Border>
 
                 <!-- Watched tick bottom-left -->
@@ -75,7 +75,7 @@
                 <Border x:Name="RatingBadge" Style="{StaticResource PosterBadgeStyle}"
                         VerticalAlignment="Bottom" HorizontalAlignment="Right"
                         Margin="8,0,8,70" Visibility="Collapsed">
-                    <TextBlock x:Name="RatingText" FontSize="12" Foreground="#F59E0B" FontWeight="Bold"/>
+                    <TextBlock x:Name="RatingText" FontSize="12" Foreground="{StaticResource BrandGoldBrush}" FontWeight="Bold"/>
                 </Border>
 
                 <!-- Hover overlay -->
@@ -109,8 +109,8 @@
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Offset="0" Color="#00000000"/>
-                            <GradientStop Offset="0.35" Color="#99000000"/>
-                            <GradientStop Offset="1" Color="#F0000000"/>
+                            <GradientStop Offset="0.3" Color="#B3000000"/>
+                            <GradientStop Offset="1" Color="#FF000000"/>
                         </LinearGradientBrush>
                     </Border.Background>
                     <StackPanel VerticalAlignment="Bottom">

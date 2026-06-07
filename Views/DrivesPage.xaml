@@ -12,16 +12,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- v2.5.2 — small top breadcrumb removed; the "YOUR DRIVES"
-             heading inside the scroll area is the single page title. -->
         <Border Grid.Row="0" Height="0"/>
 
         <!-- Drive cards area -->
         <ScrollViewer Grid.Row="1">
             <StackPanel Spacing="16">
 
-                <!-- Section header with Add Drive button + tagline -->
-                <Grid>
+                <!-- Page header -->
+                <Grid Margin="0,0,0,2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -32,18 +30,19 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="YOUR DRIVES" FontSize="22" FontWeight="Bold"
+                               Text="Drives" FontSize="24" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}"
-                               CharacterSpacing="80" VerticalAlignment="Center"/>
+                               VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
                                 Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                         <Button x:Name="RefreshChangesBtn" Click="OnRefreshChanges"
-                                Background="{ThemeResource CardBrush}"
+                                Background="Transparent"
                                 Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="8" Padding="14,10">
+                                CornerRadius="8" Padding="12,8"
+                                ToolTipService.ToolTip="Rescan all connected drives for new or changed files">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon Glyph="&#xE72C;" FontSize="14"
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
@@ -51,24 +50,35 @@
                                 <TextBlock Text="Refresh changes" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                        <Button Content="+ Add Drive" Click="OnAddDrive"
-                                Background="#A78BFA" Foreground="White"
-                                BorderThickness="0" CornerRadius="8" Padding="16,10"/>
+                        <Button Click="OnAddDrive"
+                                Background="{StaticResource BrandPurpleBrush}" Foreground="White"
+                                BorderThickness="0" CornerRadius="8" Padding="14,8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE710;" FontSize="13"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          Foreground="White" VerticalAlignment="Center"/>
+                                <TextBlock Text="Add Drive" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="External HDDs that hold your movies. Identified by hardware ID, so drive letter changes don't break anything."
+                               Text="External drives that hold your movies. Identified by hardware ID, so changing drive letters won't break anything."
                                Foreground="{ThemeResource MutedBrush}" FontSize="13"
                                TextWrapping="Wrap" MaxWidth="720"
                                HorizontalAlignment="Left"
-                               Margin="0,6,16,0"/>
+                               Margin="0,4,16,0"/>
                 </Grid>
 
                 <!-- Empty state -->
                 <Border x:Name="EmptyState" Visibility="Collapsed"
                         Background="{ThemeResource CardBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
                         CornerRadius="12" Padding="28" Margin="0,8,0,0">
                     <StackPanel HorizontalAlignment="Center" Spacing="6">
+                        <FontIcon Glyph="&#xEDA2;" FontSize="28"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                  Foreground="{ThemeResource MutedBrush}"/>
                         <TextBlock Text="No drives yet" FontSize="15" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
                         <TextBlock Text="Click + Add Drive to get started."
@@ -80,37 +90,44 @@
                 <!-- Drive cards -->
                 <ItemsRepeater x:Name="DrivesRepeater">
                     <ItemsRepeater.Layout>
-                        <StackLayout Orientation="Vertical" Spacing="16"/>
+                        <StackLayout Orientation="Vertical" Spacing="12"/>
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="models:DriveInfo">
                             <Border Background="{ThemeResource CardBrush}"
                                     BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
-                                    CornerRadius="12" Padding="20">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="48"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                    CornerRadius="12" Padding="16,14"
+                                    PointerEntered="OnCardPointerEntered"
+                                    PointerExited="OnCardPointerExited">
+                                <StackPanel Spacing="10">
 
-                                    <!-- Disk icon — solid purple tile for visual identity -->
-                                    <Border Grid.Column="0" Width="40" Height="40"
-                                            Background="{StaticResource BrandPurpleBrush}"
-                                            CornerRadius="10" VerticalAlignment="Top" Margin="0,2,0,0">
-                                        <FontIcon Glyph="&#xEDA2;" FontSize="18"
-                                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                  Foreground="White"
-                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
+                                    <!-- Header row: icon · name/status · counts · primary · overflow -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                                    <!-- Main content -->
-                                    <StackPanel Grid.Column="1" Margin="16,0,16,0" Spacing="10">
-                                        <!-- Title + status -->
-                                        <StackPanel Spacing="2">
+                                        <!-- Disk icon tile -->
+                                        <Border Grid.Column="0" Width="34" Height="34"
+                                                Background="{StaticResource BrandPurpleBrush}"
+                                                CornerRadius="8" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xEDA2;" FontSize="16"
+                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Name + status -->
+                                        <StackPanel Grid.Column="1" Margin="12,0,12,0"
+                                                    VerticalAlignment="Center" Spacing="2">
                                             <TextBlock Text="{x:Bind Label}"
-                                                       FontSize="17" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}"/>
+                                                       FontSize="16" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource TextBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Ellipse Width="8" Height="8" VerticalAlignment="Center">
                                                     <Ellipse.Fill>
@@ -118,237 +135,213 @@
                                                     </Ellipse.Fill>
                                                 </Ellipse>
                                                 <TextBlock Text="{x:Bind NotConnectedText}"
-                                                           FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
+                                                           FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                                                           VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </StackPanel>
 
-                                        <!-- Folder list -->
-                                        <ItemsRepeater ItemsSource="{x:Bind Folders}">
+                                        <!-- Count chips (tinted washes for identity + contrast) -->
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                                                    VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Border Background="#26F59E0B"
+                                                    CornerRadius="8" Padding="10,5">
+                                                <TextBlock Text="{x:Bind MovieCountText}"
+                                                           FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource BrandGoldBrush}"/>
+                                            </Border>
+                                            <Border Background="#26A78BFA"
+                                                    CornerRadius="8" Padding="10,5"
+                                                    Visibility="{x:Bind TvShowVisibility}">
+                                                <TextBlock Text="{x:Bind TvShowCountText}"
+                                                           FontSize="12" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource BrandPurpleBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Primary action: Update Database -->
+                                        <Button Grid.Column="3"
+                                                Tag="{x:Bind VolumeSerial}"
+                                                Click="OnUpdateDatabase"
+                                                IsEnabled="{x:Bind IsConnected}"
+                                                Background="{StaticResource BrandPurpleBrush}"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                CornerRadius="8" Padding="12,7"
+                                                FontWeight="SemiBold"
+                                                VerticalAlignment="Center"
+                                                ToolTipService.ToolTip="Rescan this drive's folders for new or changed movies">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE72C;" FontSize="13"
+                                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                          Foreground="White"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Text="Update" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Overflow menu: secondary actions -->
+                                        <Button Grid.Column="4"
+                                                Background="Transparent" BorderThickness="0"
+                                                Foreground="{ThemeResource MutedBrush}"
+                                                CornerRadius="8" Padding="9,7" Margin="6,0,0,0"
+                                                MinWidth="0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="More drive actions"
+                                                ToolTipService.ToolTip="More actions">
+                                            <FontIcon Glyph="&#xE712;" FontSize="16"
+                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuFlyoutItem Text="Browse movies"
+                                                                    Tag="{x:Bind VolumeSerial}"
+                                                                    Click="OnBrowseDrive">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE8DA;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem Text="Rename drive"
+                                                                    Tag="{x:Bind VolumeSerial}"
+                                                                    Click="OnRenameDrive">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem Text="Sync state to drive"
+                                                                    Tag="{x:Bind VolumeSerial}"
+                                                                    Click="OnSyncStateToDrive"
+                                                                    IsEnabled="{x:Bind IsConnected}">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE895;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutSeparator/>
+                                                    <MenuFlyoutItem Text="Remove drive"
+                                                                    Tag="{x:Bind VolumeSerial}"
+                                                                    Click="OnRemoveDrive"
+                                                                    Foreground="{StaticResource AccentRedBrush}">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE74D;"
+                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                                      Foreground="{StaticResource AccentRedBrush}"/>
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+
+                                    <!-- Missing-movies warning (Fluent InfoBar) -->
+                                    <InfoBar Severity="Warning"
+                                             IsOpen="{x:Bind HasMissing}"
+                                             IsClosable="False"
+                                             Message="{x:Bind MissingInfoText}">
+                                        <InfoBar.ActionButton>
+                                            <Button Content="{x:Bind MissingButtonText}"
+                                                    Tag="{x:Bind VolumeSerial}"
+                                                    Click="OnCleanupMissing"/>
+                                        </InfoBar.ActionButton>
+                                    </InfoBar>
+
+                                    <!-- Hairline divider between actions and folder management -->
+                                    <Border Height="1" Background="{ThemeResource BorderBrush}"
+                                            Opacity="0.55" Margin="0,2,0,0"/>
+
+                                    <!-- Folders (collapsible, flat chrome — no nested box) -->
+                                    <Expander Visibility="{x:Bind FoldersVisibility}"
+                                              HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Stretch"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              CornerRadius="0"
+                                              Padding="0,0,0,4"
+                                              Margin="0,-2,0,-2">
+                                        <Expander.Resources>
+                                            <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="Transparent"/>
+                                            <SolidColorBrush x:Key="ExpanderHeaderBorderBrush" Color="Transparent"/>
+                                            <Thickness x:Key="ExpanderHeaderBorderThickness">0</Thickness>
+                                            <SolidColorBrush x:Key="ExpanderContentBackground" Color="Transparent"/>
+                                            <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="Transparent"/>
+                                            <Thickness x:Key="ExpanderContentBorderThickness">0</Thickness>
+                                        </Expander.Resources>
+                                        <Expander.Header>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,4">
+                                                <FontIcon Glyph="&#xE8B7;" FontSize="14"
+                                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                          Foreground="{ThemeResource MutedBrush}"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Text="{x:Bind FolderCountText}"
+                                                           FontSize="13"
+                                                           Foreground="{ThemeResource TextBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsRepeater ItemsSource="{x:Bind Folders}" Margin="0,8,0,0">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout Orientation="Vertical" Spacing="6"/>
+                                                <UniformGridLayout MinItemWidth="190"
+                                                                   MinColumnSpacing="8" MinRowSpacing="8"
+                                                                   ItemsStretch="Fill"/>
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="models:DriveRoot">
-                                                    <Border Background="{ThemeResource InputBgBrush}"
-                                                            BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
-                                                            CornerRadius="6" Padding="10,8">
-                                                        <Grid>
+                                                    <Border Background="{ThemeResource ChipBrush}"
+                                                            CornerRadius="8" Padding="10,8">
+                                                        <Grid Background="Transparent"
+                                                              PointerEntered="OnFolderPointerEntered"
+                                                              PointerExited="OnFolderPointerExited">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Text="📁" FontSize="14"
-                                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                            <FontIcon Grid.Column="0" Glyph="&#xE8B7;" FontSize="14"
+                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                                      Foreground="{StaticResource BrandPurpleBrush}"
+                                                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                             <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}"
                                                                        FontSize="13"
                                                                        Foreground="{ThemeResource TextBrush}"
                                                                        VerticalAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis"/>
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTipService.ToolTip="{x:Bind DisplayName}"/>
                                                             <Button Grid.Column="2"
-                                                                    Content="✕" FontSize="11"
                                                                     Tag="{x:Bind}"
                                                                     Click="OnRemoveFolder"
                                                                     Background="Transparent"
-                                                                    Foreground="#EF4444"
                                                                     BorderThickness="0"
-                                                                    Padding="8,2"
-                                                                    MinWidth="0" MinHeight="0"
+                                                                    Foreground="{StaticResource AccentRedBrush}"
+                                                                    Padding="4,0" MinWidth="0" MinHeight="0"
+                                                                    Opacity="0"
                                                                     VerticalAlignment="Center"
-                                                                    ToolTipService.ToolTip="Remove folder and its movies"/>
+                                                                    AutomationProperties.Name="Remove folder"
+                                                                    ToolTipService.ToolTip="Remove folder and its movies">
+                                                                <FontIcon Glyph="&#xE711;" FontSize="11"
+                                                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                            </Button>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
+                                    </Expander>
 
-                                        <!-- + Add Folder — v2.5.2 colored so it doesn't
-                                             vanish into the card background -->
-                                        <Button Tag="{x:Bind VolumeSerial}"
-                                                Click="OnAddFolder"
-                                                Background="{StaticResource BrandPurpleBrush}"
-                                                Foreground="White"
-                                                BorderThickness="0"
-                                                CornerRadius="6" Padding="10,8"
-                                                HorizontalAlignment="Stretch"
-                                                HorizontalContentAlignment="Center"
-                                                FontSize="12" FontWeight="SemiBold">
-                                            <StackPanel Orientation="Horizontal" Spacing="6"
-                                                        HorizontalAlignment="Center">
-                                                <FontIcon Glyph="&#xE710;" FontSize="12"
-                                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                          Foreground="White"
-                                                          VerticalAlignment="Center"/>
-                                                <TextBlock Text="Add another folder"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-
-                                        <!-- Missing-movies cleanup (only visible when MissingCount > 0) -->
-                                        <Border Background="#1F2A1010"
-                                                BorderBrush="#EF4444" BorderThickness="1"
-                                                CornerRadius="6" Padding="10,8"
-                                                Visibility="{x:Bind MissingVisibility}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="⚠" FontSize="14"
-                                                           Foreground="#EF4444" VerticalAlignment="Center"
-                                                           Margin="0,0,10,0"/>
-                                                <TextBlock Grid.Column="1"
-                                                           FontSize="12"
-                                                           Foreground="{ThemeResource TextBrush}"
-                                                           TextWrapping="Wrap"
-                                                           VerticalAlignment="Center">
-                                                    <Run Text="{x:Bind MovieCount}"/>
-                                                    <Run Text="indexed, but"/>
-                                                    <Run Text="{x:Bind MissingCount}"/>
-                                                    <Run Text="movie(s) weren't found in the last scan. Delete those entries?"/>
-                                                </TextBlock>
-                                                <Button Grid.Column="2"
-                                                        Content="{x:Bind MissingButtonText}"
-                                                        Tag="{x:Bind VolumeSerial}"
-                                                        Click="OnCleanupMissing"
-                                                        Background="#2A1010" Foreground="#EF4444"
-                                                        BorderBrush="#EF4444" BorderThickness="1"
-                                                        CornerRadius="6" Padding="10,6"
-                                                        FontSize="12"
-                                                        Margin="10,0,0,0"/>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Bottom action row -->
-                                        <Grid Margin="0,6,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Button Grid.Column="0"
-                                                    Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnUpdateDatabase"
-                                                    Background="{StaticResource BrandPurpleBrush}"
-                                                    Foreground="White"
-                                                    BorderThickness="0"
-                                                    CornerRadius="8" Padding="12,7"
-                                                    FontWeight="SemiBold"
-                                                    IsEnabled="{x:Bind IsConnected}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE72C;" FontSize="13"
-                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                              Foreground="White"
-                                                              VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Update Database"
-                                                               VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Grid.Column="1"
-                                                    Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnBrowseDrive"
-                                                    Background="{ThemeResource CardBrush}"
-                                                    Foreground="{ThemeResource TextBrush}"
-                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
-                                                    CornerRadius="8" Padding="12,7"
-                                                    Margin="8,0,0,0">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE8DA;" FontSize="13"
-                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                              Foreground="{ThemeResource MutedBrush}"
-                                                              VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Browse" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Grid.Column="2"
-                                                    Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnRenameDrive"
-                                                    Background="{ThemeResource CardBrush}"
-                                                    Foreground="{ThemeResource TextBrush}"
-                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
-                                                    CornerRadius="8" Padding="12,7"
-                                                    Margin="8,0,0,0"
-                                                    ToolTipService.ToolTip="Rename this drive (e.g. 'Seagate Red 5TB - Movies')">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE70F;" FontSize="13"
-                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                              Foreground="{ThemeResource MutedBrush}"
-                                                              VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Rename" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Grid.Column="3"
-                                                    Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnSyncStateToDrive"
-                                                    Background="{ThemeResource CardBrush}"
-                                                    Foreground="{ThemeResource TextBrush}"
-                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
-                                                    CornerRadius="8" Padding="12,7"
-                                                    Margin="8,0,0,0"
-                                                    HorizontalAlignment="Left"
-                                                    IsEnabled="{x:Bind IsConnected}"
-                                                    ToolTipService.ToolTip="Write Watched / Favorite / Watchlist / Notes / Lists into per-movie sidecar files on this drive, so the state survives removing and re-adding the drive later.">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon Glyph="&#xE895;" FontSize="13"
-                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                                              Foreground="{ThemeResource MutedBrush}"
-                                                              VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Sync state" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Grid.Column="4"
-                                                    Content="🗑 Remove Drive"
-                                                    Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnRemoveDrive"
-                                                    Background="Transparent"
-                                                    Foreground="#EF4444"
-                                                    BorderBrush="#EF4444" BorderThickness="1"
-                                                    CornerRadius="8" Padding="12,7"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Count pills (v2.5.2 / v2.8) — movies + shows -->
-                                    <StackPanel Grid.Column="2" VerticalAlignment="Top"
-                                                HorizontalAlignment="Right" Margin="0,2,0,0" Spacing="8">
-                                        <Border Background="{ThemeResource CardBrush}"
-                                                BorderBrush="{StaticResource BrandGoldBrush}"
-                                                BorderThickness="1" CornerRadius="10"
-                                                Padding="14,8" MinWidth="86">
-                                            <StackPanel>
-                                                <TextBlock Text="{x:Bind MovieCount}"
-                                                           FontSize="28" FontWeight="Bold"
-                                                           Foreground="{StaticResource BrandGoldBrush}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="MOVIES"
-                                                           FontSize="9" CharacterSpacing="200"
-                                                           FontWeight="SemiBold" Opacity="0.7"
-                                                           Foreground="{ThemeResource MutedBrush}"
-                                                           HorizontalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <!-- TV shows pill — only when the drive has shows -->
-                                        <Border Background="{ThemeResource CardBrush}"
-                                                BorderBrush="{StaticResource BrandPurpleBrush}"
-                                                BorderThickness="1" CornerRadius="10"
-                                                Padding="14,8" MinWidth="86"
-                                                Visibility="{x:Bind TvShowVisibility}">
-                                            <StackPanel>
-                                                <TextBlock Text="{x:Bind TvShowCount}"
-                                                           FontSize="28" FontWeight="Bold"
-                                                           Foreground="{StaticResource BrandPurpleBrush}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="SHOWS"
-                                                           FontSize="9" CharacterSpacing="200"
-                                                           FontWeight="SemiBold" Opacity="0.7"
-                                                           Foreground="{ThemeResource MutedBrush}"
-                                                           HorizontalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </Grid>
+                                    <!-- Add folder (subtle inline link) -->
+                                    <Button Tag="{x:Bind VolumeSerial}"
+                                            Click="OnAddFolder"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="6" Padding="6,4"
+                                            Margin="-6,0,0,0"
+                                            HorizontalAlignment="Left"
+                                            Foreground="{StaticResource BrandPurpleBrush}"
+                                            FontSize="13" FontWeight="SemiBold">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE710;" FontSize="12"
+                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                                      Foreground="{StaticResource BrandPurpleBrush}"
+                                                      VerticalAlignment="Center"/>
+                                            <TextBlock Text="Add folder" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
@@ -358,19 +351,21 @@
 
         <!-- Scan progress overlay -->
         <Grid x:Name="ScanOverlay" Grid.Row="0" Grid.RowSpan="2"
-              Background="#CC0A0A0C" Visibility="Collapsed">
+              Background="{ThemeResource OverlayBrush}" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
                 <ProgressRing Width="48" Height="48"
                               Foreground="{StaticResource BrandPurpleBrush}" IsActive="True"/>
                 <TextBlock x:Name="ScanStatusText" Text="Scanning…" FontSize="16"
-                           Foreground="White" HorizontalAlignment="Center"/>
+                           Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
                 <TextBlock x:Name="ScanDetailText" FontSize="13"
                            Foreground="{StaticResource BrandPurpleBrush}"
                            HorizontalAlignment="Center" TextWrapping="Wrap"
                            MaxWidth="400" TextAlignment="Center"/>
                 <Button Content="Cancel" Click="OnCancelScan"
-                        Background="#2A2A3A" Foreground="White"
-                        BorderThickness="0" CornerRadius="8"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="8"
                         Padding="20,8" HorizontalAlignment="Center"/>
             </StackPanel>
         </Grid>

@@ -26,11 +26,11 @@ public sealed partial class BrowsePage : Page
         Facet = facet;
         PageTitleText.Text = facet switch
         {
-            DatabaseService.BrowseFacet.Genre  => "BY GENRE",
-            DatabaseService.BrowseFacet.Decade => "BY DECADE",
-            DatabaseService.BrowseFacet.Rating => "BY RATING",
-            DatabaseService.BrowseFacet.Studio => "BY STUDIO",
-            _ => "BROWSE"
+            DatabaseService.BrowseFacet.Genre  => "By genre",
+            DatabaseService.BrowseFacet.Decade => "By decade",
+            DatabaseService.BrowseFacet.Rating => "By rating",
+            DatabaseService.BrowseFacet.Studio => "By studio",
+            _ => "Browse"
         };
         PageSubText.Text = facet switch
         {

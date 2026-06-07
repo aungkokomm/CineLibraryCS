@@ -232,7 +232,7 @@ public sealed partial class TvShowsPage : Page
 
     private void LoadShows()
     {
-        TitleText.Text = "ALL TV SHOWS";
+        TitleText.Text = "All TV shows";
         BackLabel.Text = "Back";
         var shows = AppState.Instance.Db.GetTvShows(AppState.Instance.Connected);
         _shows.Clear();

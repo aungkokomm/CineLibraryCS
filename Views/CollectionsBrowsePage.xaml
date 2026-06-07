@@ -12,8 +12,8 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Padding="24,8,24,12" Spacing="2">
-            <TextBlock Text="COLLECTIONS" FontSize="18" FontWeight="Bold"
-                       Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+            <TextBlock Text="Collections" FontSize="24" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextBrush}"/>
             <TextBlock x:Name="PageCountText" Text=""
                        FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
         </StackPanel>

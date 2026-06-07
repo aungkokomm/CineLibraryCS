@@ -18,8 +18,8 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
-                <TextBlock x:Name="PageTitleText" Text="BROWSE" FontSize="18" FontWeight="Bold"
-                           Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+                <TextBlock x:Name="PageTitleText" Text="Browse" FontSize="24" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}"/>
                 <TextBlock x:Name="PageSubText" Text=""
                            FontSize="12" Foreground="{ThemeResource MutedBrush}"/>
             </StackPanel>

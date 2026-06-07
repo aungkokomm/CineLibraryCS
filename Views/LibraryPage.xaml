@@ -6,6 +6,21 @@
     xmlns:models="using:CineLibraryCS.Models"
     Background="{ThemeResource BgBrush}">
 
+    <Page.Resources>
+        <!-- Active (checked) toolbar toggles use the brand accent consistently
+             instead of the default system-accent fill, so grid/list/density all
+             read the same. -->
+        <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#A78BFA"/>
+        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#B49BFB"/>
+        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#9B7BF5"/>
+        <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White"/>
+        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White"/>
+        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White"/>
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="Transparent"/>
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="Transparent"/>
+        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="Transparent"/>
+    </Page.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -48,14 +63,14 @@
                 </StackPanel>
             </Button>
 
-            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="ALL MOVIES"
-                       FontSize="18" FontWeight="Bold" Foreground="{ThemeResource TextBrush}"
-                       CharacterSpacing="100" VerticalAlignment="Center"/>
+            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="All movies"
+                       FontSize="24" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                       VerticalAlignment="Center"/>
 
-            <!-- v2.6 — Search box wrapped in a focus-aware Border so the
-                 focus ring is the brand purple, plus a small "Esc"
-                 affordance shown while there's text to clear. -->
-            <Grid Grid.Column="2" Margin="20,0" ColumnSpacing="8">
+            <!-- v3.2 — in-page search moved to the global title-bar search.
+                 This box is kept (collapsed) as the page's internal engine so
+                 existing focus/clear wiring keeps working. -->
+            <Grid Grid.Column="2" Margin="20,0" ColumnSpacing="8" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -67,6 +82,7 @@
                           SelectedIndex="0"
                           MinWidth="96" Height="36"
                           VerticalAlignment="Center"
+                          CornerRadius="8"
                           Background="{ThemeResource InputBgBrush}"
                           Foreground="{ThemeResource TextBrush}"
                           BorderBrush="{ThemeResource InputBorderBrush}"
@@ -82,6 +98,7 @@
                                 TextChanged="OnSearchChanged"
                                 GotFocus="OnSearchBoxFocus"
                                 LostFocus="OnSearchBoxBlur"
+                                CornerRadius="8"
                                 Background="{ThemeResource InputBgBrush}"
                                 BorderBrush="{ThemeResource InputBorderBrush}"
                                 Foreground="{ThemeResource TextBrush}"/>
@@ -106,6 +123,7 @@
                           BorderBrush="{ThemeResource InputBorderBrush}"
                           MinWidth="140"
                           Height="36"
+                          CornerRadius="8"
                           VerticalAlignment="Center">
                     <ComboBoxItem Tag="title:asc"      Content="Title ↑"/>
                     <ComboBoxItem Tag="title:desc"     Content="Title ↓"/>
@@ -129,18 +147,22 @@
                         Background="{ThemeResource InputBgBrush}"
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource InputBorderBrush}"
+                        CornerRadius="8"
                         Padding="10,8"
                         Height="36" Width="36"
                         VerticalAlignment="Center"
+                        AutomationProperties.Name="Surprise me"
                         ToolTipService.ToolTip="Surprise me — random pick from current view">
-                    <TextBlock Text="🎲" FontSize="16"
-                               VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                    <FontIcon Glyph="&#xE8B1;" FontSize="15"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                              VerticalAlignment="Center" HorizontalAlignment="Center"/>
                 </Button>
 
                 <SplitButton Content="Export" Click="OnExportCsvDefault"
                              Background="{ThemeResource InputBgBrush}"
                              Foreground="{ThemeResource TextBrush}"
                              BorderBrush="{ThemeResource InputBorderBrush}"
+                             CornerRadius="8"
                              Padding="16,8"
                              Height="36"
                              VerticalAlignment="Center">
@@ -152,53 +174,71 @@
                     </SplitButton.Flyout>
                 </SplitButton>
 
-                <ToggleButton x:Name="GridViewToggle" IsChecked="True"
-                              Click="OnViewGrid"
-                              Background="{ThemeResource InputBgBrush}"
-                              BorderBrush="{ThemeResource InputBorderBrush}"
-                              Padding="10,8"
-                              Height="36"
-                              Width="36"
-                              VerticalAlignment="Center">
-                    <TextBlock Text="⊞" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                </ToggleButton>
-                <ToggleButton x:Name="ListViewToggle"
-                              Click="OnViewList"
-                              Background="{ThemeResource InputBgBrush}"
-                              BorderBrush="{ThemeResource InputBorderBrush}"
-                              Padding="10,8"
-                              Height="36"
-                              Width="36"
-                              VerticalAlignment="Center">
-                    <TextBlock Text="☰" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                </ToggleButton>
+                <!-- View mode — segmented (grid / list) -->
+                <Border Background="{ThemeResource InputBgBrush}"
+                        BorderBrush="{ThemeResource InputBorderBrush}"
+                        BorderThickness="1" CornerRadius="8"
+                        Height="36" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton x:Name="GridViewToggle" IsChecked="True"
+                                      Click="OnViewGrid"
+                                      AutomationProperties.Name="Grid view"
+                                      Background="Transparent" BorderThickness="0"
+                                      Padding="0" Height="36" Width="36"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      ToolTipService.ToolTip="Grid view">
+                            <FontIcon Glyph="&#xE8A9;" FontSize="16"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        </ToggleButton>
+                        <ToggleButton x:Name="ListViewToggle"
+                                      Click="OnViewList"
+                                      AutomationProperties.Name="List view"
+                                      Background="Transparent" BorderThickness="0"
+                                      Padding="0" Height="36" Width="36"
+                                      HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"
+                                      ToolTipService.ToolTip="List view">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="16"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
 
                 <!-- Density picker: S / M / L / XL (like Windows Explorer) -->
                 <Border Background="{ThemeResource InputBgBrush}"
                         BorderBrush="{ThemeResource InputBorderBrush}"
-                        BorderThickness="1" CornerRadius="4"
+                        BorderThickness="1" CornerRadius="8"
                         Height="36"
                         VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
                         <ToggleButton x:Name="DensityS" Click="OnDensityClick" Tag="S"
+                                      AutomationProperties.Name="Small posters"
+                                      ToolTipService.ToolTip="Small posters"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
                                       VerticalAlignment="Center">
                             <TextBlock Text="S" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityM" Click="OnDensityClick" Tag="M" IsChecked="True"
+                                      AutomationProperties.Name="Medium posters"
+                                      ToolTipService.ToolTip="Medium posters"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
                                       VerticalAlignment="Center">
                             <TextBlock Text="M" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityL" Click="OnDensityClick" Tag="L"
+                                      AutomationProperties.Name="Large posters"
+                                      ToolTipService.ToolTip="Large posters"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
                                       VerticalAlignment="Center">
                             <TextBlock Text="L" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </ToggleButton>
                         <ToggleButton x:Name="DensityXL" Click="OnDensityClick" Tag="XL"
+                                      AutomationProperties.Name="Extra large posters"
+                                      ToolTipService.ToolTip="Extra large posters"
                                       Background="Transparent" BorderThickness="0"
                                       Padding="12,8" Height="36" Width="36"
                                       VerticalAlignment="Center">

@@ -357,6 +357,21 @@ public sealed partial class MovieCardControl : UserControl
 
         if (relPath == null) return;
 
+        // Decode at ~2× card width so the poster stays crisp on HiDPI displays
+        // (150 / 175 / 200% scaling) without bloating memory — capped at 500 px.
+        var decodeW = (int)Math.Min(500, Math.Max(240, GlobalCardWidth * 2));
+        var key = relPath + "@" + decodeW;
+
+        // Fast path: already decoded in RAM (the common case while scrolling) —
+        // reuse instantly with no disk read and no re-decode.
+        var cachedImg = ImageCache.TryGetDecoded(key);
+        if (cachedImg != null)
+        {
+            PosterImage.Source = cachedImg;
+            PosterPlaceholder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         var fullPath = AppState.Instance.Db.GetCachedImagePath(relPath);
         if (fullPath == null) return;
 
@@ -370,11 +385,6 @@ public sealed partial class MovieCardControl : UserControl
                 return;
             }
 
-            // Decode at ~2× card width so the poster stays crisp on
-            // HiDPI displays (150 / 175 / 200% scaling) without bloating
-            // memory — we cap at 500 px which is well under typical
-            // cached poster source size (~780).
-            var decodeW = (int)Math.Min(500, Math.Max(240, GlobalCardWidth * 2));
             var bmp = new BitmapImage { DecodePixelWidth = decodeW };
             using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
@@ -383,6 +393,7 @@ public sealed partial class MovieCardControl : UserControl
             await bmp.SetSourceAsync(ms);
             if (myToken != _posterLoadToken) return;
 
+            ImageCache.SetDecoded(key, bmp);   // reuse this decode on recycle
             PosterImage.Source = bmp;
             PosterPlaceholder.Visibility = Visibility.Collapsed;
         }

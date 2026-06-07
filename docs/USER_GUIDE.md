@@ -166,13 +166,16 @@ Each collapsible section can be collapsed by clicking its header.
 
 ### Search
 
-The search box in the top bar matches across **title, original title,
-year, actor, and director** (and collection names). It deliberately
-doesn't search plot text — a short word like "hit" appears in hundreds
-of plot summaries, which used to bury the titles you actually wanted.
-Title matches are ranked first, so the closest result is at the top.
-Type as you go — results update live. Press `Ctrl+F` from anywhere to
-jump focus into the search box; press `Esc` to clear.
+The search box lives in the **title bar** at the top of the window, so
+it's available from **every page** — start typing anywhere and
+CineLibrary jumps straight to the matching movies (and shows). It matches
+across **title, original title, year, actor, and director** (and
+collection names). It deliberately doesn't search plot text — a short
+word like "hit" appears in hundreds of plot summaries, which used to bury
+the titles you actually wanted. Title matches are ranked first, so the
+closest result is at the top. Type as you go — results update live. Press
+`Ctrl+F` from anywhere to jump into it; press `Esc` to clear it and step
+back out.
 
 The dropdown to the left of the search box sets the **scope**:
 **All** (the default), **Title** to match titles only, or **Cast &
@@ -689,6 +692,14 @@ instantly — no restart.
 
 Light / Dark / System — the same choice as the quick theme button,
 shown as a simple picker.
+
+### Background material (Mica)
+
+**On by default.** Shows the Windows **Mica** material behind the sidebar
+and the floating content panel — a soft surface tinted by your desktop
+wallpaper that gives the app a sense of depth. Turn it **off** for a
+flat, solid background — handy on a lower-end GPU, or if you simply
+prefer a plainer look. The change applies instantly.
 
 ### Card drop shadows
 

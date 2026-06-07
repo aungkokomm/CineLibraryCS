@@ -107,6 +107,67 @@ public static class ImageCache
             _map.Clear();
             _lru.Clear();
             _bytes = 0;
+            _decMap.Clear();
+            _decLru.Clear();
+            _decBytes = 0;
+        }
+    }
+
+    // ── Decoded-image cache ───────────────────────────────────────────────
+    // The bytes cache above only saves the disk read. Decoding the JPEG/PNG
+    // and scaling it to DecodePixelWidth is the real per-recycle cost while
+    // scrolling. This keeps the already-decoded BitmapImage so a card that
+    // scrolls back into view (or any other control showing the same poster at
+    // the same size) reuses it instantly — no decode at all. Bounded by an
+    // estimated decoded-pixel budget with strict LRU eviction.
+    private const long MaxDecodedBytes = 160L * 1024 * 1024;
+    private static readonly Dictionary<string, LinkedListNode<DecEntry>> _decMap = new();
+    private static readonly LinkedList<DecEntry> _decLru = new();
+    private static long _decBytes;
+
+    private record DecEntry(string Key, Microsoft.UI.Xaml.Media.Imaging.BitmapImage Image, long Size);
+
+    public static Microsoft.UI.Xaml.Media.Imaging.BitmapImage? TryGetDecoded(string key)
+    {
+        lock (_gate)
+        {
+            if (_decMap.TryGetValue(key, out var node))
+            {
+                _decLru.Remove(node);
+                _decLru.AddFirst(node);
+                return node.Value.Image;
+            }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Caches a decoded BitmapImage. Call on the UI thread after the image
+    /// has finished decoding (PixelWidth/Height are then valid).
+    /// </summary>
+    public static void SetDecoded(string key, Microsoft.UI.Xaml.Media.Imaging.BitmapImage image)
+    {
+        long size = Math.Max(64L * 1024, (long)image.PixelWidth * image.PixelHeight * 4);
+        lock (_gate)
+        {
+            if (_decMap.TryGetValue(key, out var existing))
+            {
+                _decBytes -= existing.Value.Size;
+                _decLru.Remove(existing);
+                _decMap.Remove(key);
+            }
+            var node = new LinkedListNode<DecEntry>(new DecEntry(key, image, size));
+            _decLru.AddFirst(node);
+            _decMap[key] = node;
+            _decBytes += size;
+
+            while (_decBytes > MaxDecodedBytes && _decLru.Last != null)
+            {
+                var tail = _decLru.Last;
+                _decBytes -= tail.Value.Size;
+                _decMap.Remove(tail.Value.Key);
+                _decLru.RemoveLast();
+            }
         }
     }
 }

@@ -6,8 +6,13 @@
     <ResourceDictionary.ThemeDictionaries>
 
         <ResourceDictionary x:Key="Dark">
+            <!-- Content + cards are OPAQUE so the scrolling poster grid never
+                 composites over the live Mica backdrop (fast). Only the
+                 sidebar (small, fixed area) stays translucent for the Mica
+                 accent. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#0F0F18"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#B30F0F18"/>
+            <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#2A2A3A"/>
@@ -45,7 +50,8 @@
                  from the main content, borders/muted text get slightly
                  stronger so cards don't dissolve into the page bg. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#F6F6FA"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#E3E3EE"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#B3E3E3EE"/>
+            <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CCE3E3EE"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#FFFFFF"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#EDEDFB"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#C6C6DC"/>
@@ -78,8 +84,13 @@
 
         <ResourceDictionary x:Key="Default">
             <!-- Follows the system theme — reuse Dark values as fallback -->
+            <!-- Content + cards are OPAQUE so the scrolling poster grid never
+                 composites over the live Mica backdrop (fast). Only the
+                 sidebar (small, fixed area) stays translucent for the Mica
+                 accent. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#0F0F18"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#B30F0F18"/>
+            <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#2A2A3A"/>

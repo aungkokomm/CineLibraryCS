@@ -52,8 +52,9 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        // Apply Mica material
-        SystemBackdrop = new MicaBackdrop();
+        // Apply Mica material (user-toggleable in Settings) and keep it in sync.
+        ApplyMica();
+        UiSettings.Changed += () => DispatcherQueue.TryEnqueue(ApplyMica);
 
         // Window size
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -95,10 +96,14 @@ public sealed partial class MainWindow : Window
         // Global Ctrl+F to focus search
         var searchAcc = new KeyboardAccelerator { Key = VirtualKey.F, Modifiers = VirtualKeyModifiers.Control };
         searchAcc.Invoked += (_, a) => {
-            _libraryPage?.FocusSearchBox();
+            TitleSearchBox.Focus(FocusState.Programmatic);
             a.Handled = true;
         };
         RootGrid.KeyboardAccelerators.Add(searchAcc);
+
+        // Esc inside the title-bar search clears the text and exits the box.
+        TitleSearchBox.AddHandler(UIElement.KeyDownEvent,
+            new Microsoft.UI.Xaml.Input.KeyEventHandler(OnTitleSearchKeyDown), handledEventsToo: true);
 
         // v2.5 — drag-and-drop targets in the sidebar. Drag selected cards
         // onto Favorites / Watchlist to flip those flags in bulk; drop on
@@ -224,13 +229,29 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock { Text = "Theme", FontSize = 13 });
         panel.Children.Add(themeRow);
 
+        // Background material (Mica)
+        var micaToggle = new ToggleSwitch
+        {
+            Header = "Background material (Mica)",
+            IsOn = UiSettings.MicaEnabled,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 12, 0, 0),
+        };
+        micaToggle.Toggled += (_, _) => UiSettings.SetMicaEnabled(micaToggle.IsOn);
+        panel.Children.Add(micaToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Shows the Windows Mica material behind the sidebar and the floating content panel, tinted by your wallpaper. Turn off for a flat, solid look or on a low-end GPU.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
         // Card borders
         var borderToggle = new ToggleSwitch
         {
             Header = "Card borders",
             IsOn = UiSettings.CardBorders,
             OffContent = "Off", OnContent = "On",
-            Margin = new Thickness(0, 8, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
         };
         borderToggle.Toggled += (_, _) => UiSettings.SetCardBorders(borderToggle.IsOn);
         panel.Children.Add(borderToggle);
@@ -588,7 +609,7 @@ public sealed partial class MainWindow : Window
             Style = (Style)Application.Current.Resources["NavItemStyle"],
             Tag = ul.Id,
         };
-        btn.Click += (_, _) => _libraryPage?.UpdatePageTitle($"📑 {ul.Name.ToUpper()}");
+        btn.Click += (_, _) => _libraryPage?.UpdatePageTitle(ul.Name);
         btn.Click += (_, _) =>
         {
             if (_libraryPage == null) NavigateTo("library");
@@ -1070,6 +1091,63 @@ public sealed partial class MainWindow : Window
 
     // ── Navigation ────────────────────────────────────────────────────────
 
+    // ── Mica backdrop (toggleable in Settings) ────────────────────────────
+
+    private void ApplyMica()
+    {
+        if (UiSettings.MicaEnabled)
+        {
+            SystemBackdrop ??= new MicaBackdrop();
+            MicaOffBackdrop.Visibility = Visibility.Collapsed;   // reveal Mica
+        }
+        else
+        {
+            SystemBackdrop = null;
+            MicaOffBackdrop.Visibility = Visibility.Visible;     // solid window
+        }
+    }
+
+    // ── Global title-bar search ───────────────────────────────────────────
+
+    private void OnTitleSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        GlobalSearch(sender.Text ?? "");
+    }
+
+    private void OnTitleSearchKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Escape) return;
+        if (!string.IsNullOrEmpty(TitleSearchBox.Text))
+        {
+            TitleSearchBox.Text = "";
+            GlobalSearch("");   // clear the search results too
+        }
+        // Leave the search box.
+        Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(
+            Microsoft.UI.Xaml.Input.FocusNavigationDirection.Next);
+        e.Handled = true;
+    }
+
+    private void OnTitleScopeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TitleScopeCombo.SelectedItem is ComboBoxItem item && item.Tag is string scope
+            && _libraryPage != null)
+            _libraryPage.ViewModel.SearchScope = scope;
+    }
+
+    private void GlobalSearch(string text)
+    {
+        // Make sure the Library page is showing, then drive its search engine
+        // (_vm.SearchText). Searching from any other page jumps here.
+        if (_libraryPage == null || !ReferenceEquals(ContentFrame.Content, _libraryPage))
+            NavigateTo("library");
+        if (_libraryPage == null) return;
+        if (TitleScopeCombo.SelectedItem is ComboBoxItem scopeItem && scopeItem.Tag is string scope)
+            _libraryPage.ViewModel.SearchScope = scope;
+        _libraryPage.ViewModel.SearchText = text;
+    }
+
     private void NavigateTo(string page, object? param = null)
     {
         if (page == "library")
@@ -1078,6 +1156,12 @@ public sealed partial class MainWindow : Window
             {
                 _libraryPage = new LibraryPage();
                 _libraryPage.SidebarRefreshRequested += (_, _) => { _ = RefreshSidebarAsync(); };
+                // Keep the title-bar search box in sync when the Library
+                // clears/changes search internally (Esc, nav reset, etc.).
+                _libraryPage.SearchTextChanged += (_, txt) =>
+                {
+                    if (TitleSearchBox.Text != txt) TitleSearchBox.Text = txt;
+                };
             }
 
             if (param is LibraryNavParam lp)
@@ -1256,7 +1340,7 @@ public sealed partial class MainWindow : Window
     {
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByActor(actor);
-        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {actor.ToUpper()}");
+        _libraryPage?.UpdatePageTitle($"All movies › {actor}");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();  // chip-driven (e.g. from detail dialog) — no Browse origin
     }
@@ -1265,7 +1349,7 @@ public sealed partial class MainWindow : Window
     {
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByDirector(director);
-        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {director.ToUpper()}");
+        _libraryPage?.UpdatePageTitle($"All movies › {director}");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
     }
@@ -1293,7 +1377,7 @@ public sealed partial class MainWindow : Window
     {
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByStudio(studio);
-        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {studio.ToUpper()}");
+        _libraryPage?.UpdatePageTitle($"All movies › {studio}");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
     }
 
@@ -1301,7 +1385,7 @@ public sealed partial class MainWindow : Window
     {
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByDecade(decadeStart, label);
-        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {label.ToUpper()}");
+        _libraryPage?.UpdatePageTitle($"All movies › {label}");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
     }
 
@@ -1309,7 +1393,7 @@ public sealed partial class MainWindow : Window
     {
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByRatingBand(key, label);
-        _libraryPage?.UpdatePageTitle($"ALL MOVIES › {label.ToUpper()}");
+        _libraryPage?.UpdatePageTitle($"All movies › {label}");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
     }
 
@@ -1729,7 +1813,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.1.3",
+            Title = "CineLibrary v3.2.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

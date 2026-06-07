@@ -10,12 +10,12 @@
 
             <!-- Page header -->
             <StackPanel Spacing="4">
-                <TextBlock Text="📊 LIBRARY STATISTICS"
-                           FontSize="12" FontWeight="Bold"
-                           Foreground="{ThemeResource MutedBrush}" CharacterSpacing="200"/>
-                <TextBlock x:Name="PageTitle" Text="Your Collection at a Glance"
-                           FontSize="26" FontWeight="Bold"
+                <TextBlock Text="Statistics"
+                           FontSize="24" FontWeight="SemiBold"
                            Foreground="{ThemeResource TextBrush}"/>
+                <TextBlock x:Name="PageTitle" Text="Your collection at a glance"
+                           FontSize="13"
+                           Foreground="{ThemeResource MutedBrush}"/>
             </StackPanel>
 
             <!-- ── Top row: summary tiles ──────────────────────────────────── -->

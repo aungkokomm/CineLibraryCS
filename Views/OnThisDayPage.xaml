@@ -31,8 +31,8 @@
                 </StackPanel>
             </Button>
             <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                <TextBlock Text="📅  ON THIS DAY" FontSize="18" FontWeight="Bold"
-                           Foreground="{ThemeResource TextBrush}" CharacterSpacing="100"/>
+                <TextBlock Text="On This Day" FontSize="24" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}"/>
                 <TextBlock x:Name="SubText" FontSize="12"
                            Foreground="{ThemeResource MutedBrush}"/>
             </StackPanel>
