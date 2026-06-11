@@ -157,9 +157,21 @@ public sealed partial class LibraryPage : Page
         // we manage the actual selection set and visual.
         MovieCardControl.AnyCardSelectionInteraction += OnCardSelectionInteraction;
         MovieCardControl.ResolveSelectionForDrag = ResolveSelectionForDrag;
+        // v3.3 — a movie was sent to Watched & Gone (card context menu or
+        // selection bar): drop it from the current view + re-count sidebar.
+        // Subscribed on Loaded (not just ctor) because this page instance is
+        // cached and re-shown — a ctor-only subscription would die for good
+        // at the first Unloaded.
+        MovieCardControl.AnyMovieArchived += OnAnyMovieArchived;
+        Loaded += (_, _) =>
+        {
+            MovieCardControl.AnyMovieArchived -= OnAnyMovieArchived;
+            MovieCardControl.AnyMovieArchived += OnAnyMovieArchived;
+        };
         Unloaded += (_, _) =>
         {
             MovieCardControl.AnyCardSelectionInteraction -= OnCardSelectionInteraction;
+            MovieCardControl.AnyMovieArchived -= OnAnyMovieArchived;
             if (MovieCardControl.ResolveSelectionForDrag == (Func<MovieListItem, IEnumerable<int>>)ResolveSelectionForDrag)
                 MovieCardControl.ResolveSelectionForDrag = null;
         };
@@ -437,6 +449,41 @@ public sealed partial class LibraryPage : Page
                 }
                 SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
             });
+    }
+
+    private void OnAnyMovieArchived()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _ = _vm.LoadAsync();
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    // v3.3 — selection bar: send every selected movie to Watched & Gone.
+    private async void OnSelArchive(object sender, RoutedEventArgs e)
+    {
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        var dlg = new ContentDialog
+        {
+            Title = $"Send {picked.Count} movie(s) to Watched & Gone?",
+            Content = "They move out of your library into Watched & Gone — posters, details, " +
+                      "your notes and watch history are all kept as records. " +
+                      "The files on your drives are not touched.",
+            PrimaryButtonText = "Send",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+        };
+        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var n = AppState.Instance.Db.ArchiveMovies(picked.Select(m => m.Id).ToList());
+        ClearSelection();
+        if (App.MainWindow is CineLibraryCS.MainWindow mw)
+            mw.ShowToast($"Sent {n} movie(s) to Watched & Gone");
+        MovieCardControl.RaiseMovieArchived();
     }
 
     private void OnSelToggleFav(object sender, RoutedEventArgs e)

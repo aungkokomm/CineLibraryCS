@@ -62,6 +62,7 @@ public static class BackupService
         [JsonPropertyName("watchlist")]      public bool Watchlist { get; set; }
         [JsonPropertyName("lastPlayedUnix")] public long? LastPlayedUnix { get; set; }
         [JsonPropertyName("note")]           public string? Note { get; set; }
+        [JsonPropertyName("archived")]       public bool Archived { get; set; }   // v3.3 — Watched & Gone
         [JsonPropertyName("lists")]          public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]           public List<string> Tags { get; set; } = new();
     }
@@ -138,11 +139,13 @@ public static class BackupService
         {
             c.CommandText = @"
                 SELECT id, volume_serial, folder_rel_path, title,
-                       is_watched, is_favorite, is_watchlist, last_played_at, note
+                       is_watched, is_favorite, is_watchlist, last_played_at, note,
+                       archived_at
                   FROM movies
                  WHERE is_watched=1 OR is_favorite=1 OR is_watchlist=1
                     OR last_played_at>0
                     OR (note IS NOT NULL AND TRIM(note) != '')
+                    OR archived_at IS NOT NULL
                     OR EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id = movies.id)
                     OR EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id = movies.id)";
             using var r = c.ExecuteReader();
@@ -161,6 +164,7 @@ public static class BackupService
                     Watchlist = r.GetInt32(6) == 1,
                     LastPlayedUnix = r.IsDBNull(7) ? null : r.GetInt64(7),
                     Note = r.IsDBNull(8) ? null : r.GetString(8),
+                    Archived = !r.IsDBNull(9),
                 };
                 b.Movies.Add(entry);
                 movieIndex[id] = entry;
@@ -527,13 +531,20 @@ public static class BackupService
 
         using var upd = conn.CreateCommand();
         upd.Transaction = tx;
+        // v3.3 — archive is additive: if the backup says this movie was in
+        // Watched & Gone, archive it (keeping any existing archived_at); never
+        // un-archive on restore.
         upd.CommandText = @"UPDATE movies SET is_watched=@w, is_favorite=@f, is_watchlist=@wl,
-                                last_played_at=@lp, note=COALESCE(@n, note) WHERE id=@id";
+                                last_played_at=@lp, note=COALESCE(@n, note),
+                                archived_at = CASE WHEN @arch=1 THEN COALESCE(archived_at, strftime('%s','now'))
+                                                   ELSE archived_at END
+                            WHERE id=@id";
         upd.Parameters.AddWithValue("@w",  (dbW  || e.Watched)   ? 1 : 0);
         upd.Parameters.AddWithValue("@f",  (dbF  || e.Favorite)  ? 1 : 0);
         upd.Parameters.AddWithValue("@wl", (dbWl || e.Watchlist) ? 1 : 0);
         upd.Parameters.AddWithValue("@lp", newLp);
         upd.Parameters.AddWithValue("@n",  (object?)newNote ?? DBNull.Value);
+        upd.Parameters.AddWithValue("@arch", e.Archived ? 1 : 0);
         upd.Parameters.AddWithValue("@id", movieId);
         upd.ExecuteNonQuery();
 

@@ -1,0 +1,110 @@
+<Page
+    x:Class="CineLibraryCS.Views.WatchedGonePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CineLibraryCS.Views"
+    xmlns:models="using:CineLibraryCS.Models"
+    Background="{ThemeResource BgBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Padding="24,8,24,12" Spacing="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Watched &amp; Gone" FontSize="24" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}"/>
+                    <TextBlock Text="Movies you watched and let go — kept as records, with your notes and history, so you never re-download by mistake."
+                               FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                               TextWrapping="Wrap" MaxWidth="640"/>
+                </StackPanel>
+                <TextBlock x:Name="CountText" Grid.Column="1" Text=""
+                           FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                           VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Toolbar: search · sort · export -->
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <AutoSuggestBox x:Name="SearchBox" Grid.Column="0"
+                                PlaceholderText="Search records…"
+                                QueryIcon="Find" Height="36" CornerRadius="8"
+                                MaxWidth="420" HorizontalAlignment="Left" MinWidth="240"
+                                TextChanged="OnSearchChanged"
+                                Background="{ThemeResource InputBgBrush}"
+                                BorderBrush="{ThemeResource InputBorderBrush}"
+                                Foreground="{ThemeResource TextBrush}"/>
+                <ComboBox x:Name="SortCombo" Grid.Column="1"
+                          SelectionChanged="OnSortChanged" SelectedIndex="0"
+                          Height="36" MinWidth="150" CornerRadius="8" VerticalAlignment="Center"
+                          Background="{ThemeResource InputBgBrush}"
+                          Foreground="{ThemeResource TextBrush}"
+                          BorderBrush="{ThemeResource InputBorderBrush}">
+                    <ComboBoxItem Tag="archived:desc" Content="Recently gone"/>
+                    <ComboBoxItem Tag="title:asc"     Content="Title ↑"/>
+                    <ComboBoxItem Tag="title:desc"    Content="Title ↓"/>
+                    <ComboBoxItem Tag="year:desc"     Content="Year ↓"/>
+                    <ComboBoxItem Tag="rating:desc"   Content="Rating ↓"/>
+                </ComboBox>
+                <Button x:Name="ExportBtn" Grid.Column="2" Click="OnExportCsv"
+                        Height="36" CornerRadius="8" Padding="14,0" VerticalAlignment="Center"
+                        Background="{ThemeResource InputBgBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource InputBorderBrush}"
+                        ToolTipService.ToolTip="Export the records list to CSV">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xEDE1;" FontSize="14"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock Text="Export" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </StackPanel>
+
+        <!-- Records grid -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <ItemsRepeater x:Name="RecordsRepeater" Margin="24,4,24,24">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout MinItemWidth="150" MinItemHeight="280"
+                                           MinColumnSpacing="12" MinRowSpacing="12"
+                                           ItemsStretch="Fill"/>
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:MovieListItem">
+                            <local:MovieCardControl Movie="{x:Bind}" ArchiveMode="True"/>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <!-- Empty state -->
+                <StackPanel x:Name="EmptyState" Visibility="Collapsed"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Margin="0,80,0,24" Spacing="8">
+                    <FontIcon Glyph="&#xE7B8;" FontSize="40"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                              Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="No records yet"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
+                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Its poster, details, your notes and watch history stay here as a permanent record."
+                               FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                               HorizontalAlignment="Center" TextAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="460"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     private CollectionsBrowsePage? _collectionsPage;
     private TvShowsPage? _tvShowsPage;
     private OnThisDayPage? _onThisDayPage;
+    private WatchedGonePage? _watchedGonePage;
     private DeviceChangeWatcher? _deviceWatcher;
 
     public MainWindow()
@@ -473,6 +474,14 @@ public sealed partial class MainWindow : Window
             DrivesBadge.Text = _vm.Drives.Count.ToString();
             try { TvShowsBadge.Text = AppState.Instance.Db.GetTvShowCount().ToString(); } catch { }
             try { NotesBadge.Text = AppState.Instance.Db.GetNotesCount().ToString(); } catch { }
+            // v3.3 — Watched & Gone entry appears once the first record exists.
+            try
+            {
+                var wg = AppState.Instance.Db.GetArchivedCount();
+                WatchedGoneBadge.Text = wg.ToString();
+                BtnWatchedGone.Visibility = wg > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch { }
             // v2.5.1 — StatRuntime / StatRating tiles removed from sidebar
             // (they live on the Statistics page now). Stats object still
             // computed because other code paths use it.
@@ -1231,6 +1240,19 @@ public sealed partial class MainWindow : Window
             _onThisDayPage.Load();
             ContentFrame.Content = _onThisDayPage;
         }
+        else if (page == "watchedgone")
+        {
+            if (_watchedGonePage == null)
+            {
+                _watchedGonePage = new WatchedGonePage();
+                _watchedGonePage.SidebarRefreshRequested += (_, _) => { _ = RefreshSidebarAsync(); };
+            }
+            else
+            {
+                _watchedGonePage.Refresh();
+            }
+            ContentFrame.Content = _watchedGonePage;
+        }
     }
 
     private async Task RefreshSidebarAsync()
@@ -1670,6 +1692,12 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnNotes);
     }
 
+    private void OnNavWatchedGone(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("watchedgone");
+        SetActiveNav(sender as Button ?? BtnWatchedGone);
+    }
+
     // ── v1.4.1 Statistics dashboard ────────────────────────────────────────
 
     private void OnNavStatistics(object sender, RoutedEventArgs e)
@@ -1813,7 +1841,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.2.0",
+            Title = "CineLibrary v3.3.0",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

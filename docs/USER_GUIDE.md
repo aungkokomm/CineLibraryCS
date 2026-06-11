@@ -24,19 +24,20 @@ of movies in under five minutes.
 7. [TV Shows](#tv-shows)
 8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
 9. [Tags — your own labels](#tags--your-own-labels)
-10. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
-11. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-12. [State that travels with your drives](#state-that-travels-with-your-drives)
-13. [Backup and restore](#backup-and-restore)
-14. [Statistics](#statistics)
-15. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-16. [Themes and sidebar](#themes-and-sidebar)
-17. [Settings](#settings)
-18. [Keyboard shortcuts](#keyboard-shortcuts)
-19. [Exporting your catalog](#exporting-your-catalog)
-20. [Updates](#updates)
-21. [Where your data lives](#where-your-data-lives)
-22. [Troubleshooting](#troubleshooting)
+10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
+11. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+12. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+13. [State that travels with your drives](#state-that-travels-with-your-drives)
+14. [Backup and restore](#backup-and-restore)
+15. [Statistics](#statistics)
+16. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+17. [Themes and sidebar](#themes-and-sidebar)
+18. [Settings](#settings)
+19. [Keyboard shortcuts](#keyboard-shortcuts)
+20. [Exporting your catalog](#exporting-your-catalog)
+21. [Updates](#updates)
+22. [Where your data lives](#where-your-data-lives)
+23. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -408,6 +409,84 @@ the sidebar.
 Like lists, favorites, and notes, tags are saved into the drive's
 sidecar file. Plug the drive into another PC running CineLibrary and
 your tags come back on the next scan.
+
+---
+
+## Watched & Gone
+
+A movie library isn't just what you own — it's what you've *seen*. You
+download a film, watch it, and sometimes decide it isn't worth keeping on
+the drive. But deleting it shouldn't erase the memory: the fact you've
+seen it (so you don't re-download by mistake), and the **note** you wrote
+about why you loved or disliked it. **Watched & Gone** is that memory
+keeper.
+
+### Sending a movie to Watched & Gone
+
+**Right-click any movie** (in grid or list view) → **Send to Watched &
+Gone**. To do several at once, select multiple cards and use the
+**Watched & Gone** button on the selection bar.
+
+The movie leaves your main library and becomes a **record**: its poster,
+all its details, your **notes**, watched state, tags and watch history
+are kept intact. **Your files on the drive are never touched** — archiving
+only changes CineLibrary's catalog. Delete the actual file whenever you
+like; do it before or after, it doesn't matter.
+
+A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
+count, the moment you have your first record.
+
+### The Watched & Gone page
+
+Open it from the sidebar to see your records as a poster wall. You can:
+
+- **Search** records and **sort** them — *Recently gone* (newest first),
+  Title, Year or Rating.
+- **Open details** on any record — everything is still there, notes first.
+- **Restore to library** — brings a record back into your library (handy
+  if you archived something by mistake, or re-downloaded it).
+- **Delete record permanently** — removes the record and its cached poster
+  for good (double-confirmed; this one can't be undone).
+- **Export** the list to **CSV** — a portable log of everything you've
+  watched and let go.
+
+Records are **completely isolated**: they never appear in All Movies,
+search, Browse, Collections, Statistics, drive counts, lists, tags, or any
+Discovery row. Statistics shows a small tally — *"Plus N movies kept in
+Watched & Gone."*
+
+### When files go missing
+
+When a drive scan notices movies it can no longer find on disk, the Drives
+page shows a **Review N…** button. Click it to see exactly what's missing,
+each with a **Keep** checkbox — **watched and noted movies are pre-ticked**.
+
+- **Ticked** movies become Watched & Gone records.
+- **Unticked** movies are removed from CineLibrary.
+
+Quick **Keep all / Keep none** links make bulk choices easy. As always,
+your files aren't touched — this only decides what CineLibrary remembers.
+
+### If a movie comes back
+
+Records are smart about returning movies. On the next scan, if a movie
+matching a record turns up:
+
+- **Same drive, same folder** (the file was still sitting there) → it
+  **stays** a record. Letting the file linger doesn't undo your decision.
+- **A different folder or a different drive** (you moved it, or
+  re-downloaded it) → the record **comes back to life** in your library at
+  its new home — with your notes, watched state, tags and history intact.
+  No duplicate, no lost memory.
+
+Matching uses the movie's IMDb / TMDb id (and falls back to title + year),
+so it's reliable across drives.
+
+### Where records live
+
+Records are part of your portable CineLibrary data — move the whole folder
+to another PC and your Watched & Gone history comes with it. A **Backup**
+also remembers which movies are records.
 
 ---
 

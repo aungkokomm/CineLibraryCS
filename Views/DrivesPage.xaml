@@ -237,7 +237,7 @@
                                         <InfoBar.ActionButton>
                                             <Button Content="{x:Bind MissingButtonText}"
                                                     Tag="{x:Bind VolumeSerial}"
-                                                    Click="OnCleanupMissing"/>
+                                                    Click="OnReviewMissing"/>
                                         </InfoBar.ActionButton>
                                     </InfoBar>
 

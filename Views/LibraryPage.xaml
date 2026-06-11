@@ -453,6 +453,19 @@
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"
                         CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <Button x:Name="SelArchiveBtn" Click="OnSelArchive"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"
+                        AutomationProperties.Name="Send to Watched and Gone"
+                        ToolTipService.ToolTip="Keep as a record, remove from library">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7B8;" FontSize="12"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock Text="Watched &amp; Gone" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
                 <Button x:Name="SelRemoveFromListBtn" Click="OnSelRemoveFromCurrentList"
                         Content="🗑 Remove from list"
                         Visibility="Collapsed"

@@ -25,6 +25,10 @@ public sealed partial class StatisticsPage : Page
         TileAvgRating.Text     = stats.AvgRating.HasValue ? $"★ {stats.AvgRating:F1}" : "—";
         TileTotalDrives.Text   = stats.TotalDrives.ToString();
 
+        var archived = db.GetArchivedCount();
+        ArchivedLine.Text = $"Plus {archived:N0} {(archived == 1 ? "movie" : "movies")} kept in Watched & Gone.";
+        ArchivedLine.Visibility = archived > 0 ? Visibility.Visible : Visibility.Collapsed;
+
         if (stats.TotalMissing > 0)
         {
             MissingHint.Text = $"⚠ {stats.TotalMissing} movie{(stats.TotalMissing == 1 ? "" : "s")} marked missing. Clean up in the Drives page.";

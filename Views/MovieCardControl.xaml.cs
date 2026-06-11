@@ -39,6 +39,19 @@ public sealed partial class MovieCardControl : UserControl
     public record SelectionInteractionArgs(MovieListItem Movie, bool Ctrl, bool Shift);
     public static event EventHandler<SelectionInteractionArgs>? AnyCardSelectionInteraction;
 
+    // v3.3 — raised after movies are sent to Watched & Gone (from a card,
+    // row or the selection bar) so the library reloads and the sidebar
+    // re-counts. Static for the same recycled-cards reason as above.
+    public static event Action? AnyMovieArchived;
+    public static void RaiseMovieArchived() => AnyMovieArchived?.Invoke();
+
+    /// <summary>
+    /// v3.3 — set true by the Watched &amp; Gone page so the context menu
+    /// offers Restore / Delete record instead of the live-library actions.
+    /// Plain CLR property: set once in the page's ItemTemplate, never bound.
+    /// </summary>
+    public bool ArchiveMode { get; set; }
+
     /// <summary>List view rows fire the same event so LibraryPage has one
     /// place to manage selection regardless of grid vs list mode.</summary>
     public static void RaiseSelectionFromRow(MovieListItem m, bool ctrl, bool shift)
@@ -536,6 +549,13 @@ public sealed partial class MovieCardControl : UserControl
         flyout.Items.Clear();
         if (Movie == null) return;
 
+        // v3.3 — Watched & Gone page: a record's menu is Restore / Delete.
+        if (ArchiveMode)
+        {
+            BuildArchiveContextFlyout(flyout);
+            return;
+        }
+
         // Watched / Favorite / Watchlist toggles
         var watchedItem = new ToggleMenuFlyoutItem
         {
@@ -619,6 +639,88 @@ public sealed partial class MovieCardControl : UserControl
         var openItem = new MenuFlyoutItem { Text = "Open details" };
         openItem.Click += (_, _) => OpenDetail();
         flyout.Items.Add(openItem);
+
+        // v3.3 — Watched & Gone: keep the record (poster, details, notes,
+        // history) but move the movie out of the live library.
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        var archiveItem = new MenuFlyoutItem
+        {
+            Text = "Send to Watched & Gone",
+            Icon = new FontIcon { Glyph = "", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons,Segoe MDL2 Assets") },
+        };
+        archiveItem.Click += async (_, _) =>
+        {
+            if (Movie == null) return;
+            var m = Movie;
+            var dlg = new ContentDialog
+            {
+                Title = "Send to Watched & Gone?",
+                Content = $"“{m.Title}” moves out of your library into Watched & Gone — " +
+                          "its poster, details, your notes and watch history are all kept as a record. " +
+                          "The files on your drive are not touched.\n\n" +
+                          "You can restore it from the Watched & Gone page anytime.",
+                PrimaryButtonText = "Send",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            AppState.Instance.Db.ArchiveMovies(new[] { m.Id });
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast($"“{m.Title}” sent to Watched & Gone");
+            RaiseMovieArchived();
+        };
+        flyout.Items.Add(archiveItem);
+    }
+
+    // v3.3 — context menu for records on the Watched & Gone page.
+    private void BuildArchiveContextFlyout(MenuFlyout flyout)
+    {
+        if (Movie == null) return;
+        var m = Movie;
+
+        var openItem = new MenuFlyoutItem { Text = "Open details" };
+        openItem.Click += (_, _) => OpenDetail();
+        flyout.Items.Add(openItem);
+
+        flyout.Items.Add(new MenuFlyoutSeparator());
+
+        var restoreItem = new MenuFlyoutItem { Text = "Restore to library" };
+        restoreItem.Click += (_, _) =>
+        {
+            AppState.Instance.Db.RestoreArchivedMovie(m.Id);
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast($"“{m.Title}” restored to your library");
+            RaiseMovieArchived();
+        };
+        flyout.Items.Add(restoreItem);
+
+        var deleteItem = new MenuFlyoutItem
+        {
+            Text = "Delete record permanently",
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44)),
+        };
+        deleteItem.Click += async (_, _) =>
+        {
+            var dlg = new ContentDialog
+            {
+                Title = "Delete this record?",
+                Content = $"“{m.Title}” — its record, cached poster, notes and watch history " +
+                          "will be permanently removed from CineLibrary. This can't be undone.",
+                PrimaryButtonText = "Delete forever",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            AppState.Instance.Db.DeleteArchivedRecord(m.Id);
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast("Record deleted");
+            RaiseMovieArchived();
+        };
+        flyout.Items.Add(deleteItem);
     }
 
     private async Task<string?> PromptNewListNameDialog()

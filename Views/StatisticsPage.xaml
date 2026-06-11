@@ -76,6 +76,11 @@
                 </Border>
             </Grid>
 
+            <!-- v3.3 — Watched & Gone tally -->
+            <TextBlock x:Name="ArchivedLine" Visibility="Collapsed"
+                       FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                       Margin="2,0,0,0"/>
+
             <!-- ── Watch progress ──────────────────────────────────────────── -->
             <Border Style="{StaticResource StatPanelStyle}">
                 <StackPanel Spacing="10">

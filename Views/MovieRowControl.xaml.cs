@@ -86,6 +86,33 @@ public sealed partial class MovieRowControl : UserControl
             }
         }
         flyout.Items.Add(listsSub);
+
+        // v3.3 — Watched & Gone (same action as the grid-card context menu).
+        flyout.Items.Add(new MenuFlyoutSeparator());
+        var archiveItem = new MenuFlyoutItem { Text = "Send to Watched & Gone" };
+        archiveItem.Click += async (_, _) =>
+        {
+            if (Movie == null) return;
+            var m = Movie;
+            var dlg = new ContentDialog
+            {
+                Title = "Send to Watched & Gone?",
+                Content = $"“{m.Title}” moves out of your library into Watched & Gone — " +
+                          "its poster, details, your notes and watch history are all kept as a record. " +
+                          "The files on your drive are not touched.",
+                PrimaryButtonText = "Send",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            AppState.Instance.Db.ArchiveMovies(new[] { m.Id });
+            if (App.MainWindow is MainWindow mw)
+                mw.ShowToast($"“{m.Title}” sent to Watched & Gone");
+            MovieCardControl.RaiseMovieArchived();
+        };
+        flyout.Items.Add(archiveItem);
     }
 
     private static void OnMovieChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

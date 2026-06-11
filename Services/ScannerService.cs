@@ -106,16 +106,31 @@ public class ScannerService
             VALUES (@vs,@fr,@vfr,@t,@ot,@st,@y,@ra,@vo,@ru,@pl,@ou,@tg,@mp,@im,@tm,@pr,@su,@co,@tr,@lp,@lf,@ln,
                     @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs)";
 
+        // v3.3 — revive: when a movie is found at a NEW path/drive that matches
+        // an archived Watched & Gone record, un-archive that record and move it
+        // here instead of creating a duplicate (the re-download / drive-move
+        // case). Same-path lingering files don't reach here — the path SELECT
+        // above finds the archived row and leaves it archived.
+        using var stmtRevive = conn.CreateCommand();
+        stmtRevive.CommandText = "UPDATE movies SET archived_at=NULL, volume_serial=@vs, folder_rel_path=@fr WHERE id=@id";
+        stmtRevive.Parameters.Add("@vs", SqliteType.Text);
+        stmtRevive.Parameters.Add("@fr", SqliteType.Text);
+        stmtRevive.Parameters.Add("@id", SqliteType.Integer);
+
         using var tx = conn.BeginTransaction();
         // All commands on this connection must carry the active transaction
         stmtGetId.Transaction = tx;
         stmtUpdate.Transaction = tx;
         stmtInsert.Transaction = tx;
         stmtTouch.Transaction  = tx;
+        stmtRevive.Transaction = tx;
 
         // Pre-load existing name→id maps once so per-movie related-row work
         // doesn't hammer the DB with redundant SELECTs.
         var lookup = LookupCache.Load(conn, tx);
+        // Small in-memory index of archived records (usually tens) so the
+        // revive check is O(1) per insert rather than a per-movie table scan.
+        var archivedIdx = ArchivedIndex.Load(conn, tx);
 
         try
         {
@@ -209,6 +224,24 @@ public class ScannerService
                     UpsertRelated(conn, tx, rowId, parsed, lookup);
                     updated++;
                 }
+                else if (archivedIdx.TryMatch(parsed.ImdbId, parsed.TmdbId, parsed.Title, parsed.Year) is int reviveId)
+                {
+                    // Re-download / move of a Watched & Gone movie → bring the
+                    // existing record back to life at this new location with
+                    // its notes / watched / tags / history intact (same row).
+                    stmtUpdate.Parameters.Clear();
+                    BindMovieParams(stmtUpdate, parsed, videoRelPath, localPoster, localFanart, localNfo, containerExt, fileSize);
+                    stmtUpdate.Parameters.AddWithValue("@id", reviveId);
+                    stmtUpdate.ExecuteNonQuery();
+                    stmtRevive.Parameters["@vs"].Value = volumeSerial;
+                    stmtRevive.Parameters["@fr"].Value = folderRelPath;
+                    stmtRevive.Parameters["@id"].Value = reviveId;
+                    stmtRevive.ExecuteNonQuery();
+                    archivedIdx.Remove(reviveId);   // don't revive twice in one scan
+                    UpsertRelated(conn, tx, reviveId, parsed, lookup);
+                    rowId = reviveId;
+                    updated++;
+                }
                 else
                 {
                     stmtInsert.Parameters.Clear();
@@ -248,6 +281,58 @@ public class ScannerService
         }
 
         progress?.Report(new ScanProgress(found, inserted, updated, skipped, "", true));
+    }
+
+    /// <summary>
+    /// v3.3 — in-memory index of Watched &amp; Gone records, loaded once per
+    /// scan, used to detect a re-downloaded / moved archived movie so the scan
+    /// revives the record instead of inserting a duplicate. Match priority:
+    /// imdb_id, then tmdb_id, then title+year (only when the nfo carries no
+    /// stable id — ids are authoritative).
+    /// </summary>
+    private sealed class ArchivedIndex
+    {
+        private readonly Dictionary<string, int> _imdb = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _tmdb = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _titleYear = new(StringComparer.OrdinalIgnoreCase);
+
+        public static ArchivedIndex Load(SqliteConnection conn, SqliteTransaction tx)
+        {
+            var idx = new ArchivedIndex();
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "SELECT id, imdb_id, tmdb_id, title, year FROM movies WHERE archived_at IS NOT NULL";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                int id = r.GetInt32(0);
+                if (!r.IsDBNull(1) && r.GetString(1).Length > 0) idx._imdb[r.GetString(1)] = id;
+                if (!r.IsDBNull(2) && r.GetString(2).Length > 0) idx._tmdb[r.GetString(2)] = id;
+                var title = r.IsDBNull(3) ? "" : r.GetString(3);
+                var year = r.IsDBNull(4) ? "" : r.GetInt32(4).ToString();
+                if (title.Length > 0) idx._titleYear[title + "|" + year] = id;
+            }
+            return idx;
+        }
+
+        public int? TryMatch(string? imdb, string? tmdb, string title, int? year)
+        {
+            if (!string.IsNullOrEmpty(imdb) && _imdb.TryGetValue(imdb, out var i1)) return i1;
+            if (!string.IsNullOrEmpty(tmdb) && _tmdb.TryGetValue(tmdb, out var i2)) return i2;
+            if (string.IsNullOrEmpty(imdb) && string.IsNullOrEmpty(tmdb))
+            {
+                var key = (title ?? "") + "|" + (year?.ToString() ?? "");
+                if (_titleYear.TryGetValue(key, out var i3)) return i3;
+            }
+            return null;
+        }
+
+        public void Remove(int id)
+        {
+            foreach (var k in _imdb.Where(kv => kv.Value == id).Select(kv => kv.Key).ToList()) _imdb.Remove(k);
+            foreach (var k in _tmdb.Where(kv => kv.Value == id).Select(kv => kv.Key).ToList()) _tmdb.Remove(k);
+            foreach (var k in _titleYear.Where(kv => kv.Value == id).Select(kv => kv.Key).ToList()) _titleYear.Remove(k);
+        }
     }
 
     private static void BindMovieParams(SqliteCommand cmd, ParsedMovie p, string? vfr, string? lp, string? lf, string? ln,

@@ -413,6 +413,17 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         if (!cols.Contains("duration_seconds")) Exec("ALTER TABLE movies ADD COLUMN duration_seconds INTEGER");
         if (!cols.Contains("container_ext"))    Exec("ALTER TABLE movies ADD COLUMN container_ext TEXT");
         if (!cols.Contains("file_size_bytes"))  Exec("ALTER TABLE movies ADD COLUMN file_size_bytes INTEGER");
+        // v3.3 — Watched & Gone. NULL = normal library movie; a unix
+        // timestamp = the movie was archived (watched then deleted from
+        // disk, kept as a record with poster/notes/history). Archived rows
+        // are excluded from every live-library query and survive drive
+        // removal and missing-cleanup.
+        if (!cols.Contains("archived_at"))      Exec("ALTER TABLE movies ADD COLUMN archived_at INTEGER");
+        // Hidden sentinel drive that archived records are re-pointed to when
+        // their original drive is removed (movies cascade-delete with their
+        // drive, and a record must outlive the drive it came from). Never
+        // shown in the Drives UI.
+        Exec("INSERT OR IGNORE INTO drives (volume_serial, label) VALUES ('__archive__', 'Watched & Gone')");
 
         // Multi-source ratings table (TMDb / IMDb / Rotten Tomatoes / …)
         Exec(@"
@@ -1080,7 +1091,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    COUNT(m.id) as movie_count,
                    SUM(CASE WHEN m.is_missing=1 THEN 1 ELSE 0 END) as missing_count
             FROM drives d
-            LEFT JOIN movies m ON m.volume_serial = d.volume_serial
+            LEFT JOIN movies m ON m.volume_serial = d.volume_serial AND m.archived_at IS NULL
+            WHERE d.volume_serial != '__archive__'
             GROUP BY d.volume_serial";
         using var r = cmd.ExecuteReader();
         while (r.Read())
@@ -1165,7 +1177,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         // First, collect cached artwork paths so we can clean them up
         using (var sel = _conn.CreateCommand())
         {
-            sel.CommandText = $"SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND NOT ({keepSql})";
+            sel.CommandText = $"SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND archived_at IS NULL AND NOT ({keepSql})";
             sel.Parameters.AddWithValue("@s", serial);
             foreach (var (n, v) in pars) sel.Parameters.AddWithValue(n, v);
             using var r = sel.ExecuteReader();
@@ -1183,7 +1195,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
 
         using var del = _conn.CreateCommand();
-        del.CommandText = $"DELETE FROM movies WHERE volume_serial=@s AND NOT ({keepSql})";
+        del.CommandText = $"DELETE FROM movies WHERE volume_serial=@s AND archived_at IS NULL AND NOT ({keepSql})";
         del.Parameters.AddWithValue("@s", serial);
         foreach (var (n, v) in pars) del.Parameters.AddWithValue(n, v);
         return del.ExecuteNonQuery();
@@ -1196,7 +1208,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         // First, collect + delete cached artwork for missing rows
         using (var get = _conn.CreateCommand())
         {
-            get.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND is_missing=1";
+            get.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND is_missing=1 AND archived_at IS NULL";
             get.Parameters.AddWithValue("@s", serial);
             using var rr = get.ExecuteReader();
             while (rr.Read())
@@ -1213,7 +1225,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
 
         using var del = _conn.CreateCommand();
-        del.CommandText = "DELETE FROM movies WHERE volume_serial=@s AND is_missing=1";
+        del.CommandText = "DELETE FROM movies WHERE volume_serial=@s AND is_missing=1 AND archived_at IS NULL";
         del.Parameters.AddWithValue("@s", serial);
         return del.ExecuteNonQuery();
     }
@@ -1239,7 +1251,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using (var get = _conn.CreateCommand())
         {
             get.CommandText = @"SELECT local_poster, local_fanart, local_nfo FROM movies
-                                WHERE volume_serial=@s AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
+                                WHERE volume_serial=@s AND archived_at IS NULL AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
             get.Parameters.AddWithValue("@s", serial);
             get.Parameters.AddWithValue("@r", norm);
             get.Parameters.AddWithValue("@p", norm + "/%");
@@ -1262,7 +1274,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         {
             del1.Transaction = tx;
             del1.CommandText = @"DELETE FROM movies
-                                 WHERE volume_serial=@s AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
+                                 WHERE volume_serial=@s AND archived_at IS NULL AND (folder_rel_path=@r OR folder_rel_path LIKE @p)";
             del1.Parameters.AddWithValue("@s", serial);
             del1.Parameters.AddWithValue("@r", norm);
             del1.Parameters.AddWithValue("@p", norm + "/%");
@@ -1368,9 +1380,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RemoveDrive(string serial)
     {
-        // Clean up cached image files
+        // Clean up cached image files (archived records keep theirs — the
+        // poster IS the record).
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s";
+        cmd.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE volume_serial=@s AND archived_at IS NULL";
         cmd.Parameters.AddWithValue("@s", serial);
         using var r = cmd.ExecuteReader();
         while (r.Read())
@@ -1385,6 +1398,15 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             }
         }
         r.Close();
+
+        // v3.3 — archived records must outlive the drive (movies cascade
+        // with their drive row). Re-point them to the hidden sentinel.
+        using (var move = _conn.CreateCommand())
+        {
+            move.CommandText = "UPDATE movies SET volume_serial='__archive__' WHERE volume_serial=@s AND archived_at IS NOT NULL";
+            move.Parameters.AddWithValue("@s", serial);
+            move.ExecuteNonQuery();
+        }
 
         using var del = _conn.CreateCommand();
         del.CommandText = "DELETE FROM drives WHERE volume_serial=@s";
@@ -1417,6 +1439,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         int? TagId = null,              // v2.9 — filter movies by tag id
         int? DecadeStart = null,        // e.g. 1980 → year in [1980..1989]
         string? RatingBand = null,      // bucket key: "9","8","7","6","5","0"
+        bool ArchivedOnly = false,      // v3.3 — Watched & Gone page
         int Limit = 60,
         int Offset = 0
     );
@@ -1506,14 +1529,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
         if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
         if (opts.RecentlyAddedOnly)
-            where.Add($"m.id IN (SELECT id FROM movies WHERE is_missing=0 ORDER BY date_added DESC, id DESC LIMIT {Math.Max(1, opts.RecentlyAddedTopN)})");
+            where.Add($"m.id IN (SELECT id FROM movies WHERE is_missing=0 AND archived_at IS NULL ORDER BY date_added DESC, id DESC LIMIT {Math.Max(1, opts.RecentlyAddedTopN)})");
         if (opts.UserListId != null) where.Add("EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id=m.id AND ulm.list_id=@listId)");
         if (opts.TagId != null) where.Add("EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id=m.id AND mt.tag_id=@tagId)");
         if (opts.DecadeStart != null)
             where.Add("m.year >= @decLo AND m.year <= @decHi");
         if (opts.RatingBand != null)
             where.Add("m.rating >= @ratLo AND m.rating < @ratHi");
-        return (where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "", where);
+        // v3.3 — Watched & Gone isolation. Every live-library query excludes
+        // archived rows; the W&G page flips the flag to see ONLY them. Always
+        // present, so a missed call site can't leak archived movies.
+        where.Add(opts.ArchivedOnly ? "m.archived_at IS NOT NULL" : "m.archived_at IS NULL");
+        return ("WHERE " + string.Join(" AND ", where), where);
     }
 
     private void BindMovieListParams(SqliteCommand cmd, ListOptions opts, bool includePaging)
@@ -1577,6 +1604,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             "runtime" => "m.runtime",
             "date_added" => "m.date_added",
             "last_played" => "m.last_played_at",
+            "archived" => "m.archived_at",   // v3.3 — Watched & Gone "recently gone"
             _ => "m.sort_title"
         };
         var sortDir = opts.SortDir == "desc" ? "DESC" : "ASC";
@@ -1867,6 +1895,118 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         RaisePersonalStateChanged(id);
     }
 
+    // ── Watched & Gone (v3.3) ────────────────────────────────────────────────
+    // A movie the user watched and then deleted from disk can be kept as a
+    // permanent record — poster, metadata, notes, tags and watch history all
+    // stay on the row; only archived_at flips. Records live outside the main
+    // library (see BuildMovieListWhere) and survive drive removal.
+
+    /// <summary>Send movies to Watched &amp; Gone. No-op for already-archived ids.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int ArchiveMovies(IReadOnlyCollection<int> ids)
+    {
+        if (ids.Count == 0) return 0;
+        var inList = string.Join(",", ids);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"UPDATE movies SET archived_at=strftime('%s','now') WHERE id IN ({inList}) AND archived_at IS NULL";
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Bring an archived record back into the main library.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RestoreArchivedMovie(int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET archived_at=NULL WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Permanently delete an archived record (row + cached artwork).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void DeleteArchivedRecord(int id)
+    {
+        using (var get = _conn.CreateCommand())
+        {
+            get.CommandText = "SELECT local_poster, local_fanart, local_nfo FROM movies WHERE id=@id AND archived_at IS NOT NULL";
+            get.Parameters.AddWithValue("@id", id);
+            using var r = get.ExecuteReader();
+            if (!r.Read()) return;   // not archived — refuse to delete a live movie
+            for (int i = 0; i < 3; i++)
+            {
+                if (!r.IsDBNull(i))
+                {
+                    var p = Path.Combine(_dataDir, r.GetString(i));
+                    if (File.Exists(p)) try { File.Delete(p); } catch { }
+                }
+            }
+        }
+        using var del = _conn.CreateCommand();
+        del.CommandText = "DELETE FROM movies WHERE id=@id AND archived_at IS NOT NULL";
+        del.Parameters.AddWithValue("@id", id);
+        del.ExecuteNonQuery();
+    }
+
+    /// <summary>A missing movie, for the Drives "Review missing" dialog.</summary>
+    public record MissingMovieRow(int Id, string Title, int? Year, string? LocalPoster, bool IsWatched, bool HasNote);
+
+    /// <summary>Movies on this drive flagged is_missing=1 (excluding records).
+    /// Watched / noted ones first, since those are the keep-as-record cases.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MissingMovieRow> GetMissingMovies(string serial)
+    {
+        var list = new List<MissingMovieRow>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT id, title, year, local_poster, is_watched,
+                                   (note IS NOT NULL AND TRIM(note) != '') AS has_note
+                            FROM movies
+                            WHERE volume_serial=@s AND is_missing=1 AND archived_at IS NULL
+                            ORDER BY (is_watched OR (note IS NOT NULL AND TRIM(note) != '')) DESC, sort_title";
+        cmd.Parameters.AddWithValue("@s", serial);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new MissingMovieRow(
+                r.GetInt32(0), r.GetString(1),
+                r.IsDBNull(2) ? null : r.GetInt32(2),
+                r.IsDBNull(3) ? null : r.GetString(3),
+                r.GetInt32(4) == 1,
+                r.GetInt32(5) == 1));
+        return list;
+    }
+
+    /// <summary>Delete specific missing movies by id (+ cached artwork). Used by
+    /// the Review-missing dialog for the rows the user chose not to keep.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int DeleteMoviesByIds(IReadOnlyCollection<int> ids)
+    {
+        if (ids.Count == 0) return 0;
+        var inList = string.Join(",", ids);
+        using (var get = _conn.CreateCommand())
+        {
+            get.CommandText = $"SELECT local_poster, local_fanart, local_nfo FROM movies WHERE id IN ({inList}) AND archived_at IS NULL";
+            using var r = get.ExecuteReader();
+            while (r.Read())
+                for (int i = 0; i < 3; i++)
+                    if (!r.IsDBNull(i))
+                    {
+                        var p = Path.Combine(_dataDir, r.GetString(i));
+                        if (File.Exists(p)) try { File.Delete(p); } catch { }
+                    }
+        }
+        using var del = _conn.CreateCommand();
+        del.CommandText = $"DELETE FROM movies WHERE id IN ({inList}) AND archived_at IS NULL";
+        return del.ExecuteNonQuery();
+    }
+
+    /// <summary>Number of Watched &amp; Gone records (sidebar count).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetArchivedCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE archived_at IS NOT NULL";
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
     // ── Collections ──────────────────────────────────────────────────────────
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -1876,6 +2016,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = @"
             SELECT s.id, s.name, COUNT(ms.movie_id) as cnt
             FROM sets s JOIN movie_sets ms ON ms.set_id=s.id
+                        JOIN movies m ON m.id=ms.movie_id AND m.archived_at IS NULL
             GROUP BY s.id ORDER BY s.name";
         var list = new List<Collection>();
         using var r = cmd.ExecuteReader();
@@ -1916,8 +2057,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
             SELECT COUNT(*), SUM(is_missing), COALESCE(SUM(runtime),0), AVG(CASE WHEN rating IS NOT NULL THEN rating END),
-                   (SELECT COUNT(*) FROM drives)
-            FROM movies";
+                   (SELECT COUNT(*) FROM drives WHERE volume_serial != '__archive__')
+            FROM movies WHERE archived_at IS NULL";
         using var r = cmd.ExecuteReader();
         r.Read();
         return new LibraryStats
@@ -2035,7 +2176,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 COUNT(*) as count,
                 AVG(CAST(rating AS FLOAT)) as avgRating
             FROM movies
-            WHERE year IS NOT NULL AND is_missing = 0
+            WHERE year IS NOT NULL AND is_missing = 0 AND archived_at IS NULL
             GROUP BY (year / 10) * 10
             ORDER BY decade DESC";
 
@@ -2112,7 +2253,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 SUM(CASE WHEN is_watched = 1 THEN 1 ELSE 0 END) as watched,
                 COUNT(*) as total
             FROM movies
-            WHERE is_missing = 0";
+            WHERE is_missing = 0 AND archived_at IS NULL";
 
         using var reader = cmd.ExecuteReader();
         if (reader.Read())
@@ -2129,7 +2270,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public double GetTotalRuntimeHours()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT SUM(CAST(runtime AS FLOAT)) FROM movies WHERE runtime IS NOT NULL AND is_missing = 0";
+        cmd.CommandText = "SELECT SUM(CAST(runtime AS FLOAT)) FROM movies WHERE runtime IS NOT NULL AND is_missing = 0 AND archived_at IS NULL";
 
         var result = cmd.ExecuteScalar();
         if (result is not DBNull && result != null)
@@ -2143,7 +2284,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetWatchlistCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0";
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_watchlist = 1 AND is_missing = 0 AND archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
@@ -2152,7 +2293,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetNotesCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE note IS NOT NULL AND TRIM(note) != ''";
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE note IS NOT NULL AND TRIM(note) != '' AND archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
@@ -2187,15 +2328,15 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    COUNT(DISTINCT m.id) c,
                    (SELECT m2.local_fanart FROM movies m2
                     JOIN movie_genres mg2 ON mg2.movie_id=m2.id
-                    WHERE mg2.genre_id=g.id AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                    WHERE mg2.genre_id=g.id AND m2.local_fanart IS NOT NULL AND m2.is_missing=0 AND m2.archived_at IS NULL
                     ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1) AS fanart,
                    (SELECT m3.local_poster FROM movies m3
                     JOIN movie_genres mg3 ON mg3.movie_id=m3.id
-                    WHERE mg3.genre_id=g.id AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                    WHERE mg3.genre_id=g.id AND m3.local_poster IS NOT NULL AND m3.is_missing=0 AND m3.archived_at IS NULL
                     ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster
             FROM genres g
             JOIN movie_genres mg ON mg.genre_id=g.id
-            JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0
+            JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0 AND m.archived_at IS NULL
             GROUP BY g.id
             HAVING c > 0
             ORDER BY c DESC, g.name ASC";
@@ -2221,13 +2362,13 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             SELECT (m.year/10)*10 AS decade,
                    COUNT(*) c,
                    (SELECT local_fanart FROM movies m2
-                    WHERE (m2.year/10)*10 = (m.year/10)*10 AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                    WHERE (m2.year/10)*10 = (m.year/10)*10 AND m2.local_fanart IS NOT NULL AND m2.is_missing=0 AND m2.archived_at IS NULL
                     ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1) AS fanart,
                    (SELECT local_poster FROM movies m3
-                    WHERE (m3.year/10)*10 = (m.year/10)*10 AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                    WHERE (m3.year/10)*10 = (m.year/10)*10 AND m3.local_poster IS NOT NULL AND m3.is_missing=0 AND m3.archived_at IS NULL
                     ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster
             FROM movies m
-            WHERE m.year IS NOT NULL AND m.is_missing=0
+            WHERE m.year IS NOT NULL AND m.is_missing=0 AND m.archived_at IS NULL
             GROUP BY decade
             ORDER BY decade DESC";
         using var r = cmd.ExecuteReader();
@@ -2262,11 +2403,11 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             using var cmd = _conn.CreateCommand();
             cmd.CommandText = @"
                 SELECT COUNT(*),
-                       (SELECT local_fanart FROM movies WHERE rating >= @lo AND rating < @hi AND local_fanart IS NOT NULL AND is_missing=0
+                       (SELECT local_fanart FROM movies WHERE rating >= @lo AND rating < @hi AND local_fanart IS NOT NULL AND is_missing=0 AND archived_at IS NULL
                         ORDER BY rating DESC LIMIT 1),
-                       (SELECT local_poster FROM movies WHERE rating >= @lo AND rating < @hi AND local_poster IS NOT NULL AND is_missing=0
+                       (SELECT local_poster FROM movies WHERE rating >= @lo AND rating < @hi AND local_poster IS NOT NULL AND is_missing=0 AND archived_at IS NULL
                         ORDER BY rating DESC LIMIT 1)
-                FROM movies WHERE rating >= @lo AND rating < @hi AND is_missing=0";
+                FROM movies WHERE rating >= @lo AND rating < @hi AND is_missing=0 AND archived_at IS NULL";
             cmd.Parameters.AddWithValue("@lo", b.lo);
             cmd.Parameters.AddWithValue("@hi", b.hi);
             using var r = cmd.ExecuteReader();
@@ -2288,12 +2429,12 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = @"
             SELECT studio,
                    COUNT(*),
-                   (SELECT local_fanart FROM movies m2 WHERE m2.studio=m.studio AND m2.local_fanart IS NOT NULL AND m2.is_missing=0
+                   (SELECT local_fanart FROM movies m2 WHERE m2.studio=m.studio AND m2.local_fanart IS NOT NULL AND m2.is_missing=0 AND m2.archived_at IS NULL
                     ORDER BY COALESCE(m2.rating,0) DESC LIMIT 1),
-                   (SELECT local_poster FROM movies m3 WHERE m3.studio=m.studio AND m3.local_poster IS NOT NULL AND m3.is_missing=0
+                   (SELECT local_poster FROM movies m3 WHERE m3.studio=m.studio AND m3.local_poster IS NOT NULL AND m3.is_missing=0 AND m3.archived_at IS NULL
                     ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1)
             FROM movies m
-            WHERE m.studio IS NOT NULL AND m.studio <> '' AND m.is_missing=0
+            WHERE m.studio IS NOT NULL AND m.studio <> '' AND m.is_missing=0 AND m.archived_at IS NULL
             GROUP BY m.studio
             HAVING COUNT(*) > 1
             ORDER BY COUNT(*) DESC, m.studio ASC
@@ -2327,11 +2468,11 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             SELECT s.id, s.name, COUNT(DISTINCT m2.id) c,
                    (SELECT local_poster FROM movies m
                     JOIN movie_sets ms2 ON ms2.movie_id=m.id
-                    WHERE ms2.set_id=s.id AND m.local_poster IS NOT NULL AND m.is_missing=0
+                    WHERE ms2.set_id=s.id AND m.local_poster IS NOT NULL AND m.is_missing=0 AND m.archived_at IS NULL
                     ORDER BY COALESCE(m.rating,0) DESC LIMIT 1) AS cover
             FROM sets s
             JOIN movie_sets ms ON ms.set_id=s.id
-            JOIN movies m2 ON m2.id=ms.movie_id AND m2.is_missing=0
+            JOIN movies m2 ON m2.id=ms.movie_id AND m2.is_missing=0 AND m2.archived_at IS NULL
             GROUP BY s.id
             HAVING c >= 2
             ORDER BY s.name ASC";
@@ -2358,7 +2499,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         // v2.8.2 — count movies + shows so the badge reflects the whole list.
         cmd.CommandText = @"SELECT ul.id, ul.name,
-                                   (SELECT COUNT(*) FROM user_list_movies m WHERE m.list_id=ul.id)
+                                   (SELECT COUNT(*) FROM user_list_movies lm
+                                     JOIN movies mv ON mv.id=lm.movie_id AND mv.archived_at IS NULL
+                                     WHERE lm.list_id=ul.id)
                                  + (SELECT COUNT(*) FROM user_list_shows s WHERE s.list_id=ul.id) AS cnt
                             FROM user_lists ul
                             ORDER BY ul.sort_order, ul.name";
@@ -2437,7 +2580,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = @"SELECT m.id, m.title, m.volume_serial, m.folder_rel_path, m.year
                             FROM user_list_movies ulm
                             JOIN movies m ON m.id = ulm.movie_id
-                            WHERE ulm.list_id = @id AND m.is_missing = 0
+                            WHERE ulm.list_id = @id AND m.is_missing = 0 AND m.archived_at IS NULL
                             ORDER BY m.sort_title";
         cmd.Parameters.AddWithValue("@id", listId);
         using var r = cmd.ExecuteReader();
@@ -2497,6 +2640,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var ids = new List<int>();
         using var cmd = _conn.CreateCommand();
         var where = @"
+            archived_at IS NULL AND
             (is_watched=1 OR is_favorite=1 OR is_watchlist=1
              OR (last_played_at IS NOT NULL AND last_played_at > 0)
              OR (note IS NOT NULL AND TRIM(note) != '')
@@ -2999,7 +3143,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.is_watchlist
               FROM movies m
               LEFT JOIN drives d ON d.volume_serial=m.volume_serial
-             WHERE m.is_missing = 0 AND m.last_played_at > 0
+             WHERE m.is_missing = 0 AND m.archived_at IS NULL AND m.last_played_at > 0
              ORDER BY m.last_played_at DESC
              LIMIT @lim";
         cmd.Parameters.AddWithValue("@lim", limit);
@@ -3067,6 +3211,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                   LEFT JOIN drives d ON d.volume_serial = m.volume_serial
                  WHERE e.item_kind = 'movie'
                    AND m.is_missing = 0
+                   AND m.archived_at IS NULL
                    AND strftime('%m-%d', e.watched_at, 'unixepoch', 'localtime')
                        = strftime('%m-%d', 'now', 'localtime')
                    AND strftime('%Y', e.watched_at, 'unixepoch', 'localtime')
@@ -3103,6 +3248,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                   FROM movies m
                   LEFT JOIN drives d ON d.volume_serial = m.volume_serial
                  WHERE m.is_missing = 0
+                   AND m.archived_at IS NULL
                    AND m.premiered IS NOT NULL
                    AND length(m.premiered) >= 10
                    AND substr(m.premiered, 6, 5) = strftime('%m-%d', 'now', 'localtime')
@@ -3147,6 +3293,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd2.CommandText = @"
             SELECT 1 FROM movies
              WHERE is_missing=0
+               AND archived_at IS NULL
                AND premiered IS NOT NULL
                AND length(premiered) >= 10
                AND substr(premiered, 6, 5) = strftime('%m-%d', 'now', 'localtime')
@@ -3195,7 +3342,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetRecentlyWatchedCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE last_played_at > 0 AND is_missing=0";
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE last_played_at > 0 AND is_missing=0 AND archived_at IS NULL";
         return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
     }
 
@@ -3248,7 +3395,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
             SELECT t.id, t.name,
-                   (SELECT COUNT(*) FROM movie_tags mt WHERE mt.tag_id = t.id) AS mc,
+                   (SELECT COUNT(*) FROM movie_tags mt
+                     JOIN movies mv ON mv.id=mt.movie_id AND mv.archived_at IS NULL
+                     WHERE mt.tag_id = t.id) AS mc,
                    (SELECT COUNT(*) FROM tv_show_tags st WHERE st.tag_id = t.id) AS sc
               FROM tags t
              ORDER BY t.name COLLATE NOCASE";
@@ -3370,7 +3519,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"SELECT COUNT(*) FROM movies
-                            WHERE last_played_at > 0 AND is_watched = 0 AND is_missing = 0";
+                            WHERE last_played_at > 0 AND is_watched = 0 AND is_missing = 0 AND archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
@@ -3384,7 +3533,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (connected.Count == 0)
         {
             using var any = _conn.CreateCommand();
-            any.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 ORDER BY RANDOM() LIMIT 1";
+            any.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL ORDER BY RANDOM() LIMIT 1";
             var v = any.ExecuteScalar();
             return v == null || v == DBNull.Value ? null : Convert.ToInt32(v);
         }
@@ -3393,7 +3542,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var serials = string.Join(",", connected.Keys.Select(s => $"'{s.Replace("'", "''")}'"));
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $@"SELECT id FROM movies
-                              WHERE is_watched=0 AND is_missing=0
+                              WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL
                                 AND volume_serial IN ({serials})
                               ORDER BY RANDOM() LIMIT 1";
         var val = cmd.ExecuteScalar();
@@ -3401,7 +3550,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         {
             // Fall back to any unwatched (drive offline) so the user still gets a pick.
             using var fb = _conn.CreateCommand();
-            fb.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 ORDER BY RANDOM() LIMIT 1";
+            fb.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL ORDER BY RANDOM() LIMIT 1";
             val = fb.ExecuteScalar();
             if (val == null || val == DBNull.Value) return null;
         }

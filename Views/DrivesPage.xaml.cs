@@ -438,6 +438,114 @@ public sealed partial class DrivesPage : Page
 
     // ── Clean up missing movies ───────────────────────────────────────────
 
+    // v3.3 — Review missing: per-movie choice to keep as a Watched & Gone
+    // record (watched/noted ones pre-ticked) or remove. Kept ones are
+    // archived; the rest are deleted. Files on the drive are never touched.
+    private async void OnReviewMissing(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not FrameworkElement fe || fe.Tag is not string serial) return;
+            var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
+            var missing = AppState.Instance.Db.GetMissingMovies(serial);
+            if (missing.Count == 0) return;
+
+            var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
+            var chipBg = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"];
+            var checkboxes = new List<(CheckBox box, int id)>();
+
+            var listPanel = new StackPanel { Spacing = 4 };
+            foreach (var m in missing)
+            {
+                var row = new Grid { Padding = new Thickness(2) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var img = new Image { Width = 36, Height = 54, Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill };
+                var path = m.LocalPoster != null ? AppState.Instance.Db.GetCachedImagePath(m.LocalPoster) : null;
+                if (path != null && File.Exists(path))
+                    try { img.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 72, UriSource = new Uri(path) }; } catch { }
+                var imgBorder = new Border
+                {
+                    CornerRadius = new CornerRadius(4), Child = img,
+                    Margin = new Thickness(0, 0, 10, 0), Background = chipBg,
+                };
+                Grid.SetColumn(imgBorder, 0);
+                row.Children.Add(imgBorder);
+
+                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                info.Children.Add(new TextBlock
+                {
+                    Text = m.Title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+                var bits = new List<string>();
+                if (m.Year != null) bits.Add(m.Year.ToString()!);
+                bits.Add(m.IsWatched ? "Watched" : "Unwatched");
+                if (m.HasNote) bits.Add("Has note");
+                info.Children.Add(new TextBlock { Text = string.Join("  ·  ", bits), FontSize = 11, Foreground = muted });
+                Grid.SetColumn(info, 1);
+                row.Children.Add(info);
+
+                var cb = new CheckBox
+                {
+                    IsChecked = m.IsWatched || m.HasNote,
+                    Content = "Keep", MinWidth = 0, VerticalAlignment = VerticalAlignment.Center,
+                };
+                Grid.SetColumn(cb, 2);
+                row.Children.Add(cb);
+                checkboxes.Add((cb, m.Id));
+                listPanel.Children.Add(row);
+            }
+
+            var content = new StackPanel { Spacing = 6, MinWidth = 480 };
+            content.Children.Add(new TextBlock
+            {
+                Text = $"{missing.Count} movie(s) on “{drive?.Label}” weren't found in the last scan. " +
+                       "Tick the ones to keep as records in Watched & Gone — their poster, details, notes and " +
+                       "watch history stay. Unticked ones are removed from CineLibrary. Your files are never touched.",
+                TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = muted, Margin = new Thickness(0, 0, 0, 4),
+            });
+            var keepAll = new HyperlinkButton { Content = "Keep all" };
+            keepAll.Click += (_, _) => { foreach (var (b, _) in checkboxes) b.IsChecked = true; };
+            var keepNone = new HyperlinkButton { Content = "Keep none" };
+            keepNone.Click += (_, _) => { foreach (var (b, _) in checkboxes) b.IsChecked = false; };
+            var quick = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+            quick.Children.Add(keepAll);
+            quick.Children.Add(keepNone);
+            content.Children.Add(quick);
+            content.Children.Add(new ScrollViewer
+            {
+                Content = listPanel, MaxHeight = 380,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            });
+
+            var dialog = new ContentDialog
+            {
+                Title = "Review missing movies",
+                Content = content,
+                PrimaryButtonText = "Apply",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            var keepIds = checkboxes.Where(c => c.box.IsChecked == true).Select(c => c.id).ToList();
+            var dropIds = checkboxes.Where(c => c.box.IsChecked != true).Select(c => c.id).ToList();
+            int kept = keepIds.Count > 0 ? AppState.Instance.Db.ArchiveMovies(keepIds) : 0;
+            int removed = dropIds.Count > 0 ? AppState.Instance.Db.DeleteMoviesByIds(dropIds) : 0;
+
+            Refresh();
+            RefreshRequested?.Invoke(this, EventArgs.Empty);
+            if (App.MainWindow is CineLibraryCS.MainWindow mw)
+                mw.ShowToast($"Kept {kept} as record(s) · removed {removed}");
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
     private async void OnCleanupMissing(object sender, RoutedEventArgs e)
     {
         try
