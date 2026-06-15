@@ -556,14 +556,14 @@ public sealed partial class MovieDetailDialog : Window
                 Text = sourceLabel.ToUpperInvariant(),
                 FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 CharacterSpacing = 150, Opacity = 0.65,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             });
             stack.Children.Add(new TextBlock
             {
                 Text = rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
                        + (rt.Source.Equals("rottentomatoes", StringComparison.OrdinalIgnoreCase) ? "%" : ""),
                 FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
             });
             if (rt.Votes.HasValue && rt.Votes.Value > 0)
             {
@@ -571,7 +571,7 @@ public sealed partial class MovieDetailDialog : Window
                 {
                     Text = FormatVotes(rt.Votes.Value),
                     FontSize = 10,
-                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                    Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
                 });
             }
             RatingsPanel.Children.Add(stack);
@@ -803,8 +803,8 @@ public sealed partial class MovieDetailDialog : Window
         {
             var border = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+                Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
+                BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
                 Padding = new Thickness(10, 4, 6, 4),
@@ -814,7 +814,7 @@ public sealed partial class MovieDetailDialog : Window
             {
                 Text = $"📑 {listName}",
                 FontSize = 12,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
             });
             var x = new Button
@@ -823,7 +823,7 @@ public sealed partial class MovieDetailDialog : Window
                 FontSize = 10,
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
                 Padding = new Thickness(4, 0, 4, 0),
                 MinWidth = 18,
                 MinHeight = 18,
@@ -857,8 +857,8 @@ public sealed partial class MovieDetailDialog : Window
         {
             var border = new Border
             {
-                Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
-                BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+                Background = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush"),
+                BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
                 Padding = new Thickness(10, 3, 4, 3),
@@ -883,7 +883,7 @@ public sealed partial class MovieDetailDialog : Window
                 FontSize = 10,
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
                 Padding = new Thickness(4, 0, 4, 0),
                 MinWidth = 18,
                 MinHeight = 18,

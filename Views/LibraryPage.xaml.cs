@@ -99,7 +99,7 @@ public sealed partial class LibraryPage : Page
         AddAccelerator((VirtualKey)0xBF /* Oem2 = / */, VirtualKeyModifiers.None, (_, a) =>
         {
             if (IsTextEditFocused()) return;
-            SearchBox.Focus(FocusState.Programmatic);
+            (App.MainWindow as CineLibraryCS.MainWindow)?.FocusTitleSearch();
             a.Handled = true;
         });
         AddAccelerator(VirtualKey.F, VirtualKeyModifiers.None, (_, a) =>
@@ -639,7 +639,7 @@ public sealed partial class LibraryPage : Page
 
     public void FocusSearchBox()
     {
-        SearchBox.Focus(FocusState.Programmatic);
+        (App.MainWindow as CineLibraryCS.MainWindow)?.FocusTitleSearch();
     }
 
     // ── Keyboard navigation (v2.0.1) ──────────────────────────────────────
@@ -1068,8 +1068,8 @@ public sealed partial class LibraryPage : Page
         if (string.IsNullOrWhiteSpace(value)) return;
         var border = new Border
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush"),
+            BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(10, 3, 6, 3),
@@ -1078,14 +1078,14 @@ public sealed partial class LibraryPage : Page
         sp.Children.Add(new TextBlock
         {
             FontSize = 11,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             Text = label + ":",
             VerticalAlignment = VerticalAlignment.Center,
         });
         sp.Children.Add(new TextBlock
         {
             FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
             Text = value,
             VerticalAlignment = VerticalAlignment.Center,
         });
@@ -1093,7 +1093,7 @@ public sealed partial class LibraryPage : Page
         {
             Content = "✕", FontSize = 10,
             Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             BorderThickness = new Thickness(0),
             Padding = new Thickness(4, 0, 4, 0),
             MinWidth = 18, MinHeight = 18,
@@ -1127,15 +1127,13 @@ public sealed partial class LibraryPage : Page
 
     private void OnSearchBoxFocus(object sender, RoutedEventArgs e)
     {
-        SearchBox.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
-            Application.Current.Resources["BrandPurpleBrush"];
+        SearchBox.BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush");
         UpdateSearchEscHint();
     }
 
     private void OnSearchBoxBlur(object sender, RoutedEventArgs e)
     {
-        SearchBox.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)
-            Application.Current.Resources["InputBorderBrush"];
+        SearchBox.BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("InputBorderBrush");
         UpdateSearchEscHint();
     }
 

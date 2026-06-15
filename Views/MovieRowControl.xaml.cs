@@ -155,7 +155,7 @@ public sealed partial class MovieRowControl : UserControl
     {
         bool on = Movie?.IsSelected == true;
         RowBorder.BorderBrush = on
-            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"]
+            ? CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush")
             : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 

@@ -450,8 +450,8 @@ public sealed partial class DrivesPage : Page
             var missing = AppState.Instance.Db.GetMissingMovies(serial);
             if (missing.Count == 0) return;
 
-            var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
-            var chipBg = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"];
+            var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
+            var chipBg = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush");
             var checkboxes = new List<(CheckBox box, int id)>();
 
             var listPanel = new StackPanel { Spacing = 4 };
@@ -661,7 +661,7 @@ public sealed partial class DrivesPage : Page
                 {
                     Text = $"{stateful} movie(s) on this drive have watched / favorite / list / notes data.",
                     FontSize = 12,
-                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                    Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
                     TextWrapping = TextWrapping.Wrap,
                 });
                 if (canSync)
@@ -679,7 +679,7 @@ public sealed partial class DrivesPage : Page
                     {
                         Text = "⚠ Drive is offline — that state will be lost unless you cancel and connect the drive first.",
                         FontSize = 12,
-                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentRedBrush"],
+                        Foreground = CineLibraryCS.Services.ThemeBrushes.Get("AccentRedBrush"),
                         TextWrapping = TextWrapping.Wrap,
                     });
                 }

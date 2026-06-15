@@ -173,7 +173,7 @@ public sealed partial class StatisticsPage : Page
         {
             Height = 10,
             CornerRadius = new CornerRadius(5),
-            Background = (SolidColorBrush)Application.Current.Resources["BorderBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(8, 0, 8, 0),

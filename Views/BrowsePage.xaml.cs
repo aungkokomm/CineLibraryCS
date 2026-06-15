@@ -72,7 +72,7 @@ public sealed partial class BrowsePage : Page
         var border = new Border
         {
             CornerRadius = new CornerRadius(12),
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
         };
         var grid = new Grid();
         border.Child = grid;

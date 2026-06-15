@@ -78,14 +78,14 @@ public sealed partial class TvShowsPage : Page
         {
             Text = $"{d.Code}   ·   {string.Join("   ·   ", meta)}",
             FontSize = 12,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             VerticalAlignment = VerticalAlignment.Center,
         });
         var favBtn = new Button
         {
             Content = d.IsFavorite ? "★ Favorited" : "☆ Favorite",
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
+            BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(10, 4, 10, 4),
@@ -111,7 +111,7 @@ public sealed partial class TvShowsPage : Page
             {
                 Text = d.Plot,
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
                 LineHeight = 21,
             });
 
@@ -129,11 +129,11 @@ public sealed partial class TvShowsPage : Page
             foreach (var b in badges)
                 wrap.Children.Add(new Border
                 {
-                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ChipBrush"],
+                    Background = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush"),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(8, 3, 8, 3),
                     Child = new TextBlock { Text = b, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                        Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"] },
+                        Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush") },
                 });
             root.Children.Add(wrap);
         }
@@ -146,9 +146,9 @@ public sealed partial class TvShowsPage : Page
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var l = new TextBlock { Text = label, FontSize = 12,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"] };
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush") };
             var v = new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"] };
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush") };
             Grid.SetColumn(v, 1);
             g.Children.Add(l); g.Children.Add(v);
             root.Children.Add(g);
@@ -166,7 +166,7 @@ public sealed partial class TvShowsPage : Page
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             CharacterSpacing = 100,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             Margin = new Thickness(0, 6, 0, 0),
         });
         var noteBox = new TextBox
@@ -278,7 +278,7 @@ public sealed partial class TvShowsPage : Page
 
         var border = new Border
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
             CornerRadius = new CornerRadius(12),
         };
         border.Shadow = new Microsoft.UI.Xaml.Media.ThemeShadow();
@@ -292,7 +292,7 @@ public sealed partial class TvShowsPage : Page
 
         var placeholder = new Grid
         {
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["PlaceholderBgBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("PlaceholderBgBrush"),
         };
         placeholder.Children.Add(new TextBlock
         {
@@ -407,7 +407,7 @@ public sealed partial class TvShowsPage : Page
         {
             Height = 4,
             CornerRadius = new CornerRadius(2),
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush"),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
         // Bind width to fraction × parent width via SizeChanged once measured.
@@ -509,8 +509,8 @@ public sealed partial class TvShowsPage : Page
     /// </summary>
     private FrameworkElement BuildSeasonHeader(TvSeason season, List<TvEpisodeItem> eps)
     {
-        var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
-        var text = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"];
+        var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
+        var text = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
 
         var grid = new Grid { Margin = new Thickness(24, 4, 24, 8) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -545,7 +545,7 @@ public sealed partial class TvShowsPage : Page
         {
             Content = anyUnwatched ? "▶ Play season" : "✓ Season watched",
             IsEnabled = anyUnwatched,
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush"),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
@@ -562,9 +562,9 @@ public sealed partial class TvShowsPage : Page
         var markAll = new Button
         {
             Content = anyUnwatched ? "Mark all watched" : "Mark all unwatched",
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
             Foreground = text,
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 6, 12, 6),

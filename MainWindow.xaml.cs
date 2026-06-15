@@ -195,7 +195,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
-        var muted = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"];
+        var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
 
         TextBlock Header(string t) => new()
         {
@@ -700,7 +700,7 @@ public sealed partial class MainWindow : Window
     private void WireSidebarDropTarget(Button target, Func<List<int>, string> applyOp)
     {
         target.AllowDrop = true;
-        var purple = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"];
+        var purple = CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush");
         var origBg = target.Background;
         var origBorderBrush = target.BorderBrush;
         var origBorderThickness = target.BorderThickness;
@@ -935,14 +935,14 @@ public sealed partial class MainWindow : Window
     {
         var cts = new CancellationTokenSource();
         var bar = new ProgressBar { Minimum = 0, Maximum = plan.TotalBytes, Value = 0, Height = 6 };
-        var movieText = new TextBlock { FontSize = 13, Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"] };
+        var movieText = new TextBlock { FontSize = 13, Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush") };
         var fileText = new TextBlock
         {
             FontSize = 11,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             TextTrimming = Microsoft.UI.Xaml.TextTrimming.CharacterEllipsis,
         };
-        var bytesText = new TextBlock { FontSize = 11, Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"] };
+        var bytesText = new TextBlock { FontSize = 11, Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush") };
         var content = new StackPanel { Spacing = 10, Width = 480 };
         content.Children.Add(movieText);
         content.Children.Add(bar);
@@ -953,7 +953,7 @@ public sealed partial class MainWindow : Window
             content.Children.Add(new TextBlock
             {
                 FontSize = 11,
-                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
                 FontStyle = Windows.UI.Text.FontStyle.Italic,
                 Text = $"Skipping {plan.OfflineDriveLabels.Count} offline drive(s): " +
                        string.Join(", ", plan.OfflineDriveLabels),
@@ -1144,6 +1144,9 @@ public sealed partial class MainWindow : Window
             && _libraryPage != null)
             _libraryPage.ViewModel.SearchScope = scope;
     }
+
+    /// <summary>Focus the global title-bar search box (Ctrl+F and the "/" shortcut).</summary>
+    public void FocusTitleSearch() => TitleSearchBox.Focus(FocusState.Programmatic);
 
     private void GlobalSearch(string text)
     {
@@ -1486,12 +1489,12 @@ public sealed partial class MainWindow : Window
                    "is portable: import it on another PC to merge your state in.",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 13,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
         });
         var status = new TextBlock
         {
             FontSize = 12,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             TextWrapping = TextWrapping.Wrap,
             Visibility = Visibility.Collapsed,
         };
@@ -1499,7 +1502,7 @@ public sealed partial class MainWindow : Window
         var exportBtn = new Button
         {
             Content = "📤  Export backup…",
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BrandPurpleBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("BrandPurpleBrush"),
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
@@ -1509,9 +1512,9 @@ public sealed partial class MainWindow : Window
         var importBtn = new Button
         {
             Content = "📥  Import backup…",
-            Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["CardBrush"],
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextBrush"],
-            BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["BorderBrush"],
+            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
+            BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 8, 14, 8),
@@ -1721,10 +1724,14 @@ public sealed partial class MainWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+            // Theme-neutral key chip. (Resolving CardBrush/BorderBrush via
+            // Application.Resources returns the wrong theme variant — that made
+            // the chip white in dark mode, hiding the key text.) A translucent
+            // grey reads correctly in both Light and Dark.
             var kb = new Border
             {
-                Background = (SolidColorBrush)Application.Current.Resources["CardBrush"],
-                BorderBrush = (SolidColorBrush)Application.Current.Resources["BorderBrush"],
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x22, 0x80, 0x80, 0x80)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0x80, 0x80, 0x80)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(8, 2, 8, 2),
@@ -1759,13 +1766,12 @@ public sealed partial class MainWindow : Window
                 CharacterSpacing = 120,
                 Opacity = 0.7,
                 Margin = new Thickness(0, 10, 0, 2),
-                Foreground = (SolidColorBrush)Application.Current.Resources["MutedBrush"],
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             });
         }
 
         AddHeader("SEARCH & GENERAL");
-        AddRow("/",                "Focus the search box");
-        AddRow("Ctrl + F",         "Focus the search box");
+        AddRow("Ctrl + F   ·   /", "Focus the search box");
         AddRow("Esc",              "Clear search, then clear selection");
         AddRow("Ctrl + B",         "Toggle the sidebar");
         AddRow("Ctrl + Shift + /", "Show this shortcuts dialog");
@@ -1792,7 +1798,7 @@ public sealed partial class MainWindow : Window
             Opacity = 0.75,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 14, 0, 0),
-            Foreground = (SolidColorBrush)Application.Current.Resources["MutedBrush"],
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
         };
 
         var dialog = new ContentDialog
@@ -1841,7 +1847,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.3.0",
+            Title = "CineLibrary v3.3.1",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
