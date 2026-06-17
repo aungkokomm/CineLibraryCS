@@ -1869,9 +1869,14 @@ public sealed partial class MainWindow : Window
         };
         panel.Children.Add(link);
 
+        // Read the version straight from the assembly so the About box can
+        // never drift out of sync with the build again.
+        var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        var versionText = v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
+
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.3.2",
+            Title = $"CineLibrary v{versionText}",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,
