@@ -437,10 +437,12 @@ like; do it before or after, it doesn't matter.
 A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
 count, the moment you have your first record.
 
-### Add a movie you watched but never had
+### Add a movie you watched somewhere else
 
-Sometimes you watch a film you never kept in your library at all — a
-friend's copy, a cinema trip, a stream. You can still keep it as a record.
+You don't only watch films off your own drives. You catch one **at the
+cinema**, on a **streaming service**, or from a **friend's copy** — there's
+no file to add, but you still want it on record. That's the gap **Add
+watched movie** fills.
 
 On the **Watched & Gone** page, click **+ Add watched movie**:
 

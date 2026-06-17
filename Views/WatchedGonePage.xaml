@@ -110,7 +110,7 @@
                     <TextBlock Text="No records yet"
                                FontSize="15" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Or use “Add watched movie” above to record a film you watched but never had on disk. Either way, its poster, details, your notes and watch history stay here as a permanent record."
+                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Or use “Add watched movie” above for films you saw elsewhere — at the cinema, on a streaming service, a friend's copy. Either way, the poster, details, your notes and watch history stay here as a permanent record."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="460"/>

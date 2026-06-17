@@ -14,7 +14,7 @@
         <StackPanel Spacing="10" MinWidth="460">
 
             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource MutedBrush}"
-                       Text="For a film you watched but never had in your library. Find it on TMDb, add your note, and it's kept here as a Watched &amp; Gone record — no file needed."/>
+                       Text="Watched a film somewhere else — at the cinema, on a streaming service, a friend's copy — and want it on record? Find it on TMDb, add your note, and it's saved here as a Watched &amp; Gone record. No file needed."/>
 
             <!-- Search row -->
             <Grid ColumnSpacing="8">
