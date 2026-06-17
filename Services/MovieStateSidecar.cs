@@ -37,6 +37,10 @@ public static class MovieStateSidecar
         [JsonPropertyName("lists")]         public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]          public List<string> Tags { get; set; } = new();
         [JsonPropertyName("note")]          public string? Note { get; set; }
+        /// <summary>v3.4 — TMDB-fetched metadata (only written for movies whose
+        /// info was filled in CineLibrary), so a rescan can recover it without
+        /// rewriting the user's NFO. Null for state-only sidecars.</summary>
+        [JsonPropertyName("meta")]          public Meta? Meta { get; set; }
         [JsonPropertyName("updated")]       public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -46,7 +50,33 @@ public static class MovieStateSidecar
             (LastPlayedUnix.HasValue && LastPlayedUnix.Value > 0) ||
             !string.IsNullOrWhiteSpace(Note) ||
             Lists.Count > 0 ||
-            Tags.Count > 0;
+            Tags.Count > 0 ||
+            Meta != null;
+    }
+
+    /// <summary>v3.4 — fetched metadata carried in the sidecar so the drive,
+    /// not just CineLibrary's DB, holds it. Applied fill-only on the next scan.</summary>
+    public class Meta
+    {
+        [JsonPropertyName("year")]      public int? Year { get; set; }
+        [JsonPropertyName("runtime")]   public int? Runtime { get; set; }
+        [JsonPropertyName("rating")]    public double? Rating { get; set; }
+        [JsonPropertyName("votes")]     public int? Votes { get; set; }
+        [JsonPropertyName("plot")]      public string? Plot { get; set; }
+        [JsonPropertyName("tagline")]   public string? Tagline { get; set; }
+        [JsonPropertyName("mpaa")]      public string? Mpaa { get; set; }
+        [JsonPropertyName("studio")]    public string? Studio { get; set; }
+        [JsonPropertyName("country")]   public string? Country { get; set; }
+        [JsonPropertyName("premiered")] public string? Premiered { get; set; }
+        [JsonPropertyName("imdbId")]    public string? ImdbId { get; set; }
+        [JsonPropertyName("tmdbId")]    public string? TmdbId { get; set; }
+        [JsonPropertyName("cast")]      public List<CastEntry> Cast { get; set; } = new();
+    }
+
+    public class CastEntry
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("role")] public string? Role { get; set; }
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -146,6 +176,50 @@ public static class MovieStateSidecar
     }
 
     /// <summary>
+    /// v3.4 — read the movie's current metadata + cast from the DB for inclusion
+    /// in the sidecar. Only called for movies whose info was fetched, so a rescan
+    /// can recover it without the app ever rewriting the user's NFO.
+    /// </summary>
+    public static Meta ComposeMeta(DatabaseService db, int movieId)
+    {
+        var meta = new Meta();
+        using (var c = db.GetConnection().CreateCommand())
+        {
+            c.CommandText = @"SELECT year, runtime, rating, votes, plot, tagline, mpaa,
+                                     studio, country, premiered, imdb_id, tmdb_id
+                                FROM movies WHERE id=@id";
+            c.Parameters.AddWithValue("@id", movieId);
+            using var r = c.ExecuteReader();
+            if (r.Read())
+            {
+                meta.Year      = r.IsDBNull(0) ? null : r.GetInt32(0);
+                meta.Runtime   = r.IsDBNull(1) ? null : r.GetInt32(1);
+                meta.Rating    = r.IsDBNull(2) ? null : r.GetDouble(2);
+                meta.Votes     = r.IsDBNull(3) ? null : r.GetInt32(3);
+                meta.Plot      = r.IsDBNull(4) ? null : r.GetString(4);
+                meta.Tagline   = r.IsDBNull(5) ? null : r.GetString(5);
+                meta.Mpaa      = r.IsDBNull(6) ? null : r.GetString(6);
+                meta.Studio    = r.IsDBNull(7) ? null : r.GetString(7);
+                meta.Country   = r.IsDBNull(8) ? null : r.GetString(8);
+                meta.Premiered = r.IsDBNull(9) ? null : r.GetString(9);
+                meta.ImdbId    = r.IsDBNull(10) ? null : r.GetString(10);
+                meta.TmdbId    = r.IsDBNull(11) ? null : r.GetString(11);
+            }
+        }
+        using (var cc = db.GetConnection().CreateCommand())
+        {
+            cc.CommandText = @"SELECT a.name, ma.role FROM movie_actors ma
+                                JOIN actors a ON a.id=ma.actor_id
+                               WHERE ma.movie_id=@id ORDER BY ma.sort_order LIMIT 30";
+            cc.Parameters.AddWithValue("@id", movieId);
+            using var r = cc.ExecuteReader();
+            while (r.Read())
+                meta.Cast.Add(new CastEntry { Name = r.GetString(0), Role = r.IsDBNull(1) ? null : r.GetString(1) });
+        }
+        return meta;
+    }
+
+    /// <summary>
     /// v2.9 — convenience wrapper used by callers that just want "sync
     /// whatever the DB currently has for this movie to its sidecar". Used
     /// by the detail dialog after tag mutations.
@@ -230,6 +304,92 @@ public static class MovieStateSidecar
         {
             if (string.IsNullOrWhiteSpace(tagName)) continue;
             EnsureMovieTag(conn, tx, movieId, tagName);
+        }
+
+        // v3.4 — fetched metadata. Fill-only: every column keeps whatever the
+        // freshly-scanned NFO provided and only borrows from the sidecar where
+        // the NFO left a gap. Cast is restored only when the NFO carried none.
+        if (s.Meta != null) ImportMeta(conn, tx, movieId, s.Meta);
+    }
+
+    private static void ImportMeta(
+        SqliteConnection conn, SqliteTransaction tx, int movieId, Meta meta)
+    {
+        using (var mu = conn.CreateCommand())
+        {
+            mu.Transaction = tx;
+            mu.CommandText = @"
+                UPDATE movies SET
+                    year      = COALESCE(year, @y),
+                    runtime   = COALESCE(runtime, @ru),
+                    rating    = COALESCE(rating, @ra),
+                    votes     = COALESCE(votes, @vo),
+                    plot      = CASE WHEN plot      IS NULL OR plot=''      THEN @pl ELSE plot      END,
+                    tagline   = CASE WHEN tagline   IS NULL OR tagline=''   THEN @tg ELSE tagline   END,
+                    mpaa      = CASE WHEN mpaa      IS NULL OR mpaa=''      THEN @mp ELSE mpaa      END,
+                    studio    = CASE WHEN studio    IS NULL OR studio=''    THEN @su ELSE studio    END,
+                    country   = CASE WHEN country   IS NULL OR country=''   THEN @co ELSE country   END,
+                    premiered = CASE WHEN premiered IS NULL OR premiered='' THEN @pr ELSE premiered END,
+                    imdb_id   = CASE WHEN imdb_id   IS NULL OR imdb_id=''   THEN @im ELSE imdb_id   END,
+                    tmdb_id   = CASE WHEN tmdb_id   IS NULL OR tmdb_id=''   THEN @tm ELSE tmdb_id   END
+                 WHERE id=@id";
+            mu.Parameters.AddWithValue("@id", movieId);
+            mu.Parameters.AddWithValue("@y",  (object?)meta.Year ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@ru", (object?)meta.Runtime ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@ra", (object?)meta.Rating ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@vo", (object?)meta.Votes ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@pl", (object?)meta.Plot ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@tg", (object?)meta.Tagline ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@mp", (object?)meta.Mpaa ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@su", (object?)meta.Studio ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@co", (object?)meta.Country ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@pr", (object?)meta.Premiered ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@im", (object?)meta.ImdbId ?? DBNull.Value);
+            mu.Parameters.AddWithValue("@tm", (object?)meta.TmdbId ?? DBNull.Value);
+            mu.ExecuteNonQuery();
+        }
+
+        if (meta.Cast.Count == 0) return;
+
+        // Only restore cast when the just-scanned NFO supplied none.
+        bool hasActors;
+        using (var ck = conn.CreateCommand())
+        {
+            ck.Transaction = tx;
+            ck.CommandText = "SELECT EXISTS(SELECT 1 FROM movie_actors WHERE movie_id=@id)";
+            ck.Parameters.AddWithValue("@id", movieId);
+            hasActors = Convert.ToInt32(ck.ExecuteScalar()) == 1;
+        }
+        if (hasActors) return;
+
+        int order = 0;
+        foreach (var ce in meta.Cast)
+        {
+            if (string.IsNullOrWhiteSpace(ce.Name)) continue;
+            int actorId;
+            using (var ins = conn.CreateCommand())
+            {
+                ins.Transaction = tx;
+                ins.CommandText = "INSERT OR IGNORE INTO actors(name) VALUES(@n)";
+                ins.Parameters.AddWithValue("@n", ce.Name);
+                ins.ExecuteNonQuery();
+            }
+            using (var sel = conn.CreateCommand())
+            {
+                sel.Transaction = tx;
+                sel.CommandText = "SELECT id FROM actors WHERE name=@n";
+                sel.Parameters.AddWithValue("@n", ce.Name);
+                actorId = Convert.ToInt32(sel.ExecuteScalar());
+            }
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = @"INSERT OR IGNORE INTO movie_actors(movie_id, actor_id, role, sort_order)
+                                 VALUES(@m, @a, @r, @o)";
+            link.Parameters.AddWithValue("@m", movieId);
+            link.Parameters.AddWithValue("@a", actorId);
+            link.Parameters.AddWithValue("@r", (object?)ce.Role ?? DBNull.Value);
+            link.Parameters.AddWithValue("@o", order++);
+            link.ExecuteNonQuery();
         }
     }
 

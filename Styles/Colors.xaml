@@ -11,7 +11,7 @@
                  sidebar (small, fixed area) stays translucent for the Mica
                  accent. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#B30F0F18"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#990F0F18"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>
@@ -50,7 +50,7 @@
                  from the main content, borders/muted text get slightly
                  stronger so cards don't dissolve into the page bg. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#F6F6FA"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#B3E3E3EE"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#99E3E3EE"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CCE3E3EE"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#FFFFFF"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#EDEDFB"/>
@@ -89,7 +89,7 @@
                  sidebar (small, fixed area) stays translucent for the Mica
                  accent. -->
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
-            <SolidColorBrush x:Key="SidebarBrush"    Color="#B30F0F18"/>
+            <SolidColorBrush x:Key="SidebarBrush"    Color="#990F0F18"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>

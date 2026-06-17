@@ -173,6 +173,8 @@ public sealed partial class MainWindow : Window
             _                  => "",
         };
         AppState.Instance.SetPref("theme", theme.ToString());
+        // Re-tint the (code-set) sidebar brush for the new theme.
+        ApplyMica();
     }
 
     private void OnToggleTheme(object sender, RoutedEventArgs e)
@@ -230,19 +232,26 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock { Text = "Theme", FontSize = 13 });
         panel.Children.Add(themeRow);
 
-        // Background material (Mica)
-        var micaToggle = new ToggleSwitch
+        // Background material (Mica) — Off / Subtle / Strong
+        var micaChoice = new RadioButtons
         {
             Header = "Background material (Mica)",
-            IsOn = UiSettings.MicaEnabled,
-            OffContent = "Off", OnContent = "On",
+            MaxColumns = 3,
             Margin = new Thickness(0, 12, 0, 0),
         };
-        micaToggle.Toggled += (_, _) => UiSettings.SetMicaEnabled(micaToggle.IsOn);
-        panel.Children.Add(micaToggle);
+        micaChoice.Items.Add("Off");
+        micaChoice.Items.Add("Subtle");
+        micaChoice.Items.Add("Strong");
+        micaChoice.SelectedIndex = (int)UiSettings.Mica;   // Off=0, Subtle=1, Strong=2
+        micaChoice.SelectionChanged += (_, _) =>
+        {
+            if (micaChoice.SelectedIndex >= 0)
+                UiSettings.SetMica((UiSettings.MicaLevel)micaChoice.SelectedIndex);
+        };
+        panel.Children.Add(micaChoice);
         panel.Children.Add(new TextBlock
         {
-            Text = "Shows the Windows Mica material behind the sidebar and the floating content panel, tinted by your wallpaper. Turn off for a flat, solid look or on a low-end GPU.",
+            Text = "How much of the Windows Mica material — your wallpaper, softly tinted — shows behind the sidebar. Off is a flat, solid look, and the lightest on the GPU. (The scrolling poster area always stays solid for speed.)",
             FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
         });
 
@@ -1102,18 +1111,33 @@ public sealed partial class MainWindow : Window
 
     // ── Mica backdrop (toggleable in Settings) ────────────────────────────
 
-    private void ApplyMica()
+    public void ApplyMica()
     {
-        if (UiSettings.MicaEnabled)
-        {
-            SystemBackdrop ??= new MicaBackdrop();
-            MicaOffBackdrop.Visibility = Visibility.Collapsed;   // reveal Mica
-        }
-        else
+        var level = UiSettings.Mica;
+        if (level == UiSettings.MicaLevel.Off)
         {
             SystemBackdrop = null;
             MicaOffBackdrop.Visibility = Visibility.Visible;     // solid window
         }
+        else
+        {
+            SystemBackdrop ??= new MicaBackdrop();
+            MicaOffBackdrop.Visibility = Visibility.Collapsed;   // reveal Mica
+        }
+
+        // Sidebar translucency follows the chosen intensity. Built from the
+        // live UI theme's base colour so it stays correct in Light and Dark.
+        byte alpha = level switch
+        {
+            UiSettings.MicaLevel.Strong => 0x99,   // ~60% — more wallpaper shows through
+            UiSettings.MicaLevel.Subtle => 0xCC,   // ~80% — gentle hint
+            _ => 0xFF,                              // Off — fully solid sidebar
+        };
+        bool light = (Content as FrameworkElement)?.ActualTheme == ElementTheme.Light;
+        var (r, g, b) = light ? ((byte)0xE3, (byte)0xE3, (byte)0xEE)
+                              : ((byte)0x0F, (byte)0x0F, (byte)0x18);
+        SidebarCard.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(alpha, r, g, b));
     }
 
     // ── Global title-bar search ───────────────────────────────────────────
@@ -1847,7 +1871,7 @@ public sealed partial class MainWindow : Window
 
         var dialog = new ContentDialog
         {
-            Title = "CineLibrary v3.3.1",
+            Title = "CineLibrary v3.3.2",
             Content = panel,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot,

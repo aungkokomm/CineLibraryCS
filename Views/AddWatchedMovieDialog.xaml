@@ -1,0 +1,84 @@
+<ContentDialog
+    x:Class="CineLibraryCS.Views.AddWatchedMovieDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CineLibraryCS.Views"
+    Title="Add a watched movie"
+    PrimaryButtonText="Add to Watched &amp; Gone"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary"
+    IsPrimaryButtonEnabled="False"
+    PrimaryButtonClick="OnAdd">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="560">
+        <StackPanel Spacing="10" MinWidth="460">
+
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                       Text="For a film you watched but never had in your library. Find it on TMDb, add your note, and it's kept here as a Watched &amp; Gone record — no file needed."/>
+
+            <!-- Search row -->
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TitleBox" Grid.Column="0" PlaceholderText="Movie title…"
+                         KeyDown="OnTitleKeyDown"/>
+                <TextBox x:Name="YearBox" Grid.Column="1" PlaceholderText="Year" Width="72"
+                         MaxLength="4" InputScope="Number"/>
+                <Button x:Name="SearchBtn" Grid.Column="2" Content="Search" Click="OnSearch"
+                        Style="{ThemeResource AccentButtonStyle}"/>
+            </Grid>
+
+            <!-- Status / busy -->
+            <Grid>
+                <ProgressRing x:Name="Busy" IsActive="False" Width="20" Height="20"
+                              HorizontalAlignment="Left"/>
+                <TextBlock x:Name="StatusText" FontSize="12" Foreground="{ThemeResource MutedBrush}"
+                           VerticalAlignment="Center" Visibility="Collapsed"/>
+            </Grid>
+
+            <!-- Results -->
+            <ListView x:Name="ResultsList" Height="220" SelectionMode="Single"
+                      SelectionChanged="OnResultSelected"
+                      BorderBrush="{ThemeResource InputBorderBrush}" BorderThickness="1"
+                      CornerRadius="8" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:TmdbResultItem">
+                        <Grid ColumnSpacing="10" Padding="2,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Width="46" Height="69" CornerRadius="4"
+                                    Background="{ThemeResource InputBgBrush}">
+                                <Image Source="{x:Bind Thumb}" Stretch="UniformToFill"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{x:Bind DisplayTitle}" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource TextBrush}"/>
+                                <TextBlock Text="{x:Bind SubLine}" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                                <TextBlock Text="{x:Bind Overview}" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"
+                                           TextWrapping="Wrap" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- Record fields -->
+            <TextBox x:Name="NoteBox" Header="Your note (optional)"
+                     PlaceholderText="Why you liked it, where you watched it…"
+                     AcceptsReturn="True" TextWrapping="Wrap" Height="72"/>
+            <TextBox x:Name="TagsBox" Header="Tags (optional, comma-separated)"
+                     PlaceholderText="e.g. drama, rewatch"/>
+            <CalendarDatePicker x:Name="WatchedDate" Header="Watched on" HorizontalAlignment="Left"/>
+
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

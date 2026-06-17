@@ -25,19 +25,20 @@ of movies in under five minutes.
 8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
 9. [Tags — your own labels](#tags--your-own-labels)
 10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
-11. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
-12. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-13. [State that travels with your drives](#state-that-travels-with-your-drives)
-14. [Backup and restore](#backup-and-restore)
-15. [Statistics](#statistics)
-16. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-17. [Themes and sidebar](#themes-and-sidebar)
-18. [Settings](#settings)
-19. [Keyboard shortcuts](#keyboard-shortcuts)
-20. [Exporting your catalog](#exporting-your-catalog)
-21. [Updates](#updates)
-22. [Where your data lives](#where-your-data-lives)
-23. [Troubleshooting](#troubleshooting)
+11. [Filling in missing details (TMDB)](#filling-in-missing-details-tmdb)
+12. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+13. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+14. [State that travels with your drives](#state-that-travels-with-your-drives)
+15. [Backup and restore](#backup-and-restore)
+16. [Statistics](#statistics)
+17. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+18. [Themes and sidebar](#themes-and-sidebar)
+19. [Settings](#settings)
+20. [Keyboard shortcuts](#keyboard-shortcuts)
+21. [Exporting your catalog](#exporting-your-catalog)
+22. [Updates](#updates)
+23. [Where your data lives](#where-your-data-lives)
+24. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -436,6 +437,24 @@ like; do it before or after, it doesn't matter.
 A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
 count, the moment you have your first record.
 
+### Add a movie you watched but never had
+
+Sometimes you watch a film you never kept in your library at all — a
+friend's copy, a cinema trip, a stream. You can still keep it as a record.
+
+On the **Watched & Gone** page, click **+ Add watched movie**:
+
+1. **Search** the title (add a year to narrow it). CineLibrary looks it up
+   on **TMDb** and lists matching films with poster, year and rating.
+2. **Pick** the right one.
+3. Optionally add your **note**, **tags**, and the **date you watched it**.
+4. **Add to Watched & Gone**.
+
+CineLibrary downloads the poster and top-billed cast and saves it as a
+watched record — exactly like an archived movie, but it never needed to be
+on a drive. This is one of only two places CineLibrary reaches the
+internet, and only when you ask it to; offline, it simply tells you so.
+
 ### The Watched & Gone page
 
 Open it from the sidebar to see your records as a poster wall. You can:
@@ -487,6 +506,36 @@ so it's reliable across drives.
 Records are part of your portable CineLibrary data — move the whole folder
 to another PC and your Watched & Gone history comes with it. A **Backup**
 also remembers which movies are records.
+
+---
+
+## Filling in missing details (TMDB)
+
+Some movies come in only **partly scraped** — maybe a poster but no plot,
+or details but no cast photos. CineLibrary can fill those gaps on demand,
+without you leaving the app.
+
+Open any movie's **details** and click **Fetch missing info from TMDB**:
+
+- It matches the movie by its **TMDb id** when the `.nfo` already has one
+  (instant), or shows a small picker so you confirm the right film.
+- It fills **only what's missing** — a blank poster, plot, year, runtime,
+  cast, and so on. **Anything already there is left untouched**, so your
+  MediaElch data and your own edits are safe.
+- Cast photos and artwork are cached with the app immediately, and the
+  details window refreshes in place.
+
+**Making it permanent on the drive.** What you fetch lives in CineLibrary
+right away. To write it home — so a future rescan can never lose it — use
+the Drives page's **Sync to drive (state + fetched art)** action. It copies
+the fetched poster, fanart and cast photos into the movie's folder and
+records the rest in the sidecar, **without ever rewriting your `.nfo`**.
+After that the drive holds everything, and an **Update** reads it straight
+back.
+
+> This and **Add watched movie** are the only features that use the
+> internet, and only when you click them. Everything else in CineLibrary is
+> fully offline.
 
 ---
 
@@ -632,11 +681,22 @@ If the drive is **offline** when you try to remove it, the dialog
 warns you that the state can't be saved and recommends cancelling
 until you reconnect.
 
-### The "Sync state" button
+### The "Sync to drive (state + fetched art)" button
 
-Each drive card on the Drives page has a **Sync state** action. Most
-of the time you'll never need it — the automatic mirroring covers
-day-to-day use. It's useful when:
+Each drive card on the Drives page has a **Sync to drive (state + fetched
+art)** action. It does two jobs in one pass, for every movie on that drive:
+
+- **Personal state** → written to the per-folder sidecar (as above).
+- **Fetched art & details** → if you used **Fetch missing info from TMDB**
+  on a movie, this copies the fetched **poster**, **fanart** and **cast
+  photos** into the movie's folder and records the fetched text (plot,
+  year, cast, …) in the same sidecar — so the next scan reads it back and
+  the drive, not just the app, holds your filled-in details.
+
+It only ever **adds** files that aren't already there, and it **never
+rewrites your `.nfo`**. It runs only when you click it (the automatic
+background mirroring still handles personal state on its own), and it's
+greyed out when the drive is offline. It's also useful when:
 
 - You want to manually push everything to disk right now (e.g. you're
   about to hand the drive to someone).
@@ -655,11 +715,12 @@ copy), the **DB wins where it already has a value**. Lists are
 
 ### What this doesn't touch
 
-`cinelibrary-state.json` is the **only** file CineLibrary writes to
-your movie folder. Your `.nfo`, posters, fanart, and the video files
-themselves are never modified. The sidecar file is a few hundred
-bytes per movie and is safe to delete — CineLibrary will just
-re-create it on the next change.
+Your **`.nfo` files and video files are never modified** — ever. The
+sidecar `cinelibrary-state.json` is written automatically; poster /
+fanart / `.actors\` images are only written by the on-demand **Sync to
+drive** action above, and only when they're missing from the folder.
+Everything CineLibrary writes is safe to delete — it re-creates what it
+needs on the next change or sync.
 
 ---
 
@@ -774,11 +835,15 @@ shown as a simple picker.
 
 ### Background material (Mica)
 
-**On by default.** Shows the Windows **Mica** material behind the sidebar
-and the floating content panel — a soft surface tinted by your desktop
-wallpaper that gives the app a sense of depth. Turn it **off** for a
-flat, solid background — handy on a lower-end GPU, or if you simply
-prefer a plainer look. The change applies instantly.
+Controls how much of the Windows **Mica** material — your desktop
+wallpaper, softly tinted — shows behind the sidebar:
+
+- **Off** — a flat, solid background; the lightest option on the GPU.
+- **Subtle** *(default)* — a gentle wash of wallpaper colour.
+- **Strong** — a bolder, more translucent look.
+
+The scrolling poster area always stays solid for smooth scrolling, so the
+choice never costs you any performance there. The change applies instantly.
 
 ### Card drop shadows
 

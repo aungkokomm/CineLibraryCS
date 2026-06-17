@@ -31,10 +31,11 @@
                            VerticalAlignment="Center"/>
             </Grid>
 
-            <!-- Toolbar: search · sort · export -->
+            <!-- Toolbar: search · sort · add · export -->
             <Grid ColumnSpacing="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -58,7 +59,17 @@
                     <ComboBoxItem Tag="year:desc"     Content="Year ↓"/>
                     <ComboBoxItem Tag="rating:desc"   Content="Rating ↓"/>
                 </ComboBox>
-                <Button x:Name="ExportBtn" Grid.Column="2" Click="OnExportCsv"
+                <Button x:Name="AddBtn" Grid.Column="2" Click="OnAddWatchedMovie"
+                        Height="36" CornerRadius="8" Padding="14,0" VerticalAlignment="Center"
+                        Style="{ThemeResource AccentButtonStyle}"
+                        ToolTipService.ToolTip="Record a movie you watched but never had in your library">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="14"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock Text="Add watched movie" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ExportBtn" Grid.Column="3" Click="OnExportCsv"
                         Height="36" CornerRadius="8" Padding="14,0" VerticalAlignment="Center"
                         Background="{ThemeResource InputBgBrush}"
                         Foreground="{ThemeResource TextBrush}"
@@ -99,7 +110,7 @@
                     <TextBlock Text="No records yet"
                                FontSize="15" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Its poster, details, your notes and watch history stay here as a permanent record."
+                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Or use “Add watched movie” above to record a film you watched but never had on disk. Either way, its poster, details, your notes and watch history stay here as a permanent record."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="460"/>

@@ -16,12 +16,19 @@ public static class UiSettings
     private const string KeyCardShadows = "ui_cardShadows";
     private const string KeyReduceMotion = "ui_reduceMotion";
     private const string KeyCardBorders = "ui_cardBorders";
-    private const string KeyMica = "ui_mica";
+    private const string KeyMica = "ui_mica";              // legacy bool
+    private const string KeyMicaLevel = "ui_micaLevel";   // v3.3.2 — off|subtle|strong
 
-    /// <summary>Mica backdrop material behind the window (sidebar + content
-    /// float on it). Default on; turn off for a flat, solid look or on weaker
-    /// GPUs.</summary>
-    public static bool MicaEnabled { get; private set; } = true;
+    /// <summary>How much Windows Mica material shows behind the window.
+    /// Off = flat solid (also best on weak GPUs); Subtle / Strong control how
+    /// translucent the floating sidebar is over the wallpaper-tinted backdrop.</summary>
+    public enum MicaLevel { Off, Subtle, Strong }
+
+    /// <summary>Selected Mica intensity. Default Subtle.</summary>
+    public static MicaLevel Mica { get; private set; } = MicaLevel.Subtle;
+
+    /// <summary>True whenever Mica is on (either intensity).</summary>
+    public static bool MicaEnabled => Mica != MicaLevel.Off;
 
     /// <summary>Thin outline around movie cards. Default on.</summary>
     public static bool CardBorders { get; private set; } = true;
@@ -41,14 +48,24 @@ public static class UiSettings
         CardBorders  = AppState.Instance.GetPref(KeyCardBorders,  "true")  == "true";
         CardShadows  = AppState.Instance.GetPref(KeyCardShadows,  "false") == "true";
         ReduceMotion = AppState.Instance.GetPref(KeyReduceMotion, "false") == "true";
-        MicaEnabled  = AppState.Instance.GetPref(KeyMica,         "true")  == "true";
+
+        var lvl = AppState.Instance.GetPref(KeyMicaLevel, "");
+        Mica = lvl switch
+        {
+            "off"    => MicaLevel.Off,
+            "subtle" => MicaLevel.Subtle,
+            "strong" => MicaLevel.Strong,
+            // Migrate the old on/off pref for existing users.
+            _ => AppState.Instance.GetPref(KeyMica, "true") == "true" ? MicaLevel.Subtle : MicaLevel.Off,
+        };
     }
 
-    public static void SetMicaEnabled(bool value)
+    public static void SetMica(MicaLevel value)
     {
-        if (MicaEnabled == value) return;
-        MicaEnabled = value;
-        AppState.Instance.SetPref(KeyMica, value ? "true" : "false");
+        if (Mica == value) return;
+        Mica = value;
+        AppState.Instance.SetPref(KeyMicaLevel,
+            value switch { MicaLevel.Off => "off", MicaLevel.Strong => "strong", _ => "subtle" });
         Changed?.Invoke();
     }
 

@@ -718,11 +718,11 @@ public sealed partial class DrivesPage : Page
         {
             if (sender is not FrameworkElement btn || btn.Tag is not string serial) return;
             var (written, skipped) = await Task.Run(() =>
-                AppState.Instance.SweepStateSidecars(serial));
+                AppState.Instance.SweepStateSidecars(serial, includeFetchedArt: true));
             if (App.MainWindow is CineLibraryCS.MainWindow mw)
                 mw.ShowToast(written == 0
-                    ? "Nothing to sync — no movies on this drive carry personal state yet."
-                    : $"Synced state to {written} movie(s){(skipped > 0 ? $" — {skipped} skipped" : "")}");
+                    ? "Nothing to sync — no personal state or fetched info on this drive yet."
+                    : $"Synced {written} movie(s) to drive — state + any fetched art{(skipped > 0 ? $", {skipped} skipped" : "")}");
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }

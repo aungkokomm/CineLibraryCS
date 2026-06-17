@@ -59,18 +59,36 @@ public class AppState
     /// Returns (written, skipped) counts. Skipped = drive offline or path
     /// unreachable. Runs on the caller's thread — call from a Task.Run.
     /// </summary>
-    public (int Written, int Skipped) SweepStateSidecars(string? onlyVolumeSerial = null)
+    public (int Written, int Skipped) SweepStateSidecars(
+        string? onlyVolumeSerial = null, bool includeFetchedArt = false)
     {
-        var ids = Db.GetMoviesWithPersonalState(onlyVolumeSerial);
         int written = 0, skipped = 0;
-        foreach (var id in ids)
+
+        var stateIds = Db.GetMoviesWithPersonalState(onlyVolumeSerial);
+        // v3.4 — only the manual "Sync to drive" pass also writes fetched
+        // metadata + art; the automatic startup sweep stays personal-state only.
+        var fetchedSet = includeFetchedArt
+            ? new HashSet<int>(Db.GetMoviesWithFetchedData(onlyVolumeSerial))
+            : new HashSet<int>();
+        var allIds = new HashSet<int>(stateIds);
+        allIds.UnionWith(fetchedSet);
+
+        foreach (var id in allIds)
         {
             var composed = MovieStateSidecar.Compose(Db, id, _connected);
             if (composed == null) { skipped++; continue; }
-            MovieStateSidecar.TryWrite(composed.Value.FolderAbs, composed.Value.State);
+            var folderAbs = composed.Value.FolderAbs;
+            var state = composed.Value.State;
+            if (fetchedSet.Contains(id))
+            {
+                state.Meta = MovieStateSidecar.ComposeMeta(Db, id);
+                CopyFetchedArtToFolder(id, folderAbs);
+            }
+            MovieStateSidecar.TryWrite(folderAbs, state);
             written++;
         }
-        // v2.8 — also sweep TV shows.
+
+        // v2.8 — also sweep TV shows (personal state only).
         foreach (var id in Db.GetTvShowsWithPersonalState(onlyVolumeSerial))
         {
             var composed = TvStateSidecar.Compose(Db, id, _connected);
@@ -79,6 +97,46 @@ public class AppState
             written++;
         }
         return (written, skipped);
+    }
+
+    /// <summary>
+    /// v3.4 — copy a movie's fetched poster / fanart / cast photos out of the
+    /// data cache into its drive folder, only where the file is absent. A later
+    /// rescan then discovers them like any MediaElch artwork. Best-effort.
+    /// </summary>
+    private void CopyFetchedArtToFolder(int movieId, string folderAbs)
+    {
+        try
+        {
+            if (!Directory.Exists(folderAbs)) return;
+            var (posterRel, fanartRel, actors) = Db.GetMovieArtForSync(movieId);
+
+            if (posterRel != null && posterRel.StartsWith("manual_posters/", StringComparison.Ordinal))
+                CopyCacheFileIfAbsent(posterRel, Path.Combine(folderAbs, "poster.jpg"));
+            if (fanartRel != null && fanartRel.StartsWith("manual_fanart/", StringComparison.Ordinal))
+                CopyCacheFileIfAbsent(fanartRel, Path.Combine(folderAbs, "fanart.jpg"));
+
+            var actorsDir = Path.Combine(folderAbs, ".actors");
+            foreach (var (name, thumb) in actors)
+            {
+                if (thumb == null || !thumb.StartsWith("manual_actors/", StringComparison.Ordinal)) continue;
+                CopyCacheFileIfAbsent(thumb, Path.Combine(actorsDir, name.Replace(' ', '_') + ".jpg"));
+            }
+        }
+        catch { /* best-effort — drive offline / read-only / locked */ }
+    }
+
+    private void CopyCacheFileIfAbsent(string cacheRel, string destAbs)
+    {
+        try
+        {
+            if (File.Exists(destAbs)) return;
+            var src = Db.GetCachedImagePath(cacheRel);
+            if (src == null) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(destAbs)!);
+            File.Copy(src, destAbs, overwrite: false);
+        }
+        catch { /* best-effort */ }
     }
 
     private static string GetDataDir()

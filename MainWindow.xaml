@@ -100,7 +100,7 @@
                  changed — only this wrapper + the column width (bumped to
                  keep the inner content the same 240 px as before). -->
             <Border x:Name="SidebarCard" Grid.Column="0"
-                    Margin="8,6,4,8" CornerRadius="10"
+                    Margin="12,8,4,12" CornerRadius="12"
                     Background="{ThemeResource SidebarBrush}"
                     BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
                     Translation="0,0,24">
@@ -638,7 +638,7 @@
                  (and the sidebar) for the full Mica look, while the scrolling
                  grid stays opaque so it never composites over Mica → fast. -->
             <Border Grid.Column="1" Background="{ThemeResource BgBrush}"
-                    Margin="4,6,8,8" CornerRadius="12"
+                    Margin="4,8,12,12" CornerRadius="12"
                     BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
                     Translation="0,0,24">
                 <Border.Shadow>

@@ -186,6 +186,36 @@
                     </Button>
                 </StackPanel>
 
+                <!-- v3.4 — TMDB enrichment: fill gaps in the app, then (for real
+                     library movies on an online drive) sync the result home. -->
+                <StackPanel x:Name="TmdbActionsRow" Orientation="Horizontal" Spacing="8"
+                            Margin="0,8,0,0" Visibility="Collapsed">
+                    <Button x:Name="FetchTmdbBtn" Click="OnFetchMissing"
+                            Style="{ThemeResource AccentButtonStyle}"
+                            CornerRadius="8" Padding="12,8"
+                            ToolTipService.ToolTip="Look this movie up on TMDb and fill in only the details it's missing">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE896;" FontSize="14"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            <TextBlock Text="Fetch missing info from TMDB"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SyncDriveBtn" Click="OnSyncToDrive" Visibility="Collapsed"
+                            Background="{ThemeResource CardBrush}" Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}" CornerRadius="8" Padding="12,8"
+                            ToolTipService.ToolTip="Write the fetched poster, cast and details into this movie's folder on the drive">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE895;" FontSize="14"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            <TextBlock Text="Sync to drive"/>
+                        </StackPanel>
+                    </Button>
+                    <ProgressRing x:Name="TmdbBusy" IsActive="False" Width="18" Height="18"
+                                  VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TmdbStatus" VerticalAlignment="Center" FontSize="12"
+                               Foreground="{ThemeResource MutedBrush}" Visibility="Collapsed"/>
+                </StackPanel>
+
                 <!-- v2.5 — Lists this movie is on. Each chip has a ✕ that
                      removes the movie from that list immediately (with Undo
                      in the toast). The whole row hides when there are none. -->

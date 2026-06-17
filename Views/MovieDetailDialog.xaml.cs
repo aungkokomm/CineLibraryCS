@@ -265,6 +265,164 @@ public sealed partial class MovieDetailDialog : Window
         // Images
         LoadImageAsync(m.LocalPoster, PosterImage, PosterPlaceholder, 220);
         LoadImageAsync(m.LocalFanart, HeroImage, null, 1200);
+
+        // v3.4 — "Fetch missing info from TMDB" (and, later, Sync to drive).
+        UpdateTmdbActions(m);
+    }
+
+    // ── v3.4 TMDB enrichment ──────────────────────────────────────────────────
+
+    /// <summary>True when the movie is missing something a TMDB fetch can fill.</summary>
+    private static bool HasGaps(MovieDetail m) =>
+        string.IsNullOrWhiteSpace(m.LocalPoster) ||
+        string.IsNullOrWhiteSpace(m.LocalFanart) ||
+        (string.IsNullOrWhiteSpace(m.Plot) && string.IsNullOrWhiteSpace(m.Outline)) ||
+        m.Actors.Count == 0 ||
+        !m.Year.HasValue || !m.Runtime.HasValue || !m.Rating.HasValue ||
+        string.IsNullOrWhiteSpace(m.Studio);
+
+    private bool IsArchiveRecord(MovieDetail m) => m.VolumeSerial == "__archive__";
+
+    /// <summary>
+    /// The Fetch button is shown on EVERY movie — partial scrapes are common and
+    /// a heuristic kept hiding it on movies that really did have gaps. On a fully
+    /// complete movie a fetch is simply a harmless no-op (everything is fill-only).
+    /// </summary>
+    private void UpdateTmdbActions(MovieDetail m)
+    {
+        FetchTmdbBtn.Visibility = Visibility.Visible;
+        // Persisting fetched data to the drive is handled by the Drives page's
+        // existing "Sync state to drive" action, so there's no per-movie Sync
+        // button here (avoids a third button for the same kind of action).
+        SyncDriveBtn.Visibility = Visibility.Collapsed;
+        TmdbActionsRow.Visibility = Visibility.Visible;
+        TmdbStatus.Visibility = Visibility.Collapsed;
+    }
+
+    private void TmdbBusyState(bool busy, string? status = null)
+    {
+        TmdbBusy.IsActive = busy;
+        FetchTmdbBtn.IsEnabled = !busy;
+        SyncDriveBtn.IsEnabled = !busy;
+        if (status != null) { TmdbStatus.Text = status; TmdbStatus.Visibility = Visibility.Visible; }
+    }
+
+    private async void OnFetchMissing(object sender, RoutedEventArgs e)
+    {
+        if (_movie == null) return;
+        var m = _movie;
+        using var client = new Services.Tmdb.TmdbClient();
+
+        TmdbBusyState(true, "Looking up TMDb…");
+        try
+        {
+            // Match: stored tmdb_id is exact; otherwise let the user confirm.
+            Services.Tmdb.TmdbMovie? d = null;
+            if (int.TryParse(m.TmdbId, out var tid) && tid > 0)
+            {
+                d = await client.GetMovieDetailsAsync(tid);
+            }
+            else
+            {
+                var picker = new TmdbPickerDialog(client, m.Title, m.Year)
+                {
+                    XamlRoot = (Content as FrameworkElement)?.XamlRoot
+                };
+                var pick = await picker.ShowAsync();
+                if (pick != ContentDialogResult.Primary || picker.Picked == null)
+                {
+                    TmdbBusyState(false);
+                    UpdateTmdbActions(m);
+                    return;
+                }
+                d = await client.GetMovieDetailsAsync(picker.Picked.TmdbId);
+            }
+
+            if (d == null)
+            {
+                TmdbBusyState(false, "Couldn't reach TMDb. Try again.");
+                return;
+            }
+
+            // Poster / fanart → portable cache, only if currently missing.
+            string? posterRel = null, fanartRel = null;
+            if (string.IsNullOrWhiteSpace(m.LocalPoster) && !string.IsNullOrEmpty(d.PosterPath))
+                posterRel = await DownloadArtAsync(client, d.PosterPath!, "manual_posters", d.TmdbId);
+            if (string.IsNullOrWhiteSpace(m.LocalFanart) && !string.IsNullOrEmpty(d.BackdropPath))
+                fanartRel = await DownloadArtAsync(client, d.BackdropPath!, "manual_fanart", d.TmdbId);
+
+            var studio = d.ProductionCompanies.Count > 0 ? d.ProductionCompanies[0].Name : null;
+            var country = d.ProductionCountries.Count > 0 ? d.ProductionCountries[0].Name : null;
+
+            AppState.Instance.Db.FillMovieGaps(
+                m.Id,
+                year: d.Year > 0 ? d.Year : null,
+                rating: d.Rating > 0 ? d.Rating : null,
+                votes: d.VoteCount > 0 ? d.VoteCount : null,
+                runtime: d.Runtime > 0 ? d.Runtime : null,
+                plot: string.IsNullOrWhiteSpace(d.Overview) ? null : d.Overview,
+                tagline: string.IsNullOrWhiteSpace(d.Tagline) ? null : d.Tagline,
+                mpaa: string.IsNullOrWhiteSpace(d.Certification) ? null : d.Certification,
+                imdbId: string.IsNullOrWhiteSpace(d.ImdbId) ? null : d.ImdbId,
+                tmdbId: d.TmdbId.ToString(),
+                premiered: string.IsNullOrWhiteSpace(d.ReleaseDate) ? null : d.ReleaseDate,
+                studio: studio, country: country,
+                posterRel: posterRel, fanartRel: fanartRel);
+
+            // Cast — fill only when the movie currently has none.
+            if (d.Cast.Count > 0 && !AppState.Instance.Db.MovieHasActors(m.Id))
+            {
+                TmdbBusyState(true, "Fetching cast photos…");
+                var actors = new List<(string, string?, int, string?)>();
+                foreach (var c in d.Cast)
+                {
+                    if (string.IsNullOrWhiteSpace(c.Name)) continue;
+                    string? thumbRel = null;
+                    if (!string.IsNullOrEmpty(c.ProfilePath))
+                        thumbRel = await DownloadArtRawAsync(client, c.ProfilePath!, "manual_actors", "w185");
+                    actors.Add((c.Name, string.IsNullOrWhiteSpace(c.Character) ? null : c.Character,
+                                c.Order, thumbRel));
+                }
+                AppState.Instance.Db.AddManualActors(m.Id, actors);
+            }
+
+            // Reload from the DB and re-render in place.
+            TmdbBusyState(false, "Updated.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Fetch missing info failed: {ex.Message}");
+            TmdbBusyState(false, "Something went wrong. Please try again.");
+        }
+    }
+
+    /// <summary>Downloads original-size art into a data-folder subfolder named by
+    /// tmdb id; returns the data-relative path, or null on failure.</summary>
+    private static async Task<string?> DownloadArtAsync(
+        Services.Tmdb.TmdbClient client, string tmdbPath, string subfolder, int tmdbId)
+    {
+        var fileName = $"{tmdbId}-{Guid.NewGuid():N}.jpg";
+        var full = Path.Combine(AppState.Instance.DataDir, subfolder, fileName);
+        return await client.DownloadImageAsync(client.GetImageUrl(tmdbPath, "original"), full)
+            ? $"{subfolder}/{fileName}" : null;
+    }
+
+    /// <summary>Downloads art keyed by its TMDb file name (used for actor photos);
+    /// returns the data-relative path, or null on failure.</summary>
+    private static async Task<string?> DownloadArtRawAsync(
+        Services.Tmdb.TmdbClient client, string tmdbPath, string subfolder, string size)
+    {
+        var fileName = tmdbPath.TrimStart('/');
+        var full = Path.Combine(AppState.Instance.DataDir, subfolder, fileName);
+        return await client.DownloadImageAsync(client.GetImageUrl(tmdbPath, size), full)
+            ? $"{subfolder}/{fileName}" : null;
+    }
+
+    private void OnSyncToDrive(object sender, RoutedEventArgs e)
+    {
+        // Phase B — writes fetched NFO + poster + .actors back to the movie's
+        // folder when its drive is online. Wired up in the next build.
     }
 
     private static readonly string[] ActorThumbExts = { ".jpg", ".jpeg", ".png", ".tbn", ".webp" };
@@ -302,7 +460,9 @@ public sealed partial class MovieDetailDialog : Window
                 }
             }
 
-            // 2) Inline thumb (URL or absolute file path)
+            // 2) Inline thumb — an http URL, an absolute file path, or (for
+            //    manual Watched & Gone records) a path relative to the portable
+            //    data folder, resolved the same way posters are.
             if (!string.IsNullOrWhiteSpace(a.Thumb))
             {
                 var raw = a.Thumb!.Trim();
@@ -312,6 +472,11 @@ public sealed partial class MovieDetailDialog : Window
                     uri = new Uri(raw);
                 else if (File.Exists(raw))
                     uri = SafeFileUri(raw);
+                else
+                {
+                    var cached = Services.AppState.Instance.Db.GetCachedImagePath(raw);
+                    if (cached != null) uri = SafeFileUri(cached);
+                }
                 if (uri != null) ApplyBitmap(a, uri);
             }
         }

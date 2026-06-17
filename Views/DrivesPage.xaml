@@ -205,7 +205,7 @@
                                                             <FontIcon Glyph="&#xE70F;" FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                                                         </MenuFlyoutItem.Icon>
                                                     </MenuFlyoutItem>
-                                                    <MenuFlyoutItem Text="Sync state to drive"
+                                                    <MenuFlyoutItem Text="Sync to drive (state + fetched art)"
                                                                     Tag="{x:Bind VolumeSerial}"
                                                                     Click="OnSyncStateToDrive"
                                                                     IsEnabled="{x:Bind IsConnected}">

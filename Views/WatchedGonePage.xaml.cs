@@ -86,6 +86,18 @@ public sealed partial class WatchedGonePage : Page
         }
     }
 
+    private async void OnAddWatchedMovie(object sender, RoutedEventArgs e)
+    {
+        var dialog = new AddWatchedMovieDialog { XamlRoot = XamlRoot };
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary && dialog.AddedMovieId is int)
+        {
+            Refresh();
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            if (App.MainWindow is MainWindow mw) mw.ShowToast("Added to Watched & Gone");
+        }
+    }
+
     private async void OnExportCsv(object sender, RoutedEventArgs e)
     {
         if (_records.Count == 0) return;

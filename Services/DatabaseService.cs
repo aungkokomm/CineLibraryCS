@@ -1912,6 +1912,260 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Creates a Watched &amp; Gone record from scratch — a movie the user
+    /// watched but never had in the library (no file on any drive). Lives on the
+    /// '__archive__' sentinel drive with a synthetic, collision-proof
+    /// folder_rel_path so a real scan can never match or disturb it. Marked
+    /// watched, archived now, and (optionally) given a note, tags, and a dated
+    /// watch event. Returns the new movie id.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int InsertWatchedGoneRecord(
+        string title, int? year, double? rating, int? votes, int? runtime,
+        string? plot, string? tagline, string? mpaa, string? imdbId, string? tmdbId,
+        string? premiered, string? studio, string? country,
+        string? posterRelPath, string? note, IEnumerable<string>? tags, long watchedAtUnix)
+    {
+        // Synthetic path: unique per record, namespaced so it's obvious in the
+        // DB and can never equal a real "<folder>" produced by the scanner.
+        var folderRel = "__manual__/" + Guid.NewGuid().ToString("N");
+
+        int newId;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+                INSERT INTO movies
+                    (volume_serial, folder_rel_path, title, year, rating, votes, runtime,
+                     plot, tagline, mpaa, imdb_id, tmdb_id, premiered, studio, country,
+                     local_poster, note, is_missing, is_watched, archived_at)
+                VALUES
+                    ('__archive__', @fr, @t, @y, @ra, @vo, @ru,
+                     @pl, @tg, @mp, @im, @tm, @pr, @su, @co,
+                     @lp, @nt, 0, 1, strftime('%s','now'))
+                RETURNING id";
+            cmd.Parameters.AddWithValue("@fr", folderRel);
+            cmd.Parameters.AddWithValue("@t", title);
+            cmd.Parameters.AddWithValue("@y", (object?)year ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ra", (object?)rating ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@vo", (object?)votes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ru", (object?)runtime ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@pl", (object?)plot ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@tg", (object?)tagline ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@mp", (object?)mpaa ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@im", (object?)imdbId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@tm", (object?)tmdbId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@pr", (object?)premiered ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@su", (object?)studio ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@co", (object?)country ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@lp", (object?)posterRelPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@nt",
+                string.IsNullOrWhiteSpace(note) ? (object)DBNull.Value : note.Trim());
+            newId = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        // Tags — reuse the shared tag rows so manual records mingle with the rest.
+        if (tags != null)
+            foreach (var raw in tags)
+            {
+                var clean = (raw ?? "").Trim();
+                if (clean.Length == 0) continue;
+                AddMovieTag(newId, EnsureTag(clean));
+            }
+
+        // A dated watch event so the record reads like any other watched movie.
+        try
+        {
+            using var ev = _conn.CreateCommand();
+            ev.CommandText = @"INSERT INTO watch_events(item_kind, item_id, watched_at, action)
+                               VALUES('movie', @id, @when, 'watched')";
+            ev.Parameters.AddWithValue("@id", newId);
+            ev.Parameters.AddWithValue("@when", watchedAtUnix);
+            ev.ExecuteNonQuery();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"InsertWatchedGoneRecord watch event failed: {ex.Message}");
+        }
+
+        return newId;
+    }
+
+    /// <summary>
+    /// v3.4 — fill ONLY the blank fields of an existing movie from a TMDB fetch.
+    /// Every column is written with a fill-only guard (numeric COALESCE / text
+    /// emptiness check), so anything the user or MediaElch already set is never
+    /// overwritten. Cast is handled separately (see <see cref="AddManualActors"/>),
+    /// only when the movie currently has none. Returns true if any row changed.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool FillMovieGaps(
+        int id, int? year, double? rating, int? votes, int? runtime,
+        string? plot, string? tagline, string? mpaa, string? imdbId, string? tmdbId,
+        string? premiered, string? studio, string? country,
+        string? posterRel, string? fanartRel)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            UPDATE movies SET
+                year         = COALESCE(year, @y),
+                rating       = COALESCE(rating, @ra),
+                votes        = COALESCE(votes, @vo),
+                runtime      = COALESCE(runtime, @ru),
+                plot         = CASE WHEN plot      IS NULL OR plot=''      THEN @pl ELSE plot      END,
+                tagline      = CASE WHEN tagline   IS NULL OR tagline=''   THEN @tg ELSE tagline   END,
+                mpaa         = CASE WHEN mpaa      IS NULL OR mpaa=''      THEN @mp ELSE mpaa      END,
+                imdb_id      = CASE WHEN imdb_id   IS NULL OR imdb_id=''   THEN @im ELSE imdb_id   END,
+                tmdb_id      = CASE WHEN tmdb_id   IS NULL OR tmdb_id=''   THEN @tm ELSE tmdb_id   END,
+                premiered    = CASE WHEN premiered IS NULL OR premiered='' THEN @pr ELSE premiered END,
+                studio       = CASE WHEN studio    IS NULL OR studio=''    THEN @su ELSE studio    END,
+                country      = CASE WHEN country   IS NULL OR country=''   THEN @co ELSE country   END,
+                local_poster = CASE WHEN local_poster IS NULL OR local_poster='' THEN @lp ELSE local_poster END,
+                local_fanart = CASE WHEN local_fanart IS NULL OR local_fanart='' THEN @lf ELSE local_fanart END,
+                date_modified = strftime('%s','now')
+            WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@y", (object?)year ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ra", (object?)rating ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@vo", (object?)votes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ru", (object?)runtime ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pl", (object?)plot ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@tg", (object?)tagline ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@mp", (object?)mpaa ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@im", (object?)imdbId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@tm", (object?)tmdbId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@pr", (object?)premiered ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@su", (object?)studio ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@co", (object?)country ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lp", (object?)posterRel ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lf", (object?)fanartRel ?? DBNull.Value);
+        var changed = cmd.ExecuteNonQuery() > 0;
+        if (changed) RaisePersonalStateChanged(id);
+        return changed;
+    }
+
+    /// <summary>Does this movie currently have any cast rows? Used to decide
+    /// whether a TMDB fetch should fill in the cast.</summary>
+    public bool MovieHasActors(int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT EXISTS(SELECT 1 FROM movie_actors WHERE movie_id=@id)";
+        cmd.Parameters.AddWithValue("@id", id);
+        return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+    }
+
+    /// <summary>
+    /// v3.4 — real (non-archived) movies that carry TMDB-fetched art: a poster /
+    /// fanart in the manual cache, or a cast member with a manual_actors thumb.
+    /// Used by "Sync to drive" to know which folders need their fetched art and
+    /// metadata written home. Excludes manual Watched &amp; Gone records (they have
+    /// no drive). Optionally restricted to one drive.
+    /// </summary>
+    public List<int> GetMoviesWithFetchedData(string? onlyVolumeSerial = null)
+    {
+        using var cmd = _conn.CreateCommand();
+        var drive = onlyVolumeSerial != null ? " AND m.volume_serial=@s" : "";
+        cmd.CommandText = $@"
+            SELECT m.id FROM movies m
+            WHERE m.archived_at IS NULL AND m.volume_serial != '__archive__'{drive}
+              AND (
+                    m.local_poster LIKE 'manual_posters/%'
+                 OR m.local_fanart LIKE 'manual_fanart/%'
+                 OR EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id
+                             WHERE ma.movie_id=m.id AND a.thumb LIKE 'manual_actors/%')
+                  )";
+        if (onlyVolumeSerial != null) cmd.Parameters.AddWithValue("@s", onlyVolumeSerial);
+        var ids = new List<int>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) ids.Add(r.GetInt32(0));
+        return ids;
+    }
+
+    /// <summary>
+    /// v3.4 — the data-folder-relative art paths for a movie: poster, fanart,
+    /// and each cast member's (name, thumb). Used by "Sync to drive" to copy
+    /// fetched art into the movie's folder.
+    /// </summary>
+    public (string? Poster, string? Fanart, List<(string Name, string? Thumb)> Actors) GetMovieArtForSync(int id)
+    {
+        string? poster = null, fanart = null;
+        using (var c = _conn.CreateCommand())
+        {
+            c.CommandText = "SELECT local_poster, local_fanart FROM movies WHERE id=@id";
+            c.Parameters.AddWithValue("@id", id);
+            using var r = c.ExecuteReader();
+            if (r.Read())
+            {
+                poster = r.IsDBNull(0) ? null : r.GetString(0);
+                fanart = r.IsDBNull(1) ? null : r.GetString(1);
+            }
+        }
+        var actors = new List<(string, string?)>();
+        using (var c = _conn.CreateCommand())
+        {
+            c.CommandText = @"SELECT a.name, a.thumb FROM movie_actors ma
+                               JOIN actors a ON a.id=ma.actor_id
+                              WHERE ma.movie_id=@id ORDER BY ma.sort_order";
+            c.Parameters.AddWithValue("@id", id);
+            using var r = c.ExecuteReader();
+            while (r.Read())
+                actors.Add((r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1)));
+        }
+        return (poster, fanart, actors);
+    }
+
+    /// <summary>
+    /// Attach cast to a manual Watched &amp; Gone record. Actor rows are shared by
+    /// name; a thumb is only set when the actor is new, so we never clobber a
+    /// scanned actor's existing .actors thumbnail. Thumb paths are stored
+    /// relative to the data folder (like posters) so the record stays portable.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddManualActors(
+        int movieId,
+        IEnumerable<(string Name, string? Role, int Order, string? ThumbRel)> actors)
+    {
+        foreach (var a in actors)
+        {
+            var name = (a.Name ?? "").Trim();
+            if (name.Length == 0) continue;
+
+            int actorId;
+            using (var ins = _conn.CreateCommand())
+            {
+                ins.CommandText = "INSERT OR IGNORE INTO actors(name, thumb) VALUES(@n, @t)";
+                ins.Parameters.AddWithValue("@n", name);
+                ins.Parameters.AddWithValue("@t", (object?)a.ThumbRel ?? DBNull.Value);
+                ins.ExecuteNonQuery();
+            }
+            using (var sel = _conn.CreateCommand())
+            {
+                sel.CommandText = "SELECT id FROM actors WHERE name=@n";
+                sel.Parameters.AddWithValue("@n", name);
+                actorId = Convert.ToInt32(sel.ExecuteScalar());
+            }
+            // Backfill a thumb if this actor previously existed without one.
+            if (!string.IsNullOrEmpty(a.ThumbRel))
+            {
+                using var upd = _conn.CreateCommand();
+                upd.CommandText = "UPDATE actors SET thumb=@t WHERE id=@id AND (thumb IS NULL OR thumb='')";
+                upd.Parameters.AddWithValue("@t", a.ThumbRel);
+                upd.Parameters.AddWithValue("@id", actorId);
+                upd.ExecuteNonQuery();
+            }
+            using (var link = _conn.CreateCommand())
+            {
+                link.CommandText = @"INSERT OR REPLACE INTO movie_actors(movie_id, actor_id, role, sort_order)
+                                     VALUES(@m, @a, @r, @o)";
+                link.Parameters.AddWithValue("@m", movieId);
+                link.Parameters.AddWithValue("@a", actorId);
+                link.Parameters.AddWithValue("@r", (object?)a.Role ?? DBNull.Value);
+                link.Parameters.AddWithValue("@o", a.Order);
+                link.ExecuteNonQuery();
+            }
+        }
+    }
+
     /// <summary>Bring an archived record back into the main library.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RestoreArchivedMovie(int id)

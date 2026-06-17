@@ -32,7 +32,7 @@ CineLibrary is a native Windows app (C# + WinUI 3) that turns your already-organ
 
 Unplug a drive and its titles don't vanish; they fade to **offline** (posters and metadata intact) and wake up when you plug it back in. It's **free and open-source**, runs **portably** from any folder, and asks for nothing — no account, no subscription, no telemetry.
 
-CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive.
+CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive. When a title comes in only **partly scraped**, you can now **fetch just the missing details from TMDb on demand** — a deliberate, per-movie action, not a bulk scraper — and optionally write them back to the drive. Everything else stays fully offline.
 
 ---
 
@@ -51,6 +51,9 @@ CineLibrary is a **reader, not a scraper**: it expects folders that already carr
 - **🔎 Fast search & filters** — title, actor, director, year; filter by genre, decade, rating, collection, tags, watched status.
 - **🏷️ Your own organization** — favorites, watchlist, notes, free-form tags, and custom lists.
 - **🧭 Discovery** — Continue Watching, Recently Watched, Recently Added, On This Day, and a filter-aware Surprise Me.
+- **🎬 Watched & Gone** — a *memory keeper* for films you watched then deleted: the poster, your notes, tags and history stay as a record, isolated from your library so you never re-download by mistake. **Add watched movie** even logs ones you never had on disk (looked up on TMDb).
+- **🩹 Fetch missing info from TMDB** — a partly-scraped movie? Fill just the blanks (poster, plot, cast, year, …) on demand from any detail window. **Fill-only** — your existing MediaElch data is never overwritten.
+- **🔄 Sync to drive (state + fetched art)** — write your personal state *and* any fetched art/details back into the movie folders (poster, fanart, `.actors\` — **never** rewriting your `.nfo`), so the drive stays the source of truth and a rescan can't lose them.
 - **💾 Backup & restore** — export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.
 - **🪪 State travels with the drive** — watched/favorite/notes/tags live next to each title, so they survive a drive move to another PC.
 - **⚙️ Settings** — Light/Dark/System theme, optional card shadows, reduce-motion.

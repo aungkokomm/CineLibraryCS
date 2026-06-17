@@ -3,6 +3,50 @@
 All notable changes to CineLibrary are documented here.
 Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+> Per-release notes for the 2.x and early-3.x versions between the two
+> entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
+
+## [3.4.0] — 2026-06-17
+
+A big update that, for the first time, lets CineLibrary reach out to **TMDb**
+— always on demand, never in the background — to fill gaps and remember films
+you no longer keep on disk. The app stays a fast, offline reader everywhere
+else.
+
+### Added
+- **Watched & Gone — Add watched movie.** Record a film you watched but never
+  had in your library (no file on any drive). Search TMDb, pick the match, and
+  CineLibrary saves it as a watched **record** with poster, top-billed cast,
+  plot and details — plus your **note**, **tags** and the **date you watched
+  it**. Lives in Watched & Gone, fully isolated from your library.
+- **Fetch missing info from TMDB.** A button on **every** Movie Details window.
+  For a partly-scraped movie it fills *only the blanks* — poster, fanart, plot,
+  year, runtime, cast, studio, and so on. Matches by the movie's **TMDb id**
+  when the `.nfo` has one (instant), otherwise a quick pick-from-list. **Fill-
+  only:** anything you or MediaElch already set is never overwritten.
+- **Sync to drive (state + fetched art).** The Drives page's per-drive sync now
+  also writes fetched artwork (poster / fanart / `.actors\`) into the movie's
+  folder and records fetched text + cast in the `cinelibrary-state.json`
+  sidecar — so a rescan reads it back and the **drive stays the source of
+  truth**. Non-destructive: it only adds files that are missing and **never
+  rewrites your `.nfo`**. Runs only when you click it (the automatic startup
+  sync still handles personal state alone) and is disabled for offline drives.
+- **Background material (Mica): Off / Subtle / Strong.** Choose how much of the
+  Windows Mica/wallpaper tint shows behind the sidebar (Settings → Background
+  material). The scrolling poster area always stays solid for performance.
+
+### Changed
+- Fetched cast photos and artwork are cached in the portable data folder
+  (`manual_posters\`, `manual_fanart\`, `manual_actors\`) as paths relative to
+  it, so they travel with your library and keep showing offline.
+- Sidebar and content cards now share identical geometry — matched top/bottom
+  margins and corner radius.
+
+### Fixed
+- Keyboard-shortcuts dialog showed blank key chips when the Windows theme and
+  the in-app theme differed. Fixed a broader class of wrong-theme brush lookups
+  across the UI at the same time.
+
 ## [2.0.1] — 2026-05-09
 
 ### Fixed
