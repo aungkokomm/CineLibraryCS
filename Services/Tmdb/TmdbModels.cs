@@ -66,6 +66,12 @@ public class TmdbMovie
     /// block (sorted by billing order). Empty until details are fetched.</summary>
     public List<TmdbCastMember> Cast { get; set; } = new();
 
+    /// <summary>Director names, parsed client-side from credits.crew.</summary>
+    public List<string> Directors { get; set; } = new();
+
+    /// <summary>Writer names, parsed client-side from credits.crew.</summary>
+    public List<string> Writers { get; set; } = new();
+
     /// <summary>Release year derived from <see cref="ReleaseDate"/>, or 0.</summary>
     public int Year => !string.IsNullOrEmpty(ReleaseDate) && DateTime.TryParse(ReleaseDate, out var d)
         ? d.Year

@@ -6,6 +6,24 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [3.4.1] — 2026-06-21
+
+A focused follow-up to 3.4.0 that makes **Fetch missing info from TMDB**
+actually fill in everything it should.
+
+### Fixed
+- **Cast photos now fill in reliably.** Movies whose cast came from MediaElch
+  (with web-based actor thumbnails) were left with blank faces — fetched
+  photos are now downloaded and cached, so they show up and keep working
+  offline.
+- **Genres and Director fill too.** A fetch used to fill the poster, plot and
+  details but leave the Genres and Director rows blank. No longer.
+- Fetched cast, genres and director are written home by **Sync to drive** and
+  survive a rescan, alongside the rest of your filled-in details.
+- Re-fetching a movie that already has good cast no longer reorders or
+  relabels it — existing cast is left alone; only missing photos and details
+  are added.
+
 ## [3.4.0] — 2026-06-17
 
 A big update that, for the first time, lets CineLibrary reach out to **TMDb**

@@ -2055,6 +2055,60 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     }
 
     /// <summary>
+    /// v3.4 — fill genres / directors / writers from a TMDB fetch, each
+    /// independently and fill-only: a relation is added only when the movie
+    /// currently has none of that kind, so existing MediaElch data is untouched.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void FillMovieGenreDirectorWriter(
+        int movieId, IReadOnlyList<string> genres,
+        IReadOnlyList<string> directors, IReadOnlyList<string> writers)
+    {
+        FillNamedRelation(movieId, genres,    "genres",    "movie_genres",    "genre_id");
+        FillNamedRelation(movieId, directors, "directors", "movie_directors", "director_id");
+        FillNamedRelation(movieId, writers,   "writers",   "movie_writers",   "writer_id");
+    }
+
+    // Table/column names here are all fixed literals (never user input).
+    private void FillNamedRelation(
+        int movieId, IReadOnlyList<string>? names,
+        string nameTable, string joinTable, string fkCol)
+    {
+        if (names == null || names.Count == 0) return;
+
+        using (var ck = _conn.CreateCommand())
+        {
+            ck.CommandText = $"SELECT EXISTS(SELECT 1 FROM {joinTable} WHERE movie_id=@m)";
+            ck.Parameters.AddWithValue("@m", movieId);
+            if (Convert.ToInt32(ck.ExecuteScalar()) == 1) return;   // fill-only
+        }
+
+        foreach (var raw in names)
+        {
+            var name = (raw ?? "").Trim();
+            if (name.Length == 0) continue;
+            int rowId;
+            using (var ins = _conn.CreateCommand())
+            {
+                ins.CommandText = $"INSERT OR IGNORE INTO {nameTable}(name) VALUES(@n)";
+                ins.Parameters.AddWithValue("@n", name);
+                ins.ExecuteNonQuery();
+            }
+            using (var sel = _conn.CreateCommand())
+            {
+                sel.CommandText = $"SELECT id FROM {nameTable} WHERE name=@n";
+                sel.Parameters.AddWithValue("@n", name);
+                rowId = Convert.ToInt32(sel.ExecuteScalar());
+            }
+            using var link = _conn.CreateCommand();
+            link.CommandText = $"INSERT OR IGNORE INTO {joinTable}(movie_id, {fkCol}) VALUES(@m, @r)";
+            link.Parameters.AddWithValue("@m", movieId);
+            link.Parameters.AddWithValue("@r", rowId);
+            link.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
     /// v3.4 — real (non-archived) movies that carry TMDB-fetched art: a poster /
     /// fanart in the manual cache, or a cast member with a manual_actors thumb.
     /// Used by "Sync to drive" to know which folders need their fetched art and
@@ -2144,18 +2198,27 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 sel.Parameters.AddWithValue("@n", name);
                 actorId = Convert.ToInt32(sel.ExecuteScalar());
             }
-            // Backfill a thumb if this actor previously existed without one.
+            // Upgrade the actor's thumb to our portable cache copy when the
+            // existing one is weak — missing, an http URL (blank offline, what
+            // MediaElch NFOs usually store), or a stale manual cache path. A
+            // genuine local .actors file path is left alone (it already works).
             if (!string.IsNullOrEmpty(a.ThumbRel))
             {
                 using var upd = _conn.CreateCommand();
-                upd.CommandText = "UPDATE actors SET thumb=@t WHERE id=@id AND (thumb IS NULL OR thumb='')";
+                upd.CommandText = @"UPDATE actors SET thumb=@t
+                                     WHERE id=@id AND (thumb IS NULL OR thumb=''
+                                                       OR thumb LIKE 'http%'
+                                                       OR thumb LIKE 'manual_actors/%')";
                 upd.Parameters.AddWithValue("@t", a.ThumbRel);
                 upd.Parameters.AddWithValue("@id", actorId);
                 upd.ExecuteNonQuery();
             }
             using (var link = _conn.CreateCommand())
             {
-                link.CommandText = @"INSERT OR REPLACE INTO movie_actors(movie_id, actor_id, role, sort_order)
+                // OR IGNORE (not REPLACE): if this actor is already linked to the
+                // movie, keep the existing role/order — we only add new cast and
+                // upgrade thumbs, never disturb good existing cast metadata.
+                link.CommandText = @"INSERT OR IGNORE INTO movie_actors(movie_id, actor_id, role, sort_order)
                                      VALUES(@m, @a, @r, @o)";
                 link.Parameters.AddWithValue("@m", movieId);
                 link.Parameters.AddWithValue("@a", actorId);

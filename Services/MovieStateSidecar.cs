@@ -71,6 +71,9 @@ public static class MovieStateSidecar
         [JsonPropertyName("imdbId")]    public string? ImdbId { get; set; }
         [JsonPropertyName("tmdbId")]    public string? TmdbId { get; set; }
         [JsonPropertyName("cast")]      public List<CastEntry> Cast { get; set; } = new();
+        [JsonPropertyName("genres")]    public List<string> Genres { get; set; } = new();
+        [JsonPropertyName("directors")] public List<string> Directors { get; set; } = new();
+        [JsonPropertyName("writers")]   public List<string> Writers { get; set; } = new();
     }
 
     public class CastEntry
@@ -216,7 +219,24 @@ public static class MovieStateSidecar
             while (r.Read())
                 meta.Cast.Add(new CastEntry { Name = r.GetString(0), Role = r.IsDBNull(1) ? null : r.GetString(1) });
         }
+        meta.Genres    = ReadRelationNames(db, movieId, "movie_genres",    "genres",    "genre_id");
+        meta.Directors = ReadRelationNames(db, movieId, "movie_directors", "directors", "director_id");
+        meta.Writers   = ReadRelationNames(db, movieId, "movie_writers",   "writers",   "writer_id");
         return meta;
+    }
+
+    // Fixed-literal table/column names (never user input).
+    private static List<string> ReadRelationNames(
+        DatabaseService db, int movieId, string joinTable, string nameTable, string fkCol)
+    {
+        var list = new List<string>();
+        using var c = db.GetConnection().CreateCommand();
+        c.CommandText = $@"SELECT t.name FROM {joinTable} j JOIN {nameTable} t ON t.id = j.{fkCol}
+                           WHERE j.movie_id=@m";
+        c.Parameters.AddWithValue("@m", movieId);
+        using var r = c.ExecuteReader();
+        while (r.Read()) if (!r.IsDBNull(0)) list.Add(r.GetString(0));
+        return list;
     }
 
     /// <summary>
@@ -349,6 +369,11 @@ public static class MovieStateSidecar
             mu.ExecuteNonQuery();
         }
 
+        // Genres / directors / writers — fill-only per relation.
+        ImportRelationNames(conn, tx, movieId, meta.Genres,    "genres",    "movie_genres",    "genre_id");
+        ImportRelationNames(conn, tx, movieId, meta.Directors, "directors", "movie_directors", "director_id");
+        ImportRelationNames(conn, tx, movieId, meta.Writers,   "writers",   "movie_writers",   "writer_id");
+
         if (meta.Cast.Count == 0) return;
 
         // Only restore cast when the just-scanned NFO supplied none.
@@ -389,6 +414,50 @@ public static class MovieStateSidecar
             link.Parameters.AddWithValue("@a", actorId);
             link.Parameters.AddWithValue("@r", (object?)ce.Role ?? DBNull.Value);
             link.Parameters.AddWithValue("@o", order++);
+            link.ExecuteNonQuery();
+        }
+    }
+
+    // Fill-only restore of a named relation (genres/directors/writers). Fixed
+    // literal table/column names — never user input.
+    private static void ImportRelationNames(
+        SqliteConnection conn, SqliteTransaction tx, int movieId,
+        List<string> names, string nameTable, string joinTable, string fkCol)
+    {
+        if (names.Count == 0) return;
+
+        using (var ck = conn.CreateCommand())
+        {
+            ck.Transaction = tx;
+            ck.CommandText = $"SELECT EXISTS(SELECT 1 FROM {joinTable} WHERE movie_id=@m)";
+            ck.Parameters.AddWithValue("@m", movieId);
+            if (Convert.ToInt32(ck.ExecuteScalar()) == 1) return;   // NFO already supplied them
+        }
+
+        foreach (var raw in names)
+        {
+            var name = (raw ?? "").Trim();
+            if (name.Length == 0) continue;
+            int rowId;
+            using (var ins = conn.CreateCommand())
+            {
+                ins.Transaction = tx;
+                ins.CommandText = $"INSERT OR IGNORE INTO {nameTable}(name) VALUES(@n)";
+                ins.Parameters.AddWithValue("@n", name);
+                ins.ExecuteNonQuery();
+            }
+            using (var sel = conn.CreateCommand())
+            {
+                sel.Transaction = tx;
+                sel.CommandText = $"SELECT id FROM {nameTable} WHERE name=@n";
+                sel.Parameters.AddWithValue("@n", name);
+                rowId = Convert.ToInt32(sel.ExecuteScalar());
+            }
+            using var link = conn.CreateCommand();
+            link.Transaction = tx;
+            link.CommandText = $"INSERT OR IGNORE INTO {joinTable}(movie_id, {fkCol}) VALUES(@m, @r)";
+            link.Parameters.AddWithValue("@m", movieId);
+            link.Parameters.AddWithValue("@r", rowId);
             link.ExecuteNonQuery();
         }
     }

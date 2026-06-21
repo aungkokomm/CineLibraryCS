@@ -369,8 +369,20 @@ public sealed partial class MovieDetailDialog : Window
                 studio: studio, country: country,
                 posterRel: posterRel, fanartRel: fanartRel);
 
-            // Cast — fill only when the movie currently has none.
-            if (d.Cast.Count > 0 && !AppState.Instance.Db.MovieHasActors(m.Id))
+            // Genres / directors / writers — fill-only, so the detail window's
+            // Genres and Director rows aren't left blank on a partial scrape.
+            var genreNames = new List<string>();
+            foreach (var g in d.Genres)
+                if (!string.IsNullOrWhiteSpace(g.Name)) genreNames.Add(g.Name);
+            AppState.Instance.Db.FillMovieGenreDirectorWriter(
+                m.Id, genreNames, d.Directors, d.Writers);
+
+            // Cast — fetch photos for the top-billed cast and link them. Runs
+            // even when the movie already has cast, because MediaElch NFOs often
+            // store actor <thumb>s as TMDb http URLs (blank offline) or none at
+            // all; we download portable copies and AddManualActors upgrades those
+            // weak thumbs to the local cache.
+            if (d.Cast.Count > 0)
             {
                 TmdbBusyState(true, "Fetching cast photos…");
                 var actors = new List<(string, string?, int, string?)>();

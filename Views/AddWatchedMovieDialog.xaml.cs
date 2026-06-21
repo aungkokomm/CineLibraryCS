@@ -163,6 +163,13 @@ public sealed partial class AddWatchedMovieDialog : ContentDialog
                 AppState.Instance.Db.AddManualActors(movieId, actors);
             }
 
+            // Genres / directors / writers, so the record's detail view is full.
+            var genreNames = new List<string>();
+            foreach (var g in d.Genres)
+                if (!string.IsNullOrWhiteSpace(g.Name)) genreNames.Add(g.Name);
+            AppState.Instance.Db.FillMovieGenreDirectorWriter(
+                movieId, genreNames, d.Directors, d.Writers);
+
             AddedMovieId = movieId;
         }
         catch (Exception ex)

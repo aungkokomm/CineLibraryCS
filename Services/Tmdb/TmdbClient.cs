@@ -87,9 +87,36 @@ public sealed class TmdbClient : IDisposable
         if (root.TryGetProperty("release_dates", out var rd))
             movie.Certification = ParseUsCertification(rd);
         if (root.TryGetProperty("credits", out var credits))
+        {
             movie.Cast = ParseCast(credits);
+            ParseCrew(credits, movie);
+        }
 
         return movie;
+    }
+
+    /// <summary>Pulls Directors (job == Director) and Writers (department ==
+    /// Writing) out of credits.crew — the two crew groups Kodi/MediaElch surface.</summary>
+    private static void ParseCrew(JsonElement credits, TmdbMovie movie)
+    {
+        if (!credits.TryGetProperty("crew", out var crew) || crew.ValueKind != JsonValueKind.Array)
+            return;
+        foreach (var m in crew.EnumerateArray())
+        {
+            var name = m.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var job = m.TryGetProperty("job", out var j) ? j.GetString() ?? "" : "";
+            var dept = m.TryGetProperty("department", out var d) ? d.GetString() ?? "" : "";
+
+            if (string.Equals(job, "Director", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!movie.Directors.Contains(name)) movie.Directors.Add(name);
+            }
+            else if (string.Equals(dept, "Writing", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!movie.Writers.Contains(name)) movie.Writers.Add(name);
+            }
+        }
     }
 
     /// <summary>Top-billed cast (capped) from credits.cast, kept in billing order.</summary>
