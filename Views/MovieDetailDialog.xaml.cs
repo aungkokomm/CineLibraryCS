@@ -503,10 +503,11 @@ public sealed partial class MovieDetailDialog : Window
     /// </summary>
     private static Uri SafeFileUri(string absolutePath)
     {
-        var escaped = absolutePath
-            .Replace("#", "%23")
-            .Replace("?", "%3F");
-        return new Uri(escaped);
+        // new Uri() already percent-encodes '#', '?' and spaces correctly for a
+        // Windows path. Pre-escaping them ourselves double-encoded the '%' (a
+        // "#Bollywood Movies" folder became %2523Bollywood…), which broke every
+        // actor photo whose path contained '#' or '?'. Let .NET do the encoding.
+        return new Uri(absolutePath);
     }
 
     private static void ApplyBitmap(Models.Actor a, Uri uri)

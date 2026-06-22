@@ -6,6 +6,14 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [3.4.2] — 2026-06-22
+
+### Improved
+- **Smoother, more reliable artwork rendering across the app.** Cast photos in
+  the Movie Details window, collection cover tiles and TV show cast now display
+  consistently for every library — no matter how your folders are named — with
+  efficient, on-demand image loading throughout the detail views.
+
 ## [3.4.1] — 2026-06-21
 
 A focused follow-up to 3.4.0 that makes **Fetch missing info from TMDB**

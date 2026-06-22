@@ -752,7 +752,7 @@ public sealed partial class TvShowsPage : Page
                         foreach (var ext in ActorThumbExts)
                         {
                             var p = Path.Combine(actorsDir, stem + ext);
-                            if (File.Exists(p)) { uri = new Uri(p.Replace("#", "%23").Replace("?", "%3F")); break; }
+                            if (File.Exists(p)) { uri = new Uri(p); break; }
                         }
                     }
                     if (uri == null && !string.IsNullOrWhiteSpace(a.Thumb))
