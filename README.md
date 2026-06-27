@@ -54,6 +54,7 @@ CineLibrary is a **reader, not a scraper**: it expects folders that already carr
 - **🎬 Watched & Gone** — a *memory keeper* for films you watched then deleted: the poster, your notes, tags and history stay as a record, isolated from your library so you never re-download by mistake. **Add watched movie** also logs ones you saw *elsewhere* — at the cinema, on streaming, or a friend's copy (looked up on TMDb).
 - **🩹 Fetch missing info from TMDB** — a partly-scraped movie? Fill just the blanks (poster, plot, cast, year, …) on demand from any detail window. **Fill-only** — your existing MediaElch data is never overwritten.
 - **🔄 Sync to drive (state + fetched art)** — write your personal state *and* any fetched art/details back into the movie folders (poster, fanart, `.actors\` — **never** rewriting your `.nfo`), so the drive stays the source of truth and a rescan can't lose them.
+- **🧹 Find duplicates (Dupes).** Spots movies you have more than once and recommends which copy to keep, with reclaimable-space totals. Your dubbed and multi-language copies are left alone (recognised as kept on purpose). Non-destructive: it points you to the files, you decide.
 - **💾 Backup & restore** — export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.
 - **🪪 State travels with the drive** — watched/favorite/notes/tags live next to each title, so they survive a drive move to another PC.
 - **⚙️ Settings** — Light/Dark/System theme, optional card shadows, reduce-motion.

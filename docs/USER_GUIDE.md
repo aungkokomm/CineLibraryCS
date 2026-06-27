@@ -26,19 +26,20 @@ of movies in under five minutes.
 9. [Tags — your own labels](#tags--your-own-labels)
 10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
 11. [Filling in missing details (TMDB)](#filling-in-missing-details-tmdb)
-12. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
-13. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-14. [State that travels with your drives](#state-that-travels-with-your-drives)
-15. [Backup and restore](#backup-and-restore)
-16. [Statistics](#statistics)
-17. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-18. [Themes and sidebar](#themes-and-sidebar)
-19. [Settings](#settings)
-20. [Keyboard shortcuts](#keyboard-shortcuts)
-21. [Exporting your catalog](#exporting-your-catalog)
-22. [Updates](#updates)
-23. [Where your data lives](#where-your-data-lives)
-24. [Troubleshooting](#troubleshooting)
+12. [Finding duplicates (Dupes)](#finding-duplicates-dupes)
+13. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+14. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+15. [State that travels with your drives](#state-that-travels-with-your-drives)
+16. [Backup and restore](#backup-and-restore)
+17. [Statistics](#statistics)
+18. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+19. [Themes and sidebar](#themes-and-sidebar)
+20. [Settings](#settings)
+21. [Keyboard shortcuts](#keyboard-shortcuts)
+22. [Exporting your catalog](#exporting-your-catalog)
+23. [Updates](#updates)
+24. [Where your data lives](#where-your-data-lives)
+25. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -538,6 +539,41 @@ back.
 > This and **Add watched movie** are the only features that use the
 > internet, and only when you click them. Everything else in CineLibrary is
 > fully offline.
+
+---
+
+## Finding duplicates (Dupes)
+
+Collect movies across drives for a while and the same film can quietly end up
+on your shelf twice: a re-download you forgot about, or a quality upgrade you
+never cleaned up. **Tools → Dupes** finds them and helps you reclaim the space,
+without touching the copies you keep on purpose.
+
+**How it matches.** Films are grouped by their TMDb / IMDb id, falling back to
+title + year. Two different movies that share a name (for example *Solaris* from
+1972 and *Solaris* from 2002) are never merged.
+
+**What it leaves alone.** If you deliberately keep the same film in different
+**audio languages** (a Hindi dub and the original, or Tamil / Telugu / Hindi) or
+different **editions** (Director's Cut versus Theatrical), Dupes labels them
+**✓ kept on purpose** and never flags them. Only genuine same-version copies are
+surfaced as **⚠ possible duplicates**.
+
+For each possible duplicate, Dupes:
+
+- **Recommends a keeper.** The best copy (highest resolution, then largest file)
+  is tagged **✓ keep**; the others are the removable candidates.
+- **Shows what you'd save.** A green "~X GB reclaimable" on each set, plus a
+  running total at the top.
+- **Lets you check and act.** **Open folder** on any copy to inspect it, or
+  **→ Watched & Gone** to drop a copy while keeping its record. CineLibrary
+  never deletes your files; you remove them yourself.
+- **Remembers your choices.** **Ignore set** hides a group you're happy with,
+  and it stays hidden across rescans. A **Show ignored** box brings them back.
+
+After you delete a copy in Explorer and switch back to the app, the set
+re-checks itself and drops off once only one copy remains. A **Rescan** button
+forces the same re-check on demand.
 
 ---
 
