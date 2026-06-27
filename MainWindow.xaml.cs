@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private LibraryPage? _libraryPage;
     private DrivesPage? _drivesPage;
     private StatisticsPage? _statisticsPage;
+    private DupesPage? _dupesPage;
     private BrowsePage? _browsePage;
     private CollectionsBrowsePage? _collectionsPage;
     private TvShowsPage? _tvShowsPage;
@@ -1235,6 +1236,16 @@ public sealed partial class MainWindow : Window
             _statisticsPage.Refresh();
             ContentFrame.Content = _statisticsPage;
         }
+        else if (page == "dupes")
+        {
+            if (_dupesPage == null)
+            {
+                _dupesPage = new DupesPage();
+                _dupesPage.SidebarRefreshRequested += (_, _) => { _ = RefreshSidebarAsync(); };
+            }
+            _dupesPage.Refresh();
+            ContentFrame.Content = _dupesPage;
+        }
         else if (page == "browse" && param is DatabaseService.BrowseFacet facet)
         {
             _browsePage ??= new BrowsePage();
@@ -1731,6 +1742,12 @@ public sealed partial class MainWindow : Window
     {
         NavigateTo("statistics");
         SetActiveNav(sender as Button ?? BtnStatistics);
+    }
+
+    private void OnNavDupes(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("dupes");
+        SetActiveNav(sender as Button ?? BtnDupes);
     }
 
     // ── v1.4.1 Keyboard shortcuts dialog ──────────────────────────────────

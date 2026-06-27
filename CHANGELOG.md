@@ -6,6 +6,25 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [3.4.4] - 2026-06-22
+
+### Added
+- **Dupes (Tools → Dupes).** Finds movies your library holds more than once and
+  helps you reclaim the space, without touching the copies you keep on purpose.
+  Films are matched by TMDb / IMDb id (else title + year), so different movies
+  that share a name aren't merged. Copies that differ by **audio language** or
+  **edition** are marked "kept on purpose" and never flagged; only genuine
+  same-version copies are surfaced. For those, Dupes recommends a keeper (best
+  resolution, then largest), shows reclaimable space per set plus a running
+  total, and offers Open folder, Send to Watched & Gone, and a remembered
+  "Ignore set". Non-destructive: the app never deletes files, and a deleted
+  copy drops off on its own when you return to the app.
+
+### Changed
+- Resolution is read by width (1920 to 1080p) so cropped widescreen files aren't
+  misjudged as a lower quality.
+- Distinct sidebar icons for Dupes and Backup.
+
 ## [3.4.2] — 2026-06-22
 
 ### Improved

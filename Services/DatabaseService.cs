@@ -551,6 +551,14 @@ CREATE INDEX IF NOT EXISTS idx_watch_events_when
     ON watch_events(watched_at DESC);
 ");
 
+        // v3.4.4 — Dupes: group keys the user has chosen to ignore (kept on
+        // purpose, or a case the classifier got wrong). Survives rescans.
+        Exec(@"
+CREATE TABLE IF NOT EXISTS dupe_ignored (
+    group_key  TEXT PRIMARY KEY,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+);");
+
         // Free-form tags — independent of lists. Movies and shows reference
         // the same `tags` rows so a tag like "rewatched" can carry across.
         Exec(@"
@@ -2166,6 +2174,267 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 actors.Add((r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1)));
         }
         return (poster, fanart, actors);
+    }
+
+    // ── Dupes (v3.4.4) ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Group the library's movies into duplicate sets — same film held more than
+    /// once. Matched by TMDb id, else IMDb id, else normalised title + year (never
+    /// title alone, so remakes with the same name aren't merged). Archived
+    /// Watched &amp; Gone records are excluded. Each group is classified
+    /// conservatively: <see cref="DupeGroup.PossibleDuplicate"/> is only set when
+    /// the copies share the same audio languages, resolution, HDR, codec and
+    /// edition — so deliberately-kept variants (a dub vs the original, 1080p vs
+    /// 4K, an HEVC re-encode, a Director's Cut) are flagged as kept-on-purpose.
+    /// Also picks the keeper, computes reclaimable space, flags name-only matches,
+    /// and marks groups the user has ignored.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<DupeGroup> GetDuplicateGroups(IReadOnlyDictionary<string, string> connected)
+    {
+        var ignored = GetIgnoredDupeKeys();
+
+        var byKey = new Dictionary<string, List<DupeCopy>>();
+        var nameKeyed = new HashSet<string>();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT m.id, m.title, m.year, m.tmdb_id, m.imdb_id,
+                       m.volume_serial, d.label, m.folder_rel_path, m.video_file_rel_path,
+                       m.audio_languages, m.video_height, m.hdr_type, m.file_size_bytes,
+                       m.local_poster, m.is_missing, m.video_codec, m.video_width
+                FROM movies m LEFT JOIN drives d ON d.volume_serial = m.volume_serial
+                WHERE m.archived_at IS NULL AND m.volume_serial != '__archive__'
+                  AND m.is_missing = 0";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var title = r.IsDBNull(1) ? "" : r.GetString(1);
+                int? year = r.IsDBNull(2) ? (int?)null : r.GetInt32(2);
+                var tmdb = r.IsDBNull(3) ? null : r.GetString(3);
+                var imdb = r.IsDBNull(4) ? null : r.GetString(4);
+                var serial = r.GetString(5);
+                var folderRel = r.IsDBNull(7) ? null : r.GetString(7);
+
+                string key;
+                if (!string.IsNullOrWhiteSpace(tmdb)) key = "t:" + tmdb!.Trim();
+                else if (!string.IsNullOrWhiteSpace(imdb)) key = "i:" + imdb!.Trim();
+                else { key = "n:" + title.Trim().ToLowerInvariant() + "|" + (year?.ToString() ?? ""); nameKeyed.Add(key); }
+
+                var copy = new DupeCopy
+                {
+                    Id = r.GetInt32(0),
+                    Title = title,
+                    Year = year,
+                    VolumeSerial = serial,
+                    DriveLabel = r.IsDBNull(6) ? null : r.GetString(6),
+                    FolderRelPath = folderRel,
+                    VideoFileRelPath = r.IsDBNull(8) ? null : r.GetString(8),
+                    AudioLanguages = r.IsDBNull(9) ? null : r.GetString(9),
+                    VideoHeight = r.IsDBNull(10) ? (int?)null : r.GetInt32(10),
+                    HdrType = r.IsDBNull(11) ? null : r.GetString(11),
+                    FileSizeBytes = r.IsDBNull(12) ? (long?)null : r.GetInt64(12),
+                    LocalPoster = r.IsDBNull(13) ? null : r.GetString(13),
+                    IsMissing = !r.IsDBNull(14) && r.GetInt32(14) == 1,
+                    VideoCodec = r.IsDBNull(15) ? null : r.GetString(15),
+                    VideoWidth = r.IsDBNull(16) ? (int?)null : r.GetInt32(16),
+                    Edition = DetectDupeEdition(folderRel),
+                };
+                if (connected.TryGetValue(serial, out var letter))
+                {
+                    copy.IsOnline = true;
+                    copy.CurrentLetter = letter;
+                    // Ground truth: if the file was deleted on disk (e.g. the user
+                    // removed one of two copies), don't count it — the set then
+                    // resolves to a single copy and drops off the list.
+                    if (!DupeFileExists(letter, folderRel, copy.VideoFileRelPath)) continue;
+                }
+
+                if (!byKey.TryGetValue(key, out var list)) { list = new List<DupeCopy>(); byKey[key] = list; }
+                list.Add(copy);
+            }
+        }
+
+        var groups = new List<DupeGroup>();
+        foreach (var kv in byKey)
+        {
+            if (kv.Value.Count < 2) continue;
+            var members = kv.Value;
+            // Best copy first: higher resolution tier, then larger file, then online.
+            members.Sort((a, b) =>
+            {
+                int c = DupeResTier(b.VideoWidth, b.VideoHeight).CompareTo(DupeResTier(a.VideoWidth, a.VideoHeight));
+                if (c != 0) return c;
+                c = (b.FileSizeBytes ?? 0).CompareTo(a.FileSizeBytes ?? 0);
+                if (c != 0) return c;
+                return b.IsOnline.CompareTo(a.IsOnline);
+            });
+            members[0].IsKeeper = true;
+
+            var g = new DupeGroup
+            {
+                Key = kv.Key,
+                Title = members[0].Title,
+                Year = members[0].Year,
+                Copies = members,
+                MatchedByName = nameKeyed.Contains(kv.Key),
+                IsIgnored = ignored.Contains(kv.Key),
+            };
+            ClassifyDupeGroup(g);
+            if (g.PossibleDuplicate)
+            {
+                long total = 0, keep = members[0].FileSizeBytes ?? 0;
+                foreach (var c in members) total += c.FileSizeBytes ?? 0;
+                g.ReclaimableBytes = total - keep;
+            }
+            groups.Add(g);
+        }
+
+        groups.Sort((a, b) =>
+        {
+            // Active suspicious groups first, then by reclaimable space, then title.
+            int c = (b.PossibleDuplicate && !b.IsIgnored).CompareTo(a.PossibleDuplicate && !a.IsIgnored);
+            if (c != 0) return c;
+            c = b.ReclaimableBytes.CompareTo(a.ReclaimableBytes);
+            if (c != 0) return c;
+            return string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase);
+        });
+        return groups;
+    }
+
+    private static void ClassifyDupeGroup(DupeGroup g)
+    {
+        var langs = new HashSet<string>();
+        var reses = new HashSet<int>();
+        var hdrs = new HashSet<string>();
+        var codecs = new HashSet<string>();
+        var editions = new HashSet<string>();
+        var drives = new HashSet<string>();
+        foreach (var c in g.Copies)
+        {
+            var ls = DupeLangSig(c.AudioLanguages);
+            if (ls.Length > 0) langs.Add(ls);
+            var tier = DupeResTier(c.VideoWidth, c.VideoHeight);
+            if (tier >= 0) reses.Add(tier);
+            hdrs.Add((c.HdrType ?? "").Trim().ToLowerInvariant());
+            codecs.Add(NormalizeCodec(c.VideoCodec));
+            editions.Add((c.Edition ?? "").Trim().ToLowerInvariant());
+            drives.Add(c.VolumeSerial);
+        }
+        bool diffLang = langs.Count > 1;
+        bool diffEdition = editions.Count > 1;
+        bool diffRes = reses.Count > 1;
+        bool diffHdr = hdrs.Count > 1;
+        bool diffCodec = codecs.Count > 1;
+        bool diffQuality = diffRes || diffHdr || diffCodec;
+
+        // Only different *languages* or *editions* are deliberately-kept copies.
+        // A different quality / codec of the same film is almost always
+        // accumulation (you upgraded and forgot the old one) — treat it as a
+        // duplicate worth reclaiming, keeping the best copy.
+        bool keptOnPurpose = diffLang || diffEdition;
+        g.PossibleDuplicate = !keptOnPurpose;
+
+        int n = g.Copies.Count;
+        bool sameDrive = drives.Count == 1;
+        if (diffEdition) g.Summary = $"{n} versions · different editions";
+        else if (diffLang) g.Summary = $"{n} versions · different audio languages";
+        else if (diffQuality) g.Summary = $"{n} copies · different quality — keep the best" + (sameDrive ? " · same drive" : "");
+        else g.Summary = $"{n} copies · same version" + (sameDrive ? " · same drive" : "");
+    }
+
+    /// <summary>Coarse resolution tier from width (preferred, stable across aspect
+    /// ratios) or height. Returns -1 when unknown.</summary>
+    private static int DupeResTier(int? width, int? height)
+    {
+        if (width is int w && w > 0)
+            return w >= 3000 ? 4 : w >= 1700 ? 3 : w >= 1100 ? 2 : w >= 700 ? 1 : 0;
+        if (height is int h && h > 0)
+            return h >= 1500 ? 4 : h >= 700 ? 3 : h >= 460 ? 2 : 1;
+        return -1;
+    }
+
+    private static string NormalizeCodec(string? codec)
+    {
+        var c = (codec ?? "").Trim().ToLowerInvariant();
+        if (c.Contains("265") || c.Contains("hevc")) return "hevc";
+        if (c.Contains("264") || c.Contains("avc")) return "h264";
+        if (c.Contains("av1")) return "av1";
+        if (c.Contains("vp9")) return "vp9";
+        return c;   // "" when unknown — same bucket, doesn't force a split
+    }
+
+    private static readonly string[] EditionKeywords =
+    {
+        "director's cut", "directors cut", "director cut", "extended", "uncut", "unrated",
+        "theatrical", "imax", "remaster", "criterion", "special edition", "ultimate",
+        "final cut", "redux", "anniversary",
+    };
+
+    /// <summary>Detects an edition tag from a movie's folder name, so different
+    /// editions of the same film count as kept-on-purpose, not duplicates.</summary>
+    private static string? DetectDupeEdition(string? folderRel)
+    {
+        if (string.IsNullOrWhiteSpace(folderRel)) return null;
+        var name = folderRel.Replace('\\', '/');
+        var slash = name.LastIndexOf('/');
+        if (slash >= 0) name = name.Substring(slash + 1);
+        var lower = name.ToLowerInvariant();
+        foreach (var kw in EditionKeywords)
+            if (lower.Contains(kw))
+                return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(kw);
+        return null;
+    }
+
+    /// <summary>True if the copy's video file (or its folder) still exists on the
+    /// connected drive. Errors are treated as "exists" so a transient I/O hiccup
+    /// never makes a copy vanish from the list.</summary>
+    private static bool DupeFileExists(string letter, string? folderRel, string? videoRel)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(videoRel))
+                return File.Exists(Path.Combine($"{letter}:\\", videoRel.Replace('/', '\\')));
+            if (!string.IsNullOrEmpty(folderRel))
+                return Directory.Exists(Path.Combine($"{letter}:\\", folderRel.Replace('/', '\\')));
+            return true;
+        }
+        catch { return true; }
+    }
+
+    /// <summary>Normalised, order-independent signature of an audio-languages string.</summary>
+    private static string DupeLangSig(string? audio)
+    {
+        if (string.IsNullOrWhiteSpace(audio)) return "";
+        var set = new SortedSet<string>();
+        foreach (var p in audio.Split(new[] { ',', ';', '/', '|' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var t = p.Trim().ToLowerInvariant();
+            if (t.Length > 0) set.Add(t);
+        }
+        return string.Join(",", set);
+    }
+
+    public HashSet<string> GetIgnoredDupeKeys()
+    {
+        var set = new HashSet<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT group_key FROM dupe_ignored";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) set.Add(r.GetString(0));
+        return set;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetDupeIgnored(string groupKey, bool ignored)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = ignored
+            ? "INSERT OR IGNORE INTO dupe_ignored(group_key) VALUES(@k)"
+            : "DELETE FROM dupe_ignored WHERE group_key=@k";
+        cmd.Parameters.AddWithValue("@k", groupKey);
+        cmd.ExecuteNonQuery();
     }
 
     /// <summary>

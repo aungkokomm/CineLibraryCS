@@ -427,6 +427,16 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- Dupes (v3.4.4) — find movies held more than once -->
+                        <Button x:Name="BtnDupes" Style="{StaticResource NavItemStyle}" Click="OnNavDupes">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Dupes" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- Drives -->
                         <Button x:Name="BtnDrives" Style="{StaticResource NavItemStyle}" Click="OnNavDrives">
                             <Grid HorizontalAlignment="Stretch">
@@ -452,7 +462,7 @@
                         <Button x:Name="BtnBackup" Style="{StaticResource NavItemStyle}"
                                 Click="OnNavBackup">
                             <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Glyph="&#xE8C8;" FontSize="15"
+                                <FontIcon Glyph="&#xE74E;" FontSize="15"
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="Backup" VerticalAlignment="Center"/>
