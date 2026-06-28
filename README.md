@@ -171,3 +171,4 @@ The SQLite database and cached artwork live there. Back it up to carry your favo
 CineLibrary is **free and open-source** software, released under the MIT License.
 
 It will always remain free — no subscriptions, no paywalls, no telemetry. Built for myself, shared with you.
+MIT licensed · © 2026 Aung Ko Ko · <a href="https://aungkokomm.github.io/">more of my apps</a>
