@@ -180,8 +180,10 @@ switch, **Settings**, keyboard shortcuts and collapse sidebar.
 ### Collections
 
 **Collections** (under Browse) shows each franchise in your library as a
-poster card with its movie count. A green **✓** means you've watched
-every movie in it. The toolbar works like the one on All Movies, and
+poster card, the same size as TV show cards, with its movie count and how
+many you've watched ("2/5") above a purple progress bar. A green **✓**
+means you've watched every movie in it. The toolbar works like the one
+on All Movies, and
 CineLibrary remembers your choices:
 
 - **Sort**: Name, number of Movies, Year (the newest movie in the
@@ -362,6 +364,8 @@ Click a show to open its page:
   air date, rating, runtime, plus tech info pulled from the `.nfo`
   (resolution, HDR, video/audio codec, audio languages, subtitles,
   container, file size). The dialog has Play and Mark-watched buttons.
+  It's dark like the show page's header in both themes, with the show's
+  name above the episode's, and a note box for the episode.
 - The **○ / ✓** toggle on each card flips watched state without
   playing. The show's progress roll-up updates instantly.
 - Each **season header** has **▶ Play season** (first unwatched in that

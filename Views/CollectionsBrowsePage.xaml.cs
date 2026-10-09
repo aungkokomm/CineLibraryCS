@@ -21,6 +21,10 @@ public partial class CollectionTileVm : ObservableObject
     public double CardWidth { get; init; }
     public double CardHeight { get; init; }
     public Visibility WatchedVisibility { get; init; } = Visibility.Collapsed;
+    // v4.4.0 (#18): "3/5" and the progress bar, as on show cards
+    public string ProgressText { get; init; } = "";
+    public GridLength DoneWidth { get; init; }
+    public GridLength LeftWidth { get; init; }
     [ObservableProperty] private BitmapImage? _coverImage;
 }
 
@@ -79,6 +83,9 @@ public sealed partial class CollectionsBrowsePage : Page
                 CardWidth = _cardWidth,
                 CardHeight = _cardHeight,
                 WatchedVisibility = e.Watched >= e.Count ? Visibility.Visible : Visibility.Collapsed,
+                ProgressText = $"{Math.Min(e.Watched, e.Count)}/{e.Count}",
+                DoneWidth = new GridLength(Math.Min(e.Watched, e.Count), GridUnitType.Star),
+                LeftWidth = new GridLength(Math.Max(e.Count - e.Watched, 0), GridUnitType.Star),
             };
             if (e.CoverPoster != null)
             {
@@ -158,12 +165,14 @@ public sealed partial class CollectionsBrowsePage : Page
 
     private void ApplyDensity(string tag)
     {
+        // v4.4.0 (#18): the show card sizes. The old ones (M was 150 x 280) were
+        // narrower than a 2:3 poster, so the posters were cut at the sides.
         (_cardWidth, _cardHeight) = tag switch
         {
-            "S"  => (120.0, 220.0),
-            "L"  => (190.0, 340.0),
-            "XL" => (240.0, 420.0),
-            _    => (150.0, 280.0),   // M, the same sizes as All movies
+            "S"  => (130.0, 235.0),
+            "L"  => (210.0, 365.0),
+            "XL" => (250.0, 430.0),
+            _    => (170.0, 300.0),   // M, the same sizes as All TV shows
         };
         CollGridLayout.MinItemWidth = _cardWidth;
         CollGridLayout.MinItemHeight = _cardHeight;

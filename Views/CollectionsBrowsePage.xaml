@@ -97,14 +97,16 @@
                              card, the name and count sit on a dark strip at the
                              bottom, and a green tick marks a fully watched set. -->
                         <DataTemplate x:DataType="local:CollectionTileVm">
+                            <!-- v4.4.0 (#18): the cell sizes the card like movie and show cards -->
+                            <controls:CardCell CardWidth="{x:Bind CardWidth}" CardHeight="{x:Bind CardHeight}">
                             <Button Background="Transparent" BorderThickness="0"
                                     Padding="0" CornerRadius="10"
-                                    HorizontalAlignment="Center"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     VerticalAlignment="Top"
                                     Click="OnTileClick"
                                     Tag="{x:Bind Id}"
                                     AutomationProperties.Name="{x:Bind Name}">
-                                <Border Width="{x:Bind CardWidth}" Height="{x:Bind CardHeight}"
+                                <Border Height="{x:Bind CardHeight}"
                                         CornerRadius="10"
                                         Background="{ThemeResource PlaceholderBgBrush}"
                                         BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1">
@@ -135,13 +137,30 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            TextWrapping="WrapWholeWords"
                                                            MaxLines="2"/>
-                                                <TextBlock Text="{x:Bind CountText}"
-                                                           FontSize="11" Foreground="#D8D8D8"/>
+                                                <!-- v4.4.0 (#18): how many you've watched, as on show cards -->
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{x:Bind CountText}"
+                                                               FontSize="11" Foreground="#D8D8D8"/>
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind ProgressText}"
+                                                               FontSize="11" FontWeight="SemiBold" Foreground="#A78BFA"/>
+                                                </Grid>
+                                                <Grid Height="4" CornerRadius="2" Background="#40FFFFFF" Margin="0,4,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="{x:Bind DoneWidth}"/>
+                                                        <ColumnDefinition Width="{x:Bind LeftWidth}"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border CornerRadius="2" Background="#A78BFA"/>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
                                 </Border>
                             </Button>
+                            </controls:CardCell>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>

@@ -6,6 +6,23 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.4.0] - 2026-10-09
+
+Collections that show your progress, and an easier-to-read episode window.
+
+### Changed
+- **Collection cards are the size of TV show cards** and fill their spot
+  in the grid. They were narrower than a poster (at size M, 150 by 280),
+  so the posters were cut at the sides, and they sat a little to the
+  right of the page title.
+- **Collection cards show how far you are**: "3 movies" on the left,
+  "1/3" in purple on the right, and a purple progress bar, as on show
+  cards. The green ✓ still marks a collection you've finished.
+- **The episode window is easier to read**, from the sofa too. It's dark
+  like the show page's header (in both themes) with a thin frame, its
+  text is larger and brighter, the show's name sits on a small first line
+  with the episode's name under it, and it's wider (up to 720 pixels).
+
 ## [4.3.0] - 2026-10-06
 
 Notes for TV shows.

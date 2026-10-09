@@ -79,7 +79,16 @@ public sealed partial class TvShowsPage : Page
         var d = AppState.Instance.Db.GetEpisodeDetail(ep.Id);
         if (d == null) return;
 
-        var root = new StackPanel { Spacing = 12 };
+        // v4.4.0 (#19): dark like the show header, in both themes, with brighter
+        // text. The grey dialog with the app's dim grey text was hard to read,
+        // especially on a TV across the room.
+        static Microsoft.UI.Xaml.Media.SolidColorBrush Rgb(byte r, byte g, byte b, byte a = 0xFF) =>
+            new(Windows.UI.Color.FromArgb(a, r, g, b));
+        var textBrush  = Rgb(0xF0, 0xF0, 0xF5);
+        var metaBrush  = Rgb(0xD8, 0xD8, 0xD8);
+        var labelBrush = Rgb(0x9C, 0xA3, 0xAF);
+
+        var root = new StackPanel { Spacing = 14 };
 
         // Header line: code · aired · runtime · rating + ★ favorite toggle
         var headerRow = new Grid();
@@ -92,19 +101,19 @@ public sealed partial class TvShowsPage : Page
         headerRow.Children.Add(new TextBlock
         {
             Text = $"{d.Code}   ·   {string.Join("   ·   ", meta)}",
-            FontSize = 12,
-            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
+            FontSize = 14,
+            Foreground = metaBrush,
             VerticalAlignment = VerticalAlignment.Center,
         });
         var favBtn = new Button
         {
             Content = d.IsFavorite ? "★ Favorited" : "☆ Favorite",
-            Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
-            BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
-            BorderThickness = new Thickness(1),
+            Background = Rgb(0xFF, 0xFF, 0xFF, 0x22),
+            Foreground = textBrush,
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 4, 10, 4),
-            FontSize = 12,
+            Padding = new Thickness(12, 5, 12, 5),
+            FontSize = 13,
         };
         favBtn.Click += (_, _) =>
         {
@@ -126,8 +135,9 @@ public sealed partial class TvShowsPage : Page
             {
                 Text = d.Plot,
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
-                LineHeight = 21,
+                Foreground = textBrush,
+                FontSize = 15,
+                LineHeight = 24,
             });
 
         // Tech badges
@@ -144,11 +154,11 @@ public sealed partial class TvShowsPage : Page
             foreach (var b in badges)
                 wrap.Children.Add(new Border
                 {
-                    Background = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush"),
+                    Background = Rgb(0xFF, 0xFF, 0xFF, 0x22),
                     CornerRadius = new CornerRadius(6),
                     Padding = new Thickness(8, 3, 8, 3),
-                    Child = new TextBlock { Text = b, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                        Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush") },
+                    Child = new TextBlock { Text = b, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        Foreground = textBrush },
                 });
             root.Children.Add(wrap);
         }
@@ -158,12 +168,11 @@ public sealed partial class TvShowsPage : Page
         {
             if (string.IsNullOrWhiteSpace(value)) return;
             var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            var l = new TextBlock { Text = label, FontSize = 12,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush") };
-            var v = new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush") };
+            var l = new TextBlock { Text = label, FontSize = 13, Foreground = labelBrush };
+            var v = new TextBlock { Text = value, FontSize = 13, TextWrapping = TextWrapping.Wrap,
+                Foreground = textBrush };
             Grid.SetColumn(v, 1);
             g.Children.Add(l); g.Children.Add(v);
             root.Children.Add(g);
@@ -177,11 +186,11 @@ public sealed partial class TvShowsPage : Page
         // string clears the note row. Sidecar is best-effort.
         root.Children.Add(new TextBlock
         {
-            Text = "Your note",
+            Text = "YOUR NOTE",
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CharacterSpacing = 100,
-            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
+            CharacterSpacing = 120,
+            Foreground = labelBrush,
             Margin = new Thickness(0, 6, 0, 0),
         });
         var noteBox = new TextBox
@@ -202,17 +211,35 @@ public sealed partial class TvShowsPage : Page
         };
         root.Children.Add(noteBox);
 
+        // Show name small on the first line, the episode's own name under it
+        var title = new StackPanel { Spacing = 2 };
+        title.Children.Add(new TextBlock
+        {
+            Text = d.ShowTitle, FontSize = 14, Foreground = labelBrush,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        title.Children.Add(new TextBlock
+        {
+            Text = d.Title, FontSize = 24, Foreground = textBrush,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold, TextWrapping = TextWrapping.Wrap,
+        });
+
         var dlg = new ContentDialog
         {
-            Title = $"{d.ShowTitle} — {d.Title}",
-            Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 460, Padding = new Thickness(0, 0, 16, 0) },
+            Title = title,
+            Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 500, Padding = new Thickness(0, 0, 16, 0) },
             PrimaryButtonText = "▶ Play",
             SecondaryButtonText = d.IsWatched ? "Mark unwatched" : "Mark watched",
             CloseButtonText = "Close",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
-            RequestedTheme = MainWindow.CurrentTheme,
+            RequestedTheme = ElementTheme.Dark,   // the dark card in both themes, as the show header
+            Background = Rgb(0x0A, 0x0A, 0x12),    // the button bar
+            BorderBrush = Rgb(0xFF, 0xFF, 0xFF, 0x33),
+            BorderThickness = new Thickness(1),
         };
+        dlg.Resources["ContentDialogTopOverlay"] = Rgb(0x0E, 0x0E, 0x16);   // the card itself
+        dlg.Resources["ContentDialogMaxWidth"] = 720.0;
         var result = await dlg.ShowAsync();
         if (result == ContentDialogResult.Primary) OnEpisodePlay(ep);
         else if (result == ContentDialogResult.Secondary) OnEpisodeWatchedToggle(ep);
