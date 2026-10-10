@@ -6,6 +6,21 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.4.1] - 2026-10-10
+
+### Fixed
+- **The movie window shows the whole cast**, so every actor photo you
+  have appears. It stopped at the first 12 actors, which hid the photos
+  of everyone after them (about half of a typical library has a bigger
+  cast). A very big cast shows its first 24 with a **Show all** button.
+
+### Changed
+- **Show page: genres sit under the info line**, above the plot and your
+  note, so a note no longer pushes them down.
+- **Show page: your tags sit beside Add note and Fetch missing info**,
+  and wrap in their own space, so adding several no longer pushes those
+  buttons away from the row above.
+
 ## [4.4.0] - 2026-10-09
 
 Collections that show your progress, and an easier-to-read episode window.

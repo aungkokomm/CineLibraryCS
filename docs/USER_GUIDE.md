@@ -139,6 +139,10 @@ audio), file size and duration, and quick toggles for watched /
 favorite / watchlist. Press **Esc** to close, or use the close button
 in the sticky bar that appears as you scroll.
 
+The cast lists everyone in the movie's `.nfo`, in billing order, with
+photos from the movie folder's `.actors` folder (or fetched from TMDB).
+A very big cast shows its first 24; click **Show all** for the rest.
+
 The window uses its whole width and arranges itself to fit. In a wide
 window (a 1440p or 4K screen) the buttons and plot sit beside a larger
 poster, with genres, director, studio, file details and your note in a
@@ -331,13 +335,14 @@ Click a show to open its page:
   **IMDb** and **TMDb** buttons that open the show's pages. Below it sit
   the poster, the title, an info line (year, rating, certification such
   as TV-14, status, a watched roll-up like "12/62 watched", and the
-  studio), the plot, genre chips and **Located on**: the show's drive,
+  studio), the genre chips, the plot and **Located on**: the show's drive,
   with a green dot and its letter while it's connected, as in the movie
   details window. Then the buttons: **📂 Open Folder**,
-  **☆ Favorite**, **📋 Watchlist**, **Add to list** and your tags, and
-  **Fetch missing info from TMDB** (see
-  [Filling in missing details](#filling-in-missing-details-tmdb)). Open
-  Folder works while the show's drive is connected.
+  **☆ Favorite**, **📋 Watchlist** and **Add to list**, and under them
+  **📝 Add note** and **Fetch missing info from TMDB** (see
+  [Filling in missing details](#filling-in-missing-details-tmdb)) with
+  your tags beside them. Open Folder works while the show's drive is
+  connected.
 - **📝 Add note**: a note of your own about the show. It appears under
   the plot as **Your note**, and the show is listed on the **Notes**
   page above your noted movies. Click **📝 Edit note** to change it;

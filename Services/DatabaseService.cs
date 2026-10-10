@@ -1829,7 +1829,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     private List<Actor> GetMovieActors(int id)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT a.name, ma.role, a.thumb, ma.sort_order FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=@id ORDER BY ma.sort_order LIMIT 12";
+        // v4.4.1: the whole cast. It stopped at 12, which hid the photos of
+        // everyone after that (about half of a real library has more).
+        cmd.CommandText = "SELECT a.name, ma.role, a.thumb, ma.sort_order FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=@id ORDER BY ma.sort_order";
         cmd.Parameters.AddWithValue("@id", id);
         var list = new List<Actor>();
         using var r = cmd.ExecuteReader();

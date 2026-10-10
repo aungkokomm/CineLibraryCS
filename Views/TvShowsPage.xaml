@@ -175,6 +175,8 @@
                                                 <TextBlock x:Name="ShowProgress" FontSize="13" Foreground="#D8D8D8"/>
                                                 <TextBlock x:Name="ShowStudio" FontSize="13" Foreground="#D8D8D8"/>
                                             </controls:WrapPanel>
+                                            <!-- v4.4.1 (#20): genres right under the info line, above the plot and note -->
+                                            <StackPanel x:Name="ShowGenres" Orientation="Horizontal" Spacing="6"/>
                                             <TextBlock x:Name="ShowPlot" FontSize="14" LineHeight="22" Foreground="#E0E0E0"
                                                        TextWrapping="Wrap" MaxLines="5"
                                                        TextTrimming="CharacterEllipsis" MaxWidth="760"
@@ -195,7 +197,6 @@
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </Grid>
-                                            <StackPanel x:Name="ShowGenres" Orientation="Horizontal" Spacing="6"/>
                                             <!-- v4.0.1: drive location, as in the movie window -->
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="Located on:" FontSize="12" Foreground="#A0A0A0"
@@ -228,18 +229,49 @@
                                                                     Opening="OnShowListsFlyoutOpening"/>
                                                     </Button.Flyout>
                                                 </Button>
-                                                <!-- v2.9 — show tags. Chips with ✕ to remove,
-                                                     "+ Add tag" autocomplete suggests existing
-                                                     tags and accepts new names. -->
-                                                <StackPanel x:Name="ShowTagsRow" Orientation="Horizontal" Spacing="6"
-                                                            VerticalAlignment="Center" Margin="4,0,0,0">
+                                            </controls:WrapPanel>
+
+                                            <!-- v3.10.0: TMDB fill-in, as in the movie details window.
+                                                 Fills only what the show is missing. -->
+                                            <!-- v4.4.1 (#20): tags sit after these buttons and wrap in their own space,
+                                                 so adding many never pushes this row away from the buttons above -->
+                                            <Grid ColumnSpacing="10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                                                    <!-- v4.3.0 (#17) -->
+                                                    <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
+                                                            Background="#22FFFFFF" Foreground="White"
+                                                            BorderThickness="0" CornerRadius="8" Padding="12,7">
+                                                        <TextBlock x:Name="ShowNoteBtnText" Text="📝 Add note"/>
+                                                    </Button>
+                                                    <Button x:Name="FetchShowTmdbBtn" Click="OnFetchShowMissing"
+                                                            Background="#22FFFFFF" Foreground="White"
+                                                            BorderThickness="0" CornerRadius="8" Padding="12,7"
+                                                            ToolTipService.ToolTip="Look this show up on TMDb and fill in only the details it's missing">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <FontIcon Glyph="&#xE896;" FontSize="14"
+                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                            <TextBlock Text="Fetch missing info from TMDB"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <ProgressRing x:Name="ShowTmdbBusy" IsActive="False" Width="18" Height="18"
+                                                                  VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
+                                                               Foreground="#B8B8C4" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <!-- v2.9 show tags: chips with ✕ to remove, "+ Add tag" suggests existing ones -->
+                                                <controls:WrapPanel x:Name="ShowTagsRow" Grid.Column="1" HorizontalSpacing="6"
+                                                                    VerticalSpacing="6" VerticalAlignment="Top" Margin="4,5,0,0">
                                                     <TextBlock Text="🏷" FontSize="13"
                                                                Foreground="#D8D8D8"
-                                                               VerticalAlignment="Center" Opacity="0.8"/>
-                                                    <ItemsControl x:Name="ShowTagChipsRepeater" VerticalAlignment="Center">
+                                                               VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0.8"/>
+                                                    <ItemsControl x:Name="ShowTagChipsRepeater" VerticalAlignment="Top">
                                                         <ItemsControl.ItemsPanel>
                                                             <ItemsPanelTemplate>
-                                                                <StackPanel Orientation="Horizontal" Spacing="6"/>
+                                                                <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
                                                             </ItemsPanelTemplate>
                                                         </ItemsControl.ItemsPanel>
                                                     </ItemsControl>
@@ -259,33 +291,8 @@
                                                                     TextChanged="OnAddShowTagTextChanged"
                                                                     LostFocus="OnAddShowTagBlur"
                                                                     VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </controls:WrapPanel>
-
-                                            <!-- v3.10.0: TMDB fill-in, as in the movie details window.
-                                                 Fills only what the show is missing. -->
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <!-- v4.3.0 (#17) -->
-                                                <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
-                                                        Background="#22FFFFFF" Foreground="White"
-                                                        BorderThickness="0" CornerRadius="8" Padding="12,7">
-                                                    <TextBlock x:Name="ShowNoteBtnText" Text="📝 Add note"/>
-                                                </Button>
-                                                <Button x:Name="FetchShowTmdbBtn" Click="OnFetchShowMissing"
-                                                        Background="#22FFFFFF" Foreground="White"
-                                                        BorderThickness="0" CornerRadius="8" Padding="12,7"
-                                                        ToolTipService.ToolTip="Look this show up on TMDb and fill in only the details it's missing">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <FontIcon Glyph="&#xE896;" FontSize="14"
-                                                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                                                        <TextBlock Text="Fetch missing info from TMDB"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <ProgressRing x:Name="ShowTmdbBusy" IsActive="False" Width="18" Height="18"
-                                                              VerticalAlignment="Center"/>
-                                                <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
-                                                           Foreground="#B8B8C4" VerticalAlignment="Center"/>
-                                            </StackPanel>
+                                                </controls:WrapPanel>
+                                            </Grid>
 
                                             <!-- Cast: v3.10.0 portrait cards like the movie details
                                                  window, smaller, on one line that scrolls sideways. -->

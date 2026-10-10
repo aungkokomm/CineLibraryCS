@@ -256,13 +256,20 @@ public sealed partial class MovieDetailDialog : Window
         {
             CastSection.Visibility = Visibility.Visible;
             CastDivider.Visibility = Visibility.Visible;
-            CastRepeater.ItemsSource = m.Actors;
-            FitCastCardHeight(m.Actors);
+            // v4.4.1: the whole cast now; a very big one (up to a few hundred)
+            // shows its first 24 until Show all, so the page and the photo
+            // loading stay reasonable.
+            var shown = m.Actors.Count > CastPreview ? m.Actors.Take(CastPreview).ToList() : m.Actors;
+            CastRepeater.ItemsSource = shown;
+            FitCastCardHeight(m.Actors);   // all of them, so Show all keeps the card height
+            CastShowAllBtn.Content = $"Show all {m.Actors.Count}";
+            CastShowAllBtn.Visibility = shown.Count < m.Actors.Count ? Visibility.Visible : Visibility.Collapsed;
             string? movieFolderAbs = null;
             if (m.IsOnline && m.CurrentLetter != null && m.FolderRelPath != null)
                 movieFolderAbs = Path.Combine($"{m.CurrentLetter}:\\",
                     m.FolderRelPath.Replace('/', '\\'));
-            _ = LoadCastThumbsAsync(m.Actors, movieFolderAbs);
+            _castFolderAbs = movieFolderAbs;
+            _ = LoadCastThumbsAsync(shown, movieFolderAbs);
         }
 
         // Images
@@ -546,6 +553,17 @@ public sealed partial class MovieDetailDialog : Window
         var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 280 };
         bmp.UriSource = uri;
         a.ThumbBitmap = bmp;
+    }
+
+    private const int CastPreview = 24;
+    private string? _castFolderAbs;
+
+    private void OnCastShowAll(object sender, RoutedEventArgs e)
+    {
+        if (_movie == null) return;
+        CastRepeater.ItemsSource = _movie.Actors;
+        CastShowAllBtn.Visibility = Visibility.Collapsed;
+        _ = LoadCastThumbsAsync(_movie.Actors.Skip(CastPreview).ToList(), _castFolderAbs);
     }
 
     /// <summary>

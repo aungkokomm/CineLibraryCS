@@ -527,6 +527,13 @@
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>
                         </ItemsRepeater>
+                    <!-- v4.4.1: a very big cast shows its first 24 until this is clicked -->
+                    <Button x:Name="CastShowAllBtn" Visibility="Collapsed" Click="OnCastShowAll"
+                            Margin="0,14,0,0"
+                            Background="{ThemeResource CardBrush}"
+                            Foreground="{ThemeResource TextBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}"
+                            CornerRadius="8" Padding="14,7"/>
                 </StackPanel>
 
             </StackPanel>
