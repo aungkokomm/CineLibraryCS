@@ -50,7 +50,7 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 📺 **TV shows get a page of their own**: the fanart, the cast with photos, the drive the show is on, and Fetch missing info from TMDB.
 
-<img width="760" alt="A TV show page in CineLibrary: the Breaking Bad fanart banner with IMDb and TMDb buttons, the poster, details, the drive it is on, buttons and cast photo cards" src="docs/images/cinelibrary-tv-show.png" />
+<img width="760" alt="A TV show page in CineLibrary: The Family Man fanart banner with IMDb and TMDb buttons, the poster, details, the drive it is on, Play next and the other buttons, and cast photo cards" src="docs/images/cinelibrary-tv-show.png" />
 
 ---
 
