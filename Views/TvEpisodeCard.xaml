@@ -46,8 +46,9 @@
                                 VerticalAlignment="Top" HorizontalAlignment="Right" Margin="6">
                         <Border x:Name="FavBadge" Background="#CC000000" CornerRadius="11"
                                 Width="22" Height="22" Visibility="Collapsed">
-                            <TextBlock Text="★" FontSize="12" FontWeight="Bold" Foreground="#F59E0B"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <FontIcon Glyph="&#xEB52;" FontSize="11" Foreground="#F43F5E"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="11"
                                 Width="22" Height="22" Visibility="Collapsed">

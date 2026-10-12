@@ -132,6 +132,10 @@ Posters laid out in a fluid grid that auto-fits the window. Use the
 The grid stretches to fill the available width — bigger window means
 more columns, automatically.
 
+**Point at** a poster for its genres, **▶ Play** (when its drive is
+connected; otherwise the card says which drive it's on), **View
+Details**, and the Watchlist / Watched / Favorite icons in the corner.
+
 **Click** any poster to open the **movie detail** dialog. It opens
 maximized and shows cast, ratings from multiple sources (IMDb / TMDb /
 Rotten Tomatoes if your nfo has them), tech badges (resolution, codec,
@@ -139,13 +143,30 @@ audio), file size and duration, and quick toggles for watched /
 favorite / watchlist. Press **Esc** to close, or use the close button
 in the sticky bar that appears as you scroll.
 
+The genres sit as chips right under the rating, year, runtime and
+certification; click one to see every movie in that genre. Further down
+are the **Director**, **Writer** and **Studio** (a long list of writers
+shows the first four; point at it for the rest).
+
 The cast lists everyone in the movie's `.nfo`, in billing order, with
 photos from the movie folder's `.actors` folder (or fetched from TMDB).
 A very big cast shows its first 24; click **Show all** for the rest.
 
+Under the cast, a movie that's part of a collection shows **the rest of
+the collection** you own, in order, with a ✓ on the ones you've watched
+(for example "Part of the James Bond Collection"), and then **More by**
+its director: up to 12 of their other films you own, with **See all**
+for the rest. Click a poster to see that film in the same window.
+
+**Previous / next:** press **←** or **→**, or use the arrows at the top
+left of the banner (or in the bar that appears as you scroll), to step
+through the movies of the grid or list you opened the window from, in
+the same order and filter, without closing it. The banner shows where
+you are, like "12 of 340".
+
 The window uses its whole width and arranges itself to fit. In a wide
 window (a 1440p or 4K screen) the buttons and plot sit beside a larger
-poster, with genres, director, studio, file details and your note in a
+poster, with the director, writer, studio, file details and your note in a
 column of their own, so most movies fit on one screen without scrolling.
 In a narrow window (a tablet held upright, or the window snapped to half
 the screen) everything stacks in one column.
@@ -240,11 +261,14 @@ last choice between sessions.
 
 ## Tracking what you've watched
 
-Three personal flags, all toggle from the movie detail dialog:
+Three personal flags, all toggle from the movie detail dialog, or from
+the round icons in the top corner of a movie card when you point at it
+(📌 Watchlist, ✓ Watched, ♥ Favorite: dim when off, bright when on). A
+favorite keeps its ♥ on the card.
 
 - **Watched ✓** — mark a movie as seen. Affects the Watched / Unwatched
   filters and the Statistics page.
-- **Favorite ⭐** — pin to the **Favorites** view in the sidebar.
+- **Favorite ♥** — pin to the **Favorites** view in the sidebar.
 - **Watchlist 📋** — queue for later. Shows in **To Watch** with a
   badge counter on the sidebar item.
 
@@ -316,12 +340,13 @@ your choices:
 A green **✓** on a show card means you've watched every episode.
 
 **Point at a show card** to see more without opening it: its genres, how
-many seasons, how much you've watched, and three buttons:
+many seasons, how much you've watched, and:
 
 - **▶ Play S01E04** plays the next episode straight away (the one ▶ Play
   next on the show page would start) and marks it watched. If the drive
   isn't connected, the card says where the next episode is instead.
-- **☆ Favorite** and **📋 Watchlist** switch those on and off.
+- The **📌** and **♥** icons in the top corner switch Watchlist and
+  Favorite on and off. They're dim when off and bright when on.
 
 Clicking anywhere else on the card opens the show. This works on every
 page with show cards: All TV Shows, Favorites, To Watch, Continue
@@ -338,7 +363,7 @@ Click a show to open its page:
   studio), the genre chips, the plot and **Located on**: the show's drive,
   with a green dot and its letter while it's connected, as in the movie
   details window. Then the buttons: **📂 Open Folder**,
-  **☆ Favorite**, **📋 Watchlist** and **Add to list**, and under them
+  **♡ Favorite**, **📋 Watchlist** and **Add to list**, and under them
   **📝 Add note** and **Fetch missing info from TMDB** (see
   [Filling in missing details](#filling-in-missing-details-tmdb)) with
   your tags beside them. Open Folder works while the show's drive is
@@ -755,11 +780,11 @@ at a time. CineLibrary's multi-select fixes that.
 As soon as one or more cards are selected, a purple pill bar appears
 at the bottom of the library:
 
-> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ★ Favorite · 🗑 Remove from list · ✕
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ♥ Favorite · 🗑 Remove from list · ✕
 
 - **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
   Picking one adds *every* selected movie to that list.
-- **✓ Watched / 📌 Watchlist / ★ Favorite** are smart toggles — if
+- **✓ Watched / 📌 Watchlist / ♥ Favorite** are smart toggles — if
   *any* selected movie doesn't yet have the flag, the action sets it
   on all of them; if every selected movie already has it, the action
   removes it from all of them.

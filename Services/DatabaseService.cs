@@ -1785,7 +1785,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     {
         var list = new List<string>();
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT w.name FROM movie_writers mw JOIN writers w ON w.id=mw.writer_id WHERE mw.movie_id=@id";
+        // v4.5.0: in the .nfo's order (the order they were added), now the movie window shows them
+        cmd.CommandText = "SELECT w.name FROM movie_writers mw JOIN writers w ON w.id=mw.writer_id WHERE mw.movie_id=@id ORDER BY mw.rowid";
         cmd.Parameters.AddWithValue("@id", id);
         using var r = cmd.ExecuteReader();
         while (r.Read()) list.Add(r.GetString(0));
@@ -2744,6 +2745,82 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Name = r.GetString(1),
                 MovieCount = (int)r.GetInt64(2),
             });
+        }
+        return list;
+    }
+
+    // v4.5.0: the strips under the cast in the movie window.
+
+    /// <summary>
+    /// The movie's collection (the one with the most of your films, if it's in
+    /// more than one) and every film of it you own, oldest first, the movie
+    /// itself included. Null when it isn't in a collection with another film.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (string Name, List<RelatedMovie> Movies)? GetCollectionStrip(int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT s.id, s.name FROM movie_sets ms JOIN sets s ON s.id=ms.set_id
+            WHERE ms.movie_id=@id
+            ORDER BY (SELECT COUNT(*) FROM movie_sets x JOIN movies m ON m.id=x.movie_id AND m.archived_at IS NULL
+                      WHERE x.set_id=s.id) DESC
+            LIMIT 1";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        int setId; string name;
+        using (var r = cmd.ExecuteReader())
+        {
+            if (!r.Read()) return null;
+            setId = r.GetInt32(0); name = r.GetString(1);
+        }
+        cmd.Parameters.Clear();
+        cmd.CommandText = @"
+            SELECT m.id, m.title, m.year, m.local_poster, m.is_watched
+            FROM movie_sets ms JOIN movies m ON m.id=ms.movie_id
+            WHERE ms.set_id=@s AND m.archived_at IS NULL
+            ORDER BY COALESCE(m.year, 9999), NULLIF(m.premiered, ''), m.title";
+        cmd.Parameters.AddWithValue("@s", setId);
+        var movies = ReadRelated(cmd, movieId);
+        return movies.Count > 1 ? (name, movies) : null;
+    }
+
+    /// <summary>Other films you own by this director, newest first.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<RelatedMovie> GetMoviesByDirector(string director, int exceptMovieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+            SELECT m.id, m.title, m.year, m.local_poster, m.is_watched
+            FROM movie_directors md JOIN directors d ON d.id=md.director_id
+                                    JOIN movies m ON m.id=md.movie_id
+            WHERE LOWER(d.name)=LOWER(@d) AND m.archived_at IS NULL
+            ORDER BY COALESCE(m.year, 0) DESC, m.title";
+        cmd.Parameters.AddWithValue("@d", director);
+        // The movie itself is read too, so a second copy of it on another
+        // drive folds into it, and then both go.
+        return ReadRelated(cmd, exceptMovieId).Where(m => !m.IsCurrent).ToList();
+    }
+
+    // One tile per film: a second copy on another drive (same title and year)
+    // is left out, keeping the movie the window shows.
+    private static List<RelatedMovie> ReadRelated(SqliteCommand cmd, int currentId)
+    {
+        var list = new List<RelatedMovie>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var m = new RelatedMovie
+            {
+                Id = r.GetInt32(0),
+                Title = r.GetString(1),
+                Year = r.IsDBNull(2) ? null : r.GetInt32(2),
+                LocalPoster = r.IsDBNull(3) ? null : r.GetString(3),
+                IsWatched = !r.IsDBNull(4) && r.GetInt32(4) == 1,
+                IsCurrent = r.GetInt32(0) == currentId,
+            };
+            var twin = list.FindIndex(x => x.Year == m.Year && string.Equals(x.Title, m.Title, StringComparison.OrdinalIgnoreCase));
+            if (twin < 0) list.Add(m);
+            else if (m.IsCurrent) list[twin] = m;
         }
         return list;
     }

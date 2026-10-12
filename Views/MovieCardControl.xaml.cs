@@ -114,6 +114,7 @@ public sealed partial class MovieCardControl : UserControl
         ApplyCardChrome();
         PointerEntered += (_, _) =>
         {
+            UpdateHoverPlay();
             HoverOverlay.Visibility = Visibility.Visible;
             if (UiSettings.ReduceMotion)
             {
@@ -264,21 +265,28 @@ public sealed partial class MovieCardControl : UserControl
     // v4.1.0: ask for the S / M / L / XL size but fill the grid cell, which the
     // layout stretches to fill the row. A fixed-width card sat in the middle of
     // its cell, so the grid started a few pixels right of the page title.
+    // v4.5.0 (#22): the inside is laid out at the width it's drawn at. Laid out at
+    // the S / M / L / XL width, a title that fit on one line of the wider card
+    // still took two, and sat a line too high.
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
     {
         var size = new Windows.Foundation.Size(GlobalCardWidth, GlobalCardHeight);
-        base.MeasureOverride(size);
+        base.MeasureOverride(new Windows.Foundation.Size(DrawnWidth(availableSize.Width), GlobalCardHeight));
         return size;
+    }
+
+    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
+    {
+        base.ArrangeOverride(new Windows.Foundation.Size(DrawnWidth(finalSize.Width), finalSize.Height));
+        return finalSize;
     }
 
     // No wider than a 2:3 poster at the card's height (no top/bottom cropping when
     // only a column or two fit); past that the card keeps to the left of its cell.
-    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
-    {
-        var width = Math.Min(finalSize.Width, Math.Max(GlobalCardWidth, GlobalCardHeight * 2 / 3));
-        base.ArrangeOverride(new Windows.Foundation.Size(width, finalSize.Height));
-        return finalSize;
-    }
+    // A row that doesn't stretch its cards (no width to fill) gets the size asked for.
+    private static double DrawnWidth(double cellWidth)
+        => double.IsInfinity(cellWidth) ? GlobalCardWidth
+         : Math.Max(GlobalCardWidth, Math.Min(cellWidth, Math.Max(GlobalCardWidth, GlobalCardHeight * 2 / 3)));
 
     private static void OnMovieChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -299,15 +307,16 @@ public sealed partial class MovieCardControl : UserControl
         if (e.PropertyName == nameof(MovieListItem.IsWatched))
         {
             WatchedBadge.Visibility = Movie.IsWatched ? Visibility.Visible : Visibility.Collapsed;
-            WatchedToggleBtn.Content = Movie.IsWatched ? "✓ Watched" : "○ Mark Watched";
+            ApplyToggleIcons(Movie);
         }
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
         {
             FavBadge.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
+            ApplyToggleIcons(Movie);
         }
         else if (e.PropertyName == nameof(MovieListItem.IsWatchlist))
         {
-            WatchlistToggleBtn.Content = Movie.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
+            ApplyToggleIcons(Movie);
         }
         else if (e.PropertyName == nameof(MovieListItem.IsSelected))
         {
@@ -355,8 +364,7 @@ public sealed partial class MovieCardControl : UserControl
 
         FavBadge.Visibility = m.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         WatchedBadge.Visibility = m.IsWatched ? Visibility.Visible : Visibility.Collapsed;
-        WatchedToggleBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
-        WatchlistToggleBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
+        ApplyToggleIcons(m);
 
         // Rating lives once, in the meta row. (The old floating poster badge
         // duplicated it — dropped for a cleaner card face.)
@@ -438,26 +446,75 @@ public sealed partial class MovieCardControl : UserControl
 
     private void OnViewDetails(object sender, RoutedEventArgs e) => OpenDetail();
 
+    // v4.5.0: ▶ Play when the movie's drive is connected; otherwise say which
+    // drive it's on, so you know what to plug in. Worked out on hover, since
+    // drives come and go while the page is open.
+    private void UpdateHoverPlay()
+    {
+        if (Movie is not { } m) return;
+        bool connected = !ArchiveMode && AppState.Instance.Connected.ContainsKey(m.VolumeSerial);
+        HoverPlayBtn.Visibility = connected && !m.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+        var where = !ArchiveMode && !connected && m.DriveLabel != null ? $"On {m.DriveLabel}" : null;
+        HoverDriveText.Text = where ?? "";
+        HoverDriveText.Visibility = where != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnHoverPlay(object sender, RoutedEventArgs e) => _ = PlayMovieOrPromptOfflineAsync();
+
     private void OnWatchedToggle(object sender, RoutedEventArgs e)
     {
         if (Movie == null) return;
         WatchedToggleRequested?.Invoke(this, Movie);
         // Movie.IsWatched already flipped by VM handler — refresh visuals
         WatchedBadge.Visibility = Movie.IsWatched ? Visibility.Visible : Visibility.Collapsed;
-        WatchedToggleBtn.Content = Movie.IsWatched ? "✓ Watched" : "○ Mark Watched";
+        ApplyToggleIcons(Movie);
     }
 
     private void OnWatchlistToggle(object sender, RoutedEventArgs e)
     {
         if (Movie == null) return;
         WatchlistToggleRequested?.Invoke(this, Movie);
-        WatchlistToggleBtn.Content = Movie.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
+        ApplyToggleIcons(Movie);
     }
+
+    private void OnFavoriteToggle(object sender, RoutedEventArgs e) => ToggleFavorite();
+
+    private void ToggleFavorite()
+    {
+        if (Movie == null) return;
+        AppState.Instance.Db.ToggleFavorite(Movie.Id);
+        Movie.IsFavorite = !Movie.IsFavorite;
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    // v4.5.0 (#23): the hover icons, bright when on and dim when off.
+    // Per card, not static: a brush belongs to the thread that made it.
+    private readonly SolidColorBrush _iconOffBrush = new(Windows.UI.Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
+    private readonly SolidColorBrush _favOnBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E));
+    private readonly SolidColorBrush _watchedOnBrush = new(Windows.UI.Color.FromArgb(0xCC, 0x22, 0xC5, 0x5E));
+    private readonly SolidColorBrush _watchlistOnBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA));
+    private readonly SolidColorBrush _whiteBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+
+    private void ApplyToggleIcons(MovieListItem m)
+    {
+        FavIcon.Glyph = m.IsFavorite ? "\uEB52" : "\uEB51";           // HeartFill / Heart
+        FavIcon.Foreground = m.IsFavorite ? _favOnBrush : _iconOffBrush;
+        WatchedIcon.Foreground = m.IsWatched ? _whiteBrush : _iconOffBrush;
+        if (m.IsWatched) WatchedIconBtn.Background = _watchedOnBrush;   // the green of the ✓ badge
+        else WatchedIconBtn.ClearValue(Control.BackgroundProperty);
+        WatchlistIcon.Glyph = m.IsWatchlist ? "\uE842" : "\uE718";    // PinFill / Pin
+        WatchlistIcon.Foreground = m.IsWatchlist ? _watchlistOnBrush : _iconOffBrush;
+    }
+
+    // v4.5.0: the movies of the grid or list this card is in, so the movie
+    // window can step through them with the arrow keys.
+    private System.Collections.IEnumerable? GridSource()
+        => (VisualTreeHelper.GetParent(this) as ItemsRepeater)?.ItemsSource as System.Collections.IEnumerable;
 
     private void OpenDetail()
     {
         if (Movie == null) return;
-        var win = new MovieDetailDialog(Movie.Id);
+        var win = new MovieDetailDialog(Movie.Id, GridSource());
         win.WatchlistChanged += (s, e) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         win.Activate();
     }
@@ -589,12 +646,7 @@ public sealed partial class MovieCardControl : UserControl
             Text = "Favorite",
             IsChecked = Movie.IsFavorite,
         };
-        favItem.Click += (_, _) =>
-        {
-            AppState.Instance.Db.ToggleFavorite(Movie.Id);
-            Movie.IsFavorite = !Movie.IsFavorite;
-            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-        };
+        favItem.Click += (_, _) => ToggleFavorite();
         flyout.Items.Add(favItem);
 
         var watchlistItem = new ToggleMenuFlyoutItem

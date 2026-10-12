@@ -33,7 +33,7 @@
                         <TextBlock x:Name="RowTitle" FontSize="14" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextBrush}"
                                    TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="RowFav" Text="★" Foreground="#F59E0B"
+                        <TextBlock x:Name="RowFav" Text="♥" Foreground="#F43F5E"
                                    FontSize="13" VerticalAlignment="Center" Visibility="Collapsed"/>
                     </StackPanel>
                     <TextBlock x:Name="RowMeta" FontSize="12"

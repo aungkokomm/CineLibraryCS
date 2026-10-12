@@ -143,9 +143,19 @@ public sealed partial class TvShowCard : UserControl
         HoverNote.Foreground = _next == null ? DoneBrush : NoteBrush;
         HoverNote.Visibility = note != null ? Visibility.Visible : Visibility.Collapsed;
 
-        HoverFavBtn.Content = s.IsFavorite ? "★ Favorited" : "☆ Favorite";
-        HoverWatchlistBtn.Content = s.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
+        // v4.5.0 (#23): icons, bright when on and dim when off
+        FavIcon.Glyph = s.IsFavorite ? "" : "";            // HeartFill / Heart
+        FavIcon.Foreground = s.IsFavorite ? FavOnBrush : IconOffBrush;
+        WatchlistIcon.Glyph = s.IsWatchlist ? "" : "";     // PinFill / Pin
+        WatchlistIcon.Foreground = s.IsWatchlist ? WatchlistOnBrush : IconOffBrush;
     }
+
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush IconOffBrush =
+        new(Windows.UI.Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush FavOnBrush =
+        new(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush WatchlistOnBrush =
+        new(Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA));
 
     // Same as ▶ on the show page: start the player first, then record the play
     // and mark the episode watched.
@@ -219,22 +229,28 @@ public sealed partial class TvShowCard : UserControl
     // gives. Rows place the card at this size; the All TV shows grid stretches its
     // cells to fill the row, and the card now fills its cell instead of sitting in
     // the middle of it, so the grid's left edge lines up with the page title.
+    // v4.5.0 (#22): the inside is laid out at the width it's drawn at, or a title
+    // that fit on one line of the wider card still took two and sat a line too high.
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
     {
         var size = new Windows.Foundation.Size(CardWidth, CardHeight);
-        base.MeasureOverride(size);
+        base.MeasureOverride(new Windows.Foundation.Size(DrawnWidth(availableSize.Width), CardHeight));
         return size;
+    }
+
+    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
+    {
+        base.ArrangeOverride(new Windows.Foundation.Size(DrawnWidth(finalSize.Width), finalSize.Height));
+        return finalSize;
     }
 
     // Grow no wider than a 2:3 poster at the card's height, so the poster is never
     // cropped top and bottom (one XL column in a narrow window would be 500 wide).
     // Past that the card keeps to the left of its cell, in line with the title.
-    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
-    {
-        var width = Math.Min(finalSize.Width, Math.Max(CardWidth, CardHeight * 2 / 3));
-        base.ArrangeOverride(new Windows.Foundation.Size(width, finalSize.Height));
-        return finalSize;
-    }
+    // Rows don't stretch their cards (no width to fill), so they get the size asked for.
+    private double DrawnWidth(double cellWidth)
+        => double.IsInfinity(cellWidth) ? CardWidth
+         : Math.Max(CardWidth, Math.Min(cellWidth, Math.Max(CardWidth, CardHeight * 2 / 3)));
 
     private int _token;
     private async void LoadPosterAsync(string? relPath)

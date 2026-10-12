@@ -14,15 +14,38 @@ namespace CineLibraryCS.Views;
 // A resizable Window-based detail view (replaces the old fixed ContentDialog).
 public sealed partial class MovieDetailDialog : Window
 {
-    private readonly int _movieId;
+    private int _movieId;
     private MovieDetail? _movie;
     private bool _closed;
 
+    // v4.5.0: the movies of the grid this window was opened from, in order, so
+    // ← and → step through them in place. _browseIndex is the last of them shown.
+    private IReadOnlyList<int>? _browseIds;
+    private int _browseIndex = -1;
+    // Each load of a movie takes a new token; an older load (or its pictures)
+    // that finishes later stands down instead of showing the wrong movie.
+    private int _loadToken;
+
+    /// <summary>
+    /// v4.5.0: set by a page whose grid loads in pages (All movies loads 60 at a
+    /// time). Given the grid a window was opened from, it returns every movie of
+    /// that view, or null when the grid is already whole or isn't its own.
+    /// </summary>
+    public static Func<System.Collections.IEnumerable, Task<List<int>>?>? WholeGrid { get; set; }
+
     public event EventHandler? WatchlistChanged;
 
-    public MovieDetailDialog(int movieId)
+    /// <param name="grid">The movies of the grid or list it was opened from, for ← and →.</param>
+    public MovieDetailDialog(int movieId, System.Collections.IEnumerable? grid = null)
     {
         _movieId = movieId;
+        var ids = grid?.OfType<MovieListItem>().Select(x => x.Id).ToList();
+        if (ids is { Count: > 1 } && IndexOf(ids, movieId) is var at and >= 0)
+        {
+            _browseIds = ids;
+            _browseIndex = at;
+            if (WholeGrid?.Invoke(grid!) is { } whole) _ = UseWholeGridAsync(whole);
+        }
         InitializeComponent();
 
         // Custom titlebar drag region + Mica
@@ -62,6 +85,9 @@ public sealed partial class MovieDetailDialog : Window
         RootGrid.KeyboardAccelerators.Add(escAcc);
         // No floating "Esc" key tip following the pointer (same as MainWindow).
         RootGrid.KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
+        // v4.5.0: ← / → for the previous / next movie (not while typing a note or tag)
+        RootGrid.AddHandler(UIElement.KeyDownEvent,
+            new Microsoft.UI.Xaml.Input.KeyEventHandler(OnRootKeyDown), handledEventsToo: true);
 
         // Persist size on close — using AppWindow.Changed catches the final
         // resized state regardless of how the window was dismissed.
@@ -93,11 +119,23 @@ public sealed partial class MovieDetailDialog : Window
 
     private async Task LoadAsync()
     {
-        _movie = await Task.Run(() =>
-            AppState.Instance.Db.GetMovieDetail(_movieId, AppState.Instance.Connected));
+        var token = ++_loadToken;
+        var id = _movieId;
+        var (movie, collection, byDirector) = await Task.Run(() =>
+        {
+            var db = AppState.Instance.Db;
+            var mv = db.GetMovieDetail(id, AppState.Instance.Connected);
+            var dir = mv?.Directors.FirstOrDefault();
+            return (mv, db.GetCollectionStrip(id), dir == null ? new List<RelatedMovie>() : db.GetMoviesByDirector(dir, id));
+        });
 
-        if (_movie == null || _closed) return;
-        try { PopulateUi(_movie); }
+        if (movie == null || _closed || token != _loadToken) return;
+        _movie = movie;
+        try
+        {
+            PopulateUi(_movie);
+            PopulateRelated(_movie, collection, byDirector);
+        }
         catch (System.Runtime.InteropServices.COMException)
         {
             // Window was closed mid-populate — silently bail.
@@ -106,6 +144,7 @@ public sealed partial class MovieDetailDialog : Window
 
     private void PopulateUi(MovieDetail m)
     {
+        UpdateBrowseNav();
         Title = m.Title;
         TitleBarText.Text = m.Title;
         DetailTitle.Text = m.Title;
@@ -182,7 +221,7 @@ public sealed partial class MovieDetailDialog : Window
         // Actions
         PlayBtn.IsEnabled = m.Playable;
         FolderBtn.IsEnabled = m.IsOnline;
-        FavBtn.Content = m.IsFavorite ? "★ Favorited" : "☆ Favorite";
+        FavBtn.Content = m.IsFavorite ? "♥ Favorited" : "♡ Favorite";
         WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
         WatchlistBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
 
@@ -199,18 +238,25 @@ public sealed partial class MovieDetailDialog : Window
             PlotDivider.Visibility = Visibility.Visible;
         }
 
-        // Genres — clickable, filters library on click
-        if (m.Genres.Count > 0)
+        // Genres — clickable, filters library on click. v4.5.0 (#24): chips right
+        // under the rating / year / runtime line, where TMDb shows them too.
+        GenreChips.Children.Clear();
+        GenreChips.Visibility = m.Genres.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var g in m.Genres)
         {
-            GenresField.Visibility = Visibility.Visible;
-            GenreLinks.Children.Clear();
-            foreach (var g in m.Genres)
+            var captured = g;
+            var chip = new Button
             {
-                var captured = g;
-                var btn = new HyperlinkButton { Content = g, Padding = new Thickness(0), FontSize = 13 };
-                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByGenre(captured));
-                GenreLinks.Children.Add(btn);
-            }
+                Content = g,
+                FontSize = 12,
+                MinHeight = 0,
+                Padding = new Thickness(10, 3, 10, 3),
+                CornerRadius = new CornerRadius(12),
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, 0xA7, 0x8B, 0xFA)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x80, 0xA7, 0x8B, 0xFA)),
+            };
+            chip.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByGenre(captured));
+            GenreChips.Children.Add(chip);
         }
 
         // Directors — clickable
@@ -225,6 +271,15 @@ public sealed partial class MovieDetailDialog : Window
                 btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByDirector(captured));
                 DirectorLinks.Children.Add(btn);
             }
+        }
+
+        // v4.5.0 (#24): writers, the first four; all of them on hover when there are more
+        if (m.Writers.Count > 0)
+        {
+            WriterField.Visibility = Visibility.Visible;
+            WriterText.Text = string.Join(", ", m.Writers.Take(4))
+                + (m.Writers.Count > 4 ? $" +{m.Writers.Count - 4} more" : "");
+            ToolTipService.SetToolTip(WriterText, m.Writers.Count > 4 ? string.Join(", ", m.Writers) : null);
         }
 
         // Tech badges + ratings + file info (v2.2)
@@ -585,22 +640,181 @@ public sealed partial class MovieDetailDialog : Window
 
     private async void LoadImageAsync(string? relPath, Image imgControl, FrameworkElement? placeholder, int decodeWidth)
     {
-        if (relPath == null) return;
+        var token = _loadToken;
+        var bmp = await DecodeCachedAsync(relPath, decodeWidth);
+        if (bmp == null || token != _loadToken) return;   // v4.5.0: or it's a movie ago
+        imgControl.Source = bmp;
+        if (placeholder != null) placeholder.Visibility = Visibility.Collapsed;
+    }
+
+    private static async Task<BitmapImage?> DecodeCachedAsync(string? relPath, int decodeWidth)
+    {
+        if (relPath == null) return null;
         var fullPath = AppState.Instance.Db.GetCachedImagePath(relPath);
-        if (fullPath == null) return;
+        if (fullPath == null) return null;
         try
         {
             var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath!, fullPath));
-            if (bytes == null) return;
+            if (bytes == null) return null;
             var bmp = new BitmapImage { DecodePixelWidth = decodeWidth };
             using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             ms.Seek(0);
             await bmp.SetSourceAsync(ms);
-            imgControl.Source = bmp;
-            if (placeholder != null) placeholder.Visibility = Visibility.Collapsed;
+            return bmp;
         }
-        catch { }
+        catch { return null; }
+    }
+
+    // ── v4.5.0: previous / next, and the films under the cast ──────────────
+
+    private static int IndexOf(IReadOnlyList<int> ids, int id)
+    {
+        for (int i = 0; i < ids.Count; i++) if (ids[i] == id) return i;
+        return -1;
+    }
+
+    // The grid's other pages arrive a moment after the window opens.
+    private async Task UseWholeGridAsync(Task<List<int>> whole)
+    {
+        List<int> all;
+        try { all = await whole; }
+        catch { return; }
+        if (_closed || _browseIds == null) return;
+        var at = IndexOf(all, _browseIds[_browseIndex]);
+        if (at < 0) return;
+        _browseIds = all;
+        _browseIndex = at;
+        if (_movie != null) UpdateBrowseNav();
+    }
+
+    private void OnPrevMovie(object sender, RoutedEventArgs e) => StepMovie(-1);
+    private void OnNextMovie(object sender, RoutedEventArgs e) => StepMovie(+1);
+
+    private void OnRootKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Left or VirtualKey.Right)) return;
+        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot)
+            is TextBox or RichEditBox or AutoSuggestBox or ComboBox) return;
+        e.Handled = true;
+        StepMovie(e.Key == VirtualKey.Left ? -1 : +1);
+    }
+
+    private void StepMovie(int step)
+    {
+        if (_browseIds == null || TmdbBusy.IsActive) return;
+        // Away from the grid (a film picked from a strip below), → goes on from
+        // the last grid movie shown and ← goes back to it.
+        var at = IndexOf(_browseIds, _movieId);
+        var next = at >= 0 ? at + step : step > 0 ? _browseIndex + 1 : _browseIndex;
+        if (next < 0 || next >= _browseIds.Count) return;
+        ShowMovie(_browseIds[next]);
+    }
+
+    /// <summary>Shows another movie in this window.</summary>
+    private void ShowMovie(int movieId)
+    {
+        if (movieId == _movieId || TmdbBusy.IsActive) return;
+        _movieId = movieId;
+        if (_browseIds != null && IndexOf(_browseIds, movieId) is var at and >= 0) _browseIndex = at;
+        ResetForAnotherMovie();
+        UpdateBrowseNav();
+        _ = LoadAsync();
+    }
+
+    private void UpdateBrowseNav()
+    {
+        var show = _browseIds != null ? Visibility.Visible : Visibility.Collapsed;
+        BrowseNav.Visibility = StickyBrowseNav.Visibility = show;
+        if (_browseIds == null) return;
+        var at = IndexOf(_browseIds, _movieId);
+        BrowsePosPill.Visibility = at >= 0 ? Visibility.Visible : Visibility.Collapsed;
+        BrowsePos.Text = $"{at + 1:N0} of {_browseIds.Count:N0}";
+        bool canPrev = at >= 0 ? at > 0 : _browseIndex >= 0;
+        bool canNext = (at >= 0 ? at : _browseIndex) + 1 < _browseIds.Count;
+        PrevMovieBtn.IsEnabled = StickyPrevBtn.IsEnabled = canPrev;
+        NextMovieBtn.IsEnabled = StickyNextBtn.IsEnabled = canNext;
+        PrevMovieBtn.Opacity = canPrev ? 1 : 0.4;   // the round style has no disabled look
+        NextMovieBtn.Opacity = canNext ? 1 : 0.4;
+    }
+
+    // Puts back everything PopulateUi only ever switches on, so nothing of the
+    // last movie stays on screen when the next one hasn't got it.
+    private void ResetForAnotherMovie()
+    {
+        _movie = null;
+        _castFolderAbs = null;
+        foreach (var e in new FrameworkElement[]
+                 {
+                     OriginalTitle, TaglineWrap, PlotSection, PlotDivider, DirectorField, WriterField,
+                     StudioLabel, StudioText, StudioLink, CastSection, CastDivider, CastShowAllBtn,
+                     CollectionSection, DirectorSection, FileInfoPanel, FiRuntimeBlock, FiReleaseBlock,
+                     FiMpaaBlock, FiCountryBlock, FiSizeBlock, FiDurBlock, FiContainerBlock, FiLangBlock,
+                     FiSubsBlock, AddTagBox,
+                 })
+            e.Visibility = Visibility.Collapsed;
+        AddTagBtn.Visibility = Visibility.Visible;
+        DirectorLinks.Children.Clear();
+        ToolTipService.SetToolTip(WriterText, null);
+        CastRepeater.ItemsSource = null;
+        CollectionRepeater.ItemsSource = null;
+        DirectorRepeater.ItemsSource = null;
+        PosterImage.Source = null;
+        PosterPlaceholder.Visibility = Visibility.Visible;
+        HeroImage.Source = null;
+        ContentScroller.ChangeView(null, 0, null, true);
+    }
+
+    private const int RelatedMax = 12;
+    private string? _stripDirector;
+
+    private void PopulateRelated(MovieDetail m, (string Name, List<RelatedMovie> Movies)? collection, List<RelatedMovie> byDirector)
+    {
+        var inCollection = new HashSet<int>();
+        CollectionSection.Visibility = collection != null ? Visibility.Visible : Visibility.Collapsed;
+        if (collection is { } c)
+        {
+            CollectionHeader.Text = c.Name.StartsWith("The ", StringComparison.OrdinalIgnoreCase)
+                ? $"Part of {c.Name}" : $"Part of the {c.Name}";
+            CollectionRepeater.ItemsSource = c.Movies;
+            foreach (var x in c.Movies) inCollection.Add(x.Id);
+            LoadRelatedPosters(c.Movies);
+        }
+
+        // Films already in the collection strip aren't repeated here
+        var more = byDirector.Where(x => !inCollection.Contains(x.Id)).ToList();
+        _stripDirector = m.Directors.FirstOrDefault();
+        DirectorSection.Visibility = more.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (more.Count > 0)
+        {
+            DirectorHeader.Text = $"More by {_stripDirector}";
+            var shown = more.Take(RelatedMax).ToList();
+            DirectorRepeater.ItemsSource = shown;
+            DirectorSeeAllBtn.Content = "See all";
+            DirectorSeeAllBtn.Visibility = more.Count > shown.Count ? Visibility.Visible : Visibility.Collapsed;
+            LoadRelatedPosters(shown);
+        }
+    }
+
+    private async void LoadRelatedPosters(IReadOnlyList<RelatedMovie> movies)
+    {
+        var token = _loadToken;
+        foreach (var r in movies)
+        {
+            if (token != _loadToken || _closed) return;
+            var bmp = await DecodeCachedAsync(r.LocalPoster, 240);
+            if (bmp != null && token == _loadToken) r.PosterBitmap = bmp;
+        }
+    }
+
+    private void OnRelatedClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: int id }) ShowMovie(id);
+    }
+
+    private void OnDirectorSeeAll(object sender, RoutedEventArgs e)
+    {
+        if (_stripDirector is { } d) NavigateAndClose(mw => mw.NavigateLibraryByDirector(d));
     }
 
     // ── Actions ───────────────────────────────────────────────────────────
@@ -990,6 +1204,7 @@ public sealed partial class MovieDetailDialog : Window
         bool stack = e.NewSize.Width < 600;
         FieldsGrid.ColumnDefinitions[1].Width = stack ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         FieldsGrid.ColumnDefinitions[2].Width = stack ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        FieldsGrid.ColumnSpacing = stack ? 0 : 24;   // v4.5.0: a long Writer list ran into Studio
         for (int i = 0; i < FieldsGrid.Children.Count; i++)
         {
             var field = (FrameworkElement)FieldsGrid.Children[i];
@@ -1063,7 +1278,7 @@ public sealed partial class MovieDetailDialog : Window
         if (_movie == null) return;
         AppState.Instance.Db.ToggleFavorite(_movie.Id);
         _movie.IsFavorite = !_movie.IsFavorite;
-        FavBtn.Content = _movie.IsFavorite ? "★ Favorited" : "☆ Favorite";
+        FavBtn.Content = _movie.IsFavorite ? "♥ Favorited" : "♡ Favorite";
     }
 
          private void OnToggleWatched(object sender, RoutedEventArgs e)

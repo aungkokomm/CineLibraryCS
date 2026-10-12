@@ -6,6 +6,48 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.5.0] - 2026-10-12
+
+Favorite and Play from the card, and a movie window you can browse.
+
+### Added
+- **Favorite, Watched and Watchlist from the movie card.** Point at a
+  card and three round icons appear in its top corner (📌 ✓ ♥), dim when
+  off and bright when on; a click switches them. A favorite keeps its ♥
+  on the card. TV show cards get the same 📌 and ♥. The hover panel keeps
+  the genres and View Details (or ▶ the next episode).
+- **▶ Play from the movie card.** Pointing at a movie whose drive is
+  connected shows a Play button (before, only a double-click played it);
+  when the drive isn't connected, the card says which drive it's on.
+- **Previous / next in the movie window.** The ← and → keys, or the
+  arrows at the top left of the banner, step through the movies of the
+  grid or list you opened it from, in the same order and filter, without
+  closing the window. It shows where you are ("12 of 340").
+- **The rest of the collection.** Under the cast, "Part of the James
+  Bond Collection" shows every film of it you own, in order, with a ✓ on
+  the ones you've watched. Click one to see it in the same window.
+- **More by the director.** Then "More by Steven Spielberg": up to 12 of
+  their other films you own, newest first, with See all for the rest.
+- **Writer in the movie window**, beside Director and Studio. Writers
+  were already read from your `.nfo` files; a long list shows the first
+  four, with the rest when you point at it.
+
+### Changed
+- **A heart for Favorites everywhere** (cards, sidebar, list view, the
+  movie, show and episode windows). The star is for ratings only.
+- **Movie window: genres sit under the rating, year and runtime**, as
+  chips you can click, where TMDb shows them too. Director takes their
+  old spot, then Writer and Studio.
+- **Plainer labels**: Overview (was Plot), Language (was Audio) and
+  File type (was Container).
+
+### Fixed
+- **Some short titles sat a line too high on cards**, with a blank line
+  under them. The card worked out where the title wraps at its basic
+  width, then drew it on the wider card the grid stretches it to, so a
+  title that fit on one line still took two. Movie, TV show and
+  collection cards.
+
 ## [4.4.1] - 2026-10-10
 
 ### Fixed

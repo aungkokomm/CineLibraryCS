@@ -55,11 +55,13 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Favorite star top-right -->
-                <Border x:Name="FavBadge" Style="{StaticResource PosterBadgeStyle}"
+                <!-- Favorite heart top-right (v4.5.0 #23: a heart, not a star,
+                     right under the hover panel's heart button) -->
+                <Border x:Name="FavBadge" Style="{StaticResource CardIconBadgeStyle}"
                         VerticalAlignment="Top" HorizontalAlignment="Right"
                         Margin="8" Visibility="Collapsed">
-                    <TextBlock Text="★" FontSize="13" Foreground="{StaticResource BrandGoldBrush}"/>
+                    <FontIcon Glyph="&#xEB52;" FontSize="14" Foreground="#F43F5E"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                 </Border>
 
                 <!-- Watched tick bottom-left -->
@@ -82,24 +84,47 @@
                 <!-- Hover overlay -->
                 <Border x:Name="HoverOverlay" CornerRadius="10"
                         Background="#CC000000" Opacity="0" Visibility="Collapsed">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
-                        <TextBlock x:Name="GenresText" FontSize="11"
-                                   Foreground="#E0E0E0"
-                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"/>
-                        <Button Content="View Details" Click="OnViewDetails"
-                                Style="{StaticResource PillButtonActiveStyle}"
-                                HorizontalAlignment="Center"/>
-                        <Button x:Name="WatchedToggleBtn"
-                                Content="○ Mark Watched"
-                                Click="OnWatchedToggle"
-                                Style="{StaticResource PillButtonStyle}"
-                                HorizontalAlignment="Center"/>
-                        <Button x:Name="WatchlistToggleBtn"
-                                Content="📋 Watchlist"
-                                Click="OnWatchlistToggle"
-                                Style="{StaticResource PillButtonStyle}"
-                                HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                            <TextBlock x:Name="GenresText" FontSize="11"
+                                       Foreground="#E0E0E0"
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"/>
+                            <!-- v4.5.0: ▶ Play when the drive is connected (a double-click
+                                 did this, which few found); otherwise the drive it's on -->
+                            <Button x:Name="HoverPlayBtn" Content="▶ Play" Click="OnHoverPlay"
+                                    Style="{StaticResource PillButtonActiveStyle}"
+                                    HorizontalAlignment="Center" Visibility="Collapsed"/>
+                            <TextBlock x:Name="HoverDriveText" FontSize="11" Foreground="#F0997B"
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"
+                                       Visibility="Collapsed"/>
+                            <Button Content="View Details" Click="OnViewDetails"
+                                    Style="{StaticResource PillButtonStyle}"
+                                    HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <!-- v4.5.0 (#23): Watchlist, Watched and Favorite as icons, dim
+                             when off. The heart sits right over the favorite badge. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="8"
+                                    VerticalAlignment="Top" HorizontalAlignment="Right">
+                            <Button x:Name="WatchlistIconBtn" Click="OnWatchlistToggle"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Watchlist">
+                                <FontIcon x:Name="WatchlistIcon" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Button x:Name="WatchedIconBtn" Click="OnWatchedToggle"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Watched">
+                                <FontIcon x:Name="WatchedIcon" Glyph="&#xE73E;" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Button x:Name="FavIconBtn" Click="OnFavoriteToggle"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Favorite">
+                                <FontIcon x:Name="FavIcon" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Info strip: strong dark gradient so white title is always

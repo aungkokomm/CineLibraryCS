@@ -7,6 +7,44 @@
     Title="Movie Details">
 
     <Grid x:Name="RootGrid" Background="{ThemeResource SidebarBrush}">
+        <Grid.Resources>
+            <!-- v4.5.0: a film in the collection and "More by" strips. The title
+                 keeps room for two lines, so every tile is the same height. -->
+            <DataTemplate x:Key="RelatedMovieTemplate" x:DataType="models:RelatedMovie">
+                <Button Width="120" Background="Transparent" BorderThickness="0" Padding="0"
+                        CornerRadius="8" HorizontalContentAlignment="Stretch" VerticalAlignment="Top"
+                        Tag="{x:Bind Id}" Click="OnRelatedClick"
+                        AutomationProperties.Name="{x:Bind Title}">
+                    <StackPanel Spacing="6">
+                        <Grid Width="120" Height="180">
+                            <Border CornerRadius="8" Background="{ThemeResource PlaceholderBgBrush}"
+                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1">
+                                <Grid>
+                                    <TextBlock Text="🎬" FontSize="30" Opacity="0.7"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Image Stretch="UniformToFill" Source="{x:Bind PosterBitmap, Mode=OneWay}"/>
+                                </Grid>
+                            </Border>
+                            <Border Background="#CC22C55E" CornerRadius="10" Width="20" Height="20"
+                                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="6"
+                                    Visibility="{x:Bind IsWatched}">
+                                <TextBlock Text="✓" FontSize="11" FontWeight="Bold" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- the film this window shows, in its collection -->
+                            <Border CornerRadius="8" BorderThickness="2"
+                                    BorderBrush="{StaticResource BrandPurpleBrush}"
+                                    Visibility="{x:Bind IsCurrent}"/>
+                        </Grid>
+                        <TextBlock Text="{x:Bind Title}" Height="32" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}" TextWrapping="WrapWholeWords"
+                                   TextTrimming="CharacterEllipsis" MaxLines="2"/>
+                        <TextBlock Text="{x:Bind YearText}" FontSize="11" Margin="0,-4,0,0"
+                                   Foreground="{ThemeResource MutedBrush}"/>
+                    </StackPanel>
+                </Button>
+            </DataTemplate>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="36"/>
             <RowDefinition Height="*"/>
@@ -72,6 +110,31 @@
                                     Padding="8,3" FontSize="11" FontWeight="Bold"
                                     Content="TMDb"/>
                         </StackPanel>
+                        <!-- v4.5.0: the previous / next movie of the grid this window
+                             was opened from (also the ← and → keys) -->
+                        <StackPanel x:Name="BrowseNav" Orientation="Horizontal" Spacing="6"
+                                    Margin="14" Visibility="Collapsed"
+                                    HorizontalAlignment="Left" VerticalAlignment="Top">
+                            <Button x:Name="PrevMovieBtn" Click="OnPrevMovie"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Previous movie"
+                                    ToolTipService.ToolTip="Previous movie (←)">
+                                <FontIcon Glyph="&#xE76B;" FontSize="12" Foreground="White"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Border x:Name="BrowsePosPill" Height="30" Padding="12,0" CornerRadius="15"
+                                    Background="#99000000" BorderBrush="#40FFFFFF" BorderThickness="1">
+                                <TextBlock x:Name="BrowsePos" FontSize="12" Foreground="White"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <Button x:Name="NextMovieBtn" Click="OnNextMovie"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Next movie"
+                                    ToolTipService.ToolTip="Next movie (→)">
+                                <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="White"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -126,6 +189,9 @@
                                        TextWrapping="Wrap"/>
                         </Grid>
                         <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0"/>
+                        <!-- v4.5.0 (#24): genres right under the rating / year / runtime line -->
+                        <controls:WrapPanel x:Name="GenreChips" HorizontalSpacing="6" VerticalSpacing="6"
+                                            Visibility="Collapsed"/>
                         <!-- Tech badges + ratings on the same row to save vertical space -->
                         <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0"
                                     VerticalAlignment="Center">
@@ -326,14 +392,14 @@
                                            Foreground="{ThemeResource TextBrush}"/>
                             </StackPanel>
                             <StackPanel x:Name="FiContainerBlock" Visibility="Collapsed">
-                                <TextBlock Text="CONTAINER" FontSize="9" FontWeight="SemiBold"
+                                <TextBlock Text="FILE TYPE" FontSize="9" FontWeight="SemiBold"
                                            CharacterSpacing="150" Opacity="0.65"
                                            Foreground="{ThemeResource MutedBrush}"/>
                                 <TextBlock x:Name="FiContainer" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextBrush}"/>
                             </StackPanel>
                             <StackPanel x:Name="FiLangBlock" Visibility="Collapsed">
-                                <TextBlock Text="AUDIO" FontSize="9" FontWeight="SemiBold"
+                                <TextBlock Text="LANGUAGE" FontSize="9" FontWeight="SemiBold"
                                            CharacterSpacing="150" Opacity="0.65"
                                            Foreground="{ThemeResource MutedBrush}"/>
                                 <TextBlock x:Name="FiLangs" FontSize="13" FontWeight="SemiBold"
@@ -355,7 +421,7 @@
                                 Height="1" Background="{ThemeResource BorderBrush}"
                                 Margin="0,24,0,0" Opacity="0.5"/>
                         <StackPanel x:Name="PlotSection" Visibility="Collapsed" Margin="0,20,0,0" Spacing="8">
-                            <TextBlock Text="PLOT" FontSize="10" FontWeight="SemiBold"
+                            <TextBlock Text="OVERVIEW" FontSize="10" FontWeight="SemiBold"
                                        CharacterSpacing="150" Opacity="0.65"
                                        Foreground="{ThemeResource MutedBrush}"/>
                             <TextBlock x:Name="PlotText" FontSize="14" Foreground="{ThemeResource TextBrush}"
@@ -438,13 +504,15 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <StackPanel Grid.Column="0" x:Name="GenresField" Visibility="Collapsed" Spacing="4">
-                                <TextBlock Text="Genres" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
-                                <controls:WrapPanel x:Name="GenreLinks" HorizontalSpacing="4" VerticalSpacing="2"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" x:Name="DirectorField" Visibility="Collapsed" Spacing="4">
+                            <!-- v4.5.0 (#24): Director where Genres was (they moved up), then Writer -->
+                            <StackPanel Grid.Column="0" x:Name="DirectorField" Visibility="Collapsed" Spacing="4">
                                 <TextBlock Text="Director" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
                                 <controls:WrapPanel x:Name="DirectorLinks" HorizontalSpacing="4" VerticalSpacing="2"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" x:Name="WriterField" Visibility="Collapsed" Spacing="4">
+                                <TextBlock Text="Writer" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                                <TextBlock x:Name="WriterText" FontSize="13" Foreground="{ThemeResource TextBrush}"
+                                           TextWrapping="Wrap" Margin="0,1,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="4">
                                 <TextBlock x:Name="StudioLabel" Visibility="Collapsed"
@@ -536,6 +604,39 @@
                             CornerRadius="8" Padding="14,7"/>
                 </StackPanel>
 
+                <!-- v4.5.0: the rest of its collection, then more by its director,
+                     from the films you own. A click shows that film here. -->
+                <StackPanel x:Name="CollectionSection" Visibility="Collapsed">
+                    <Border Height="1" Background="{ThemeResource BorderBrush}"
+                            Margin="0,24,0,0" Opacity="0.5"/>
+                    <TextBlock x:Name="CollectionHeader" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" Margin="0,20,0,10"
+                               TextWrapping="Wrap"/>
+                    <ItemsRepeater x:Name="CollectionRepeater" ItemTemplate="{StaticResource RelatedMovieTemplate}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="120" MinColumnSpacing="14" MinRowSpacing="16"
+                                               ItemsStretch="None" Orientation="Horizontal"/>
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+                </StackPanel>
+                <StackPanel x:Name="DirectorSection" Visibility="Collapsed">
+                    <Border Height="1" Background="{ThemeResource BorderBrush}"
+                            Margin="0,24,0,0" Opacity="0.5"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,20,0,10">
+                        <TextBlock x:Name="DirectorHeader" FontSize="16" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+                        <HyperlinkButton x:Name="DirectorSeeAllBtn" Click="OnDirectorSeeAll"
+                                         Padding="0" FontSize="13" VerticalAlignment="Center"
+                                         Visibility="Collapsed"/>
+                    </StackPanel>
+                    <ItemsRepeater x:Name="DirectorRepeater" ItemTemplate="{StaticResource RelatedMovieTemplate}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="120" MinColumnSpacing="14" MinRowSpacing="16"
+                                               ItemsStretch="None" Orientation="Horizontal"/>
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+                </StackPanel>
+
             </StackPanel>
         </ScrollViewer>
 
@@ -556,6 +657,23 @@
                            Foreground="{ThemeResource TextBrush}"
                            TextTrimming="CharacterEllipsis"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <!-- v4.5.0: previous / next, as on the banner -->
+                    <StackPanel x:Name="StickyBrowseNav" Orientation="Horizontal" Visibility="Collapsed">
+                        <Button x:Name="StickyPrevBtn" Click="OnPrevMovie"
+                                Background="Transparent" BorderThickness="0" CornerRadius="6" Padding="10,7"
+                                AutomationProperties.Name="Previous movie"
+                                ToolTipService.ToolTip="Previous movie (←)">
+                            <FontIcon Glyph="&#xE76B;" FontSize="12"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        </Button>
+                        <Button x:Name="StickyNextBtn" Click="OnNextMovie"
+                                Background="Transparent" BorderThickness="0" CornerRadius="6" Padding="10,7"
+                                AutomationProperties.Name="Next movie"
+                                ToolTipService.ToolTip="Next movie (→)">
+                            <FontIcon Glyph="&#xE76C;" FontSize="12"
+                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        </Button>
+                    </StackPanel>
                     <Button x:Name="StickyPlayBtn" Click="OnPlay"
                             Background="#A78BFA" Foreground="White"
                             BorderThickness="0" CornerRadius="6" Padding="14,5">

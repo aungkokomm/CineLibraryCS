@@ -15,20 +15,26 @@ public sealed class CardCell : Panel
     public double CardWidth { get; set; } = 170;
     public double CardHeight { get; set; } = 300;
 
+    // v4.5.0 (#22): the card is laid out at the width it's drawn at, or a title
+    // that fit on one line of the wider card still took two and sat a line too high.
     protected override Size MeasureOverride(Size availableSize)
     {
-        var size = new Size(CardWidth, CardHeight);
+        var size = new Size(DrawnWidth(availableSize.Width), CardHeight);
         foreach (var child in Children) child.Measure(size);
-        return size;
+        return new Size(CardWidth, CardHeight);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        var width = Math.Min(finalSize.Width, Math.Max(CardWidth, CardHeight * 2 / 3));
+        var width = DrawnWidth(finalSize.Width);
         // No second Measure here at the wider size: measuring at two sizes in
         // turn kept layout from settling, and the posters never loaded.
         foreach (var child in Children)
             child.Arrange(new Rect(0, 0, width, finalSize.Height));
         return finalSize;
     }
+
+    private double DrawnWidth(double cellWidth)
+        => double.IsInfinity(cellWidth) ? CardWidth
+         : Math.Max(CardWidth, Math.Min(cellWidth, Math.Max(CardWidth, CardHeight * 2 / 3)));
 }

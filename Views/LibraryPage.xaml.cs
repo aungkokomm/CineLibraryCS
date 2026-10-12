@@ -169,10 +169,16 @@ public sealed partial class LibraryPage : Page
         // cached and re-shown — a ctor-only subscription would die for good
         // at the first Unloaded.
         MovieCardControl.AnyMovieArchived += OnAnyMovieArchived;
+        // v4.5.0: the grid loads 60 at a time; a movie window opened from it gets
+        // the whole view for ← and →.
+        Func<System.Collections.IEnumerable, Task<List<int>>?> wholeGrid =
+            grid => ReferenceEquals(grid, _vm.Movies) && _vm.HasMore ? _vm.GetAllMatchingIdsAsync() : null;
+        MovieDetailDialog.WholeGrid = wholeGrid;
         Loaded += (_, _) =>
         {
             MovieCardControl.AnyMovieArchived -= OnAnyMovieArchived;
             MovieCardControl.AnyMovieArchived += OnAnyMovieArchived;
+            MovieDetailDialog.WholeGrid = wholeGrid;
         };
         Unloaded += (_, _) =>
         {
@@ -180,6 +186,7 @@ public sealed partial class LibraryPage : Page
             MovieCardControl.AnyMovieArchived -= OnAnyMovieArchived;
             if (MovieCardControl.ResolveSelectionForDrag == (Func<MovieListItem, IEnumerable<int>>)ResolveSelectionForDrag)
                 MovieCardControl.ResolveSelectionForDrag = null;
+            if (MovieDetailDialog.WholeGrid == wholeGrid) MovieDetailDialog.WholeGrid = null;
         };
         // v2.5.2 — preserve selection across reloads. When the filter or
         // search changes, movies that are still visible should stay
@@ -1056,7 +1063,7 @@ public sealed partial class LibraryPage : Page
         AddChip("Director", _vm.FilterDirector,  () => DropFilter(() => _vm.FilterDirector = null));
         AddChip("Studio",   _vm.FilterStudio,    () => DropFilter(() => _vm.FilterStudio = null));
         if (_vm.FavoritesOnly)
-            AddChip("Favorites", "★",   () => DropFilter(() => _vm.FavoritesOnly = false));
+            AddChip("Favorites", "♥",   () => DropFilter(() => _vm.FavoritesOnly = false));
         if (_vm.IsWatchlistOnly)
             AddChip("Watchlist", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
         if (_vm.IsContinueWatching)

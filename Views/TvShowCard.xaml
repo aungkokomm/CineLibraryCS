@@ -26,11 +26,13 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
 
-                <!-- Favorite star -->
-                <Border x:Name="FavBadge" Style="{StaticResource PosterBadgeStyle}"
+                <!-- Favorite heart (v4.5.0 #23: a heart, not a star, right under
+                     the hover panel's heart button) -->
+                <Border x:Name="FavBadge" Style="{StaticResource CardIconBadgeStyle}"
                         VerticalAlignment="Top" HorizontalAlignment="Right"
                         Margin="8" Visibility="Collapsed">
-                    <TextBlock Text="★" FontSize="13" Foreground="#F59E0B"/>
+                    <FontIcon Glyph="&#xEB52;" FontSize="14" Foreground="#F43F5E"
+                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                 </Border>
 
                 <!-- Status badge -->
@@ -86,23 +88,38 @@
                      the show. Filled in when the pointer comes in. -->
                 <Border x:Name="HoverOverlay" CornerRadius="12" Background="#CC000000"
                         Visibility="Collapsed">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                                Spacing="6" Margin="8">
-                        <TextBlock x:Name="HoverGenres" FontSize="11" Foreground="#E0E0E0"
-                                   TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
-                                   TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="HoverSeasons" FontSize="11" Foreground="#E0E0E0"
-                                   TextAlignment="Center" TextWrapping="Wrap"/>
-                        <Button x:Name="HoverPlayBtn" Click="OnHoverPlay" Tapped="OnHoverButtonTapped"
-                                Style="{StaticResource PillButtonActiveStyle}"
-                                HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                        <TextBlock x:Name="HoverNote" FontSize="11" TextAlignment="Center"
-                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        <Button x:Name="HoverFavBtn" Click="OnHoverFavorite" Tapped="OnHoverButtonTapped"
-                                Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center"/>
-                        <Button x:Name="HoverWatchlistBtn" Click="OnHoverWatchlist" Tapped="OnHoverButtonTapped"
-                                Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Spacing="6" Margin="8">
+                            <TextBlock x:Name="HoverGenres" FontSize="11" Foreground="#E0E0E0"
+                                       TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="HoverSeasons" FontSize="11" Foreground="#E0E0E0"
+                                       TextAlignment="Center" TextWrapping="Wrap"/>
+                            <Button x:Name="HoverPlayBtn" Click="OnHoverPlay" Tapped="OnHoverButtonTapped"
+                                    Style="{StaticResource PillButtonActiveStyle}"
+                                    HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            <TextBlock x:Name="HoverNote" FontSize="11" TextAlignment="Center"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <!-- v4.5.0 (#23): Watchlist and Favorite as icons, dim when off.
+                             The heart sits right over the favorite badge. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="8"
+                                    VerticalAlignment="Top" HorizontalAlignment="Right">
+                            <Button x:Name="HoverWatchlistBtn" Click="OnHoverWatchlist" Tapped="OnHoverButtonTapped"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Watchlist">
+                                <FontIcon x:Name="WatchlistIcon" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Button x:Name="HoverFavBtn" Click="OnHoverFavorite" Tapped="OnHoverButtonTapped"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Favorite">
+                                <FontIcon x:Name="FavIcon" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>

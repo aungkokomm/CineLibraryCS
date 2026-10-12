@@ -124,6 +124,10 @@ public partial class LibraryViewModel : ObservableObject
     public Task<List<MovieListItem>> GetAllMatchingAsync() =>
         Task.Run(() => _state.Db.GetMovies(BuildOpts(0) with { Limit = int.MaxValue }, _state.Connected));
 
+    /// <summary>v4.5.0: the same, as ids in order, for the movie window's ← and →.</summary>
+    public async Task<List<int>> GetAllMatchingIdsAsync() =>
+        (await GetAllMatchingAsync()).Select(m => m.Id).ToList();
+
     private DatabaseService.ListOptions BuildOpts(int offset) => new(
         Search: string.IsNullOrWhiteSpace(SearchText) ? null : SearchText,
         SearchScope: SearchScope,

@@ -271,6 +271,57 @@
         <Setter Property="Padding"      Value="4,2"/>
     </Style>
 
+    <!-- v4.5.0 (#23): round icons on poster cards. On hover they are buttons
+         (Favorite, Watched, Watchlist), dim when off and bright when on; at rest
+         the heart stays as a badge on favorites, in the same spot. Always on a
+         dark backdrop, in either theme, since they sit on the poster. -->
+    <Style x:Key="CardIconBadgeStyle" TargetType="Border">
+        <Setter Property="Width"           Value="30"/>
+        <Setter Property="Height"          Value="30"/>
+        <Setter Property="CornerRadius"    Value="15"/>
+        <Setter Property="Background"      Value="#99000000"/>
+        <Setter Property="BorderBrush"     Value="#40FFFFFF"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style x:Key="CardIconToggleStyle" TargetType="Button">
+        <Setter Property="Width"           Value="30"/>
+        <Setter Property="Height"          Value="30"/>
+        <Setter Property="Padding"         Value="0"/>
+        <Setter Property="CornerRadius"    Value="15"/>
+        <Setter Property="Background"      Value="#99000000"/>
+        <Setter Property="BorderBrush"     Value="#40FFFFFF"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.BorderBrush" Value="#CCFFFFFF"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.BorderBrush" Value="#FFFFFFFF"/>
+                                        <Setter Target="Presenter.Opacity" Value="0.7"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter x:Name="Presenter" Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- v4.2.0 (#15): a card surface that follows the theme, for cards that light
          up on hover. The hover code sets a local Background and clears it on exit,
          so this value comes back. (A fixed rest colour set on exit stayed in the

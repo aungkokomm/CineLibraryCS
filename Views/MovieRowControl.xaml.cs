@@ -140,9 +140,9 @@ public sealed partial class MovieRowControl : UserControl
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
         {
             RowFav.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
-            FavBtn.Content = Movie.IsFavorite ? "★" : "☆";
+            FavBtn.Content = Movie.IsFavorite ? "♥" : "♡";
             FavBtn.Foreground = Movie.IsFavorite
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
         }
         else if (e.PropertyName == nameof(MovieListItem.IsSelected))
@@ -195,9 +195,9 @@ public sealed partial class MovieRowControl : UserControl
         WatchedBtn.Foreground = m.IsWatched
             ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
-        FavBtn.Content = m.IsFavorite ? "★" : "☆";
+        FavBtn.Content = m.IsFavorite ? "♥" : "♡";
         FavBtn.Foreground = m.IsFavorite
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
 
         ApplySelectionVisual();
@@ -378,16 +378,21 @@ public sealed partial class MovieRowControl : UserControl
         if (Movie == null) return;
         AppState.Instance.Db.ToggleFavorite(Movie.Id);
         Movie.IsFavorite = !Movie.IsFavorite;
-        FavBtn.Content = Movie.IsFavorite ? "★" : "☆";
+        FavBtn.Content = Movie.IsFavorite ? "♥" : "♡";
         FavBtn.Foreground = Movie.IsFavorite
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B))
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
     }
+
+    // v4.5.0: the movies of the grid or list this row is in, so the movie
+    // window can step through them with the arrow keys.
+    private System.Collections.IEnumerable? GridSource()
+        => (VisualTreeHelper.GetParent(this) as ItemsRepeater)?.ItemsSource as System.Collections.IEnumerable;
 
     private void OpenDetail()
     {
         if (Movie == null) return;
-        var win = new MovieDetailDialog(Movie.Id);
+        var win = new MovieDetailDialog(Movie.Id, GridSource());
         win.WatchlistChanged += (s, e) => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         win.Activate();
     }

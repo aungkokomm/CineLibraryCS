@@ -30,6 +30,23 @@ public partial class Actor : ObservableObject
     }
 }
 
+/// <summary>
+/// v4.5.0: a poster tile in the movie window's collection and "More by"
+/// strips: another movie you own. The poster loads in after the strip shows.
+/// </summary>
+public partial class RelatedMovie : ObservableObject
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = "";
+    public int? Year { get; set; }
+    public string? LocalPoster { get; set; }
+    public bool IsWatched { get; set; }
+    /// <summary>The movie the window is showing (outlined in its collection).</summary>
+    public bool IsCurrent { get; set; }
+    public string YearText => Year?.ToString() ?? "";
+    [ObservableProperty] private BitmapImage? _posterBitmap;
+}
+
 public class MovieDetail
 {
     public int Id { get; set; }
