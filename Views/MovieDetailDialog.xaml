@@ -399,7 +399,7 @@
                                            Foreground="{ThemeResource TextBrush}"/>
                             </StackPanel>
                             <StackPanel x:Name="FiLangBlock" Visibility="Collapsed">
-                                <TextBlock Text="LANGUAGE" FontSize="9" FontWeight="SemiBold"
+                                <TextBlock Text="AUDIO" FontSize="9" FontWeight="SemiBold"
                                            CharacterSpacing="150" Opacity="0.65"
                                            Foreground="{ThemeResource MutedBrush}"/>
                                 <TextBlock x:Name="FiLangs" FontSize="13" FontWeight="SemiBold"

@@ -809,6 +809,11 @@ public sealed partial class LibraryPage : Page
         if (sender is not FrameworkElement { Tag: string tag }) return;
         ApplyDensity(tag);
         AppState.Instance.SetPref("gridDensity", tag);
+        // Fresh items, so the show cards in the rows take the new size (v4.5.1).
+        _shownRowKey = "";
+        RefreshShowsInList();
+        _lastShowsSearchTerm = null;
+        RefreshShowsInSearch();
     }
 
     private void ApplyDensity(string tag)
@@ -822,6 +827,7 @@ public sealed partial class LibraryPage : Page
         };
 
         MovieCardControl.SetGlobalSize(w, h);
+        TvShowCard.SetLibraryDensity(tag);
         GridLayout.MinItemWidth = w;
         GridLayout.MinItemHeight = h;
 

@@ -113,14 +113,17 @@ public static class NfoParser
             }
 
             var ratings = new List<ParsedRating>();
+            int main = -1;
             foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
             {
-                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+                var v = RatingValue(rt);
                 if (v == null) continue;
+                if (main < 0 && IsDefault(rt)) main = ratings.Count;
                 ratings.Add(new ParsedRating(rt.GetAttribute("name"), v.Value, TryInt(GetChild(rt, "votes"))));
             }
-            double? primaryRating = ratings.Count > 0 ? ratings[0].Value : TryDouble(Get(root, "rating"));
-            int? primaryVotes = ratings.Count > 0 ? ratings[0].Votes : TryInt(Get(root, "votes"));
+            var top = ratings.Count > 0 ? ratings[Math.Max(main, 0)] : null;
+            double? primaryRating = top != null ? top.Value : TryDouble(Get(root, "rating"));
+            int? primaryVotes = top != null ? top.Votes : TryInt(Get(root, "votes"));
 
             return new ParsedTvShow(
                 Title: title,
@@ -164,12 +167,15 @@ public static class NfoParser
             var title = Get(root, "title") ?? $"Episode {episode}";
 
             var ratings = new List<ParsedRating>();
+            int main = -1;
             foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
             {
-                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
-                if (v != null) ratings.Add(new ParsedRating(rt.GetAttribute("name"), v.Value, TryInt(GetChild(rt, "votes"))));
+                var v = RatingValue(rt);
+                if (v == null) continue;
+                if (main < 0 && IsDefault(rt)) main = ratings.Count;
+                ratings.Add(new ParsedRating(rt.GetAttribute("name"), v.Value, TryInt(GetChild(rt, "votes"))));
             }
-            double? rating = ratings.Count > 0 ? ratings[0].Value : TryDouble(Get(root, "rating"));
+            double? rating = ratings.Count > 0 ? ratings[Math.Max(main, 0)].Value : TryDouble(Get(root, "rating"));
 
             return new ParsedEpisode(
                 Season: season.Value,
@@ -253,25 +259,29 @@ public static class NfoParser
 
             // Multiple ratings: <ratings><rating name="imdb" default="true">value/votes</rating>…
             var ratings = new List<ParsedRating>();
+            int main = -1;
             foreach (XmlElement rt in SelectElements(root, "ratings/rating"))
             {
                 var src = rt.GetAttribute("name");
                 if (string.IsNullOrEmpty(src)) src = rt.GetAttribute("moviedb");
                 if (string.IsNullOrEmpty(src)) src = "unknown";
-                var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+                var v = RatingValue(rt);
                 if (v == null) continue;
                 var votes = TryInt(GetChild(rt, "votes"));
+                if (main < 0 && IsDefault(rt)) main = ratings.Count;
                 ratings.Add(new ParsedRating(src, v.Value, votes));
             }
 
             var streamDetails = ParseStreamDetails(root);
 
-            // Primary rating: first from <ratings> if present, else <rating>.
-            double? primaryRating = ratings.Count > 0
-                ? ratings[0].Value
+            // Primary rating: the default="true" one from <ratings> (v4.5.1; it was
+            // the first), else the first, else <rating>.
+            var top = ratings.Count > 0 ? ratings[Math.Max(main, 0)] : null;
+            double? primaryRating = top != null
+                ? top.Value
                 : TryDouble(Get(root, "rating"));
-            int? primaryVotes = ratings.Count > 0
-                ? ratings[0].Votes
+            int? primaryVotes = top != null
+                ? top.Votes
                 : TryInt(Get(root, "votes"));
 
             return new ParsedMovie(
@@ -426,6 +436,18 @@ public static class NfoParser
             return (int)d;
         return null;
     }
+
+    // v4.5.1: Kodi's <ratings>. A rating out of another max (max="100") is scaled
+    // to 10 as Kodi does, and the one marked default="true" is the main rating.
+    private static double? RatingValue(XmlElement rt)
+    {
+        var v = TryDouble(GetChild(rt, "value") ?? rt.InnerText);
+        var max = TryDouble(rt.GetAttribute("max"));
+        return v != null && max is > 0 and not 10 ? v * 10 / max : v;
+    }
+
+    private static bool IsDefault(XmlElement rt)
+        => rt.GetAttribute("default").Equals("true", StringComparison.OrdinalIgnoreCase);
 
     private static double? TryDouble(string? s)
     {

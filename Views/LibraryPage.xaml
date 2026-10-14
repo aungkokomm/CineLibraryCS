@@ -252,14 +252,14 @@
                 <ScrollViewer HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
-                              Height="312" Padding="24,0,24,0">
+                              Padding="24,0,24,0">
                     <ItemsRepeater x:Name="ShowsInSearchRepeater">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Horizontal" Spacing="14"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:TvShowListItem">
-                                <local:TvShowCard Show="{x:Bind}"/>
+                                <local:TvShowCard Show="{x:Bind}" UsesLibrarySize="True"/>
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
@@ -284,7 +284,7 @@
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:TvShowListItem">
-                                <local:TvShowCard Show="{x:Bind}"/>
+                                <local:TvShowCard Show="{x:Bind}" UsesLibrarySize="True"/>
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>

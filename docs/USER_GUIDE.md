@@ -143,6 +143,11 @@ audio), file size and duration, and quick toggles for watched /
 favorite / watchlist. Press **Esc** to close, or use the close button
 in the sticky bar that appears as you scroll.
 
+The yellow **★** is the rating your `.nfo` marks as the main one
+(`default="true"`, as in Kodi; your scraper decides which source that
+is). When the `.nfo` has more than one source, each one is listed
+beside it with its votes.
+
 The genres sit as chips right under the rating, year, runtime and
 certification; click one to see every movie in that genre. Further down
 are the **Director**, **Writer** and **Studio** (a long list of writers
@@ -425,7 +430,8 @@ of **Favorites** and **To Watch**, above the movies; shows you're partway
 through appear the same way on **Continue Watching**, where each card
 says which episode is next ("Next: S01E04", the one ▶ Play next starts).
 Click a show to open it. The **To Watch** and **Continue Watching** counts in the
-sidebar include these shows.
+sidebar include these shows. The cards in this row take the page's
+**Size** (S, M, L or XL), like the movies under them.
 
 ### Shows travel with the drive too
 

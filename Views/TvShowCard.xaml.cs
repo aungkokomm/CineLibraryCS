@@ -34,15 +34,25 @@ public sealed partial class TvShowCard : UserControl
 
     public static (double Width, double Height) SetDensity(string tag)
     {
-        (CardWidth, CardHeight) = tag switch
-        {
-            "S"  => (130.0, 235.0),
-            "L"  => (210.0, 365.0),
-            "XL" => (250.0, 430.0),
-            _    => (170.0, 300.0),   // M: the size before v3.7
-        };
+        (CardWidth, CardHeight) = SizeFor(tag);
         return (CardWidth, CardHeight);
     }
+
+    private static (double Width, double Height) SizeFor(string tag) => tag switch
+    {
+        "S"  => (130.0, 235.0),
+        "L"  => (210.0, 365.0),
+        "XL" => (250.0, 430.0),
+        _    => (170.0, 300.0),   // M: the size before v3.7
+    };
+
+    // v4.5.1 (#24): the shows row on a page that mixes them with movies
+    // (Favorites, To Watch, lists, search) follows that page's S / M / L / XL,
+    // not All TV shows'. LibraryPage sets the size and marks its cards.
+    public bool UsesLibrarySize { get; set; }
+    private static (double Width, double Height) _librarySize = SizeFor("M");
+    public static void SetLibraryDensity(string tag) => _librarySize = SizeFor(tag);
+    private (double Width, double Height) CardSize => UsesLibrarySize ? _librarySize : (CardWidth, CardHeight);
 
     public TvShowCard()
     {
@@ -84,7 +94,7 @@ public sealed partial class TvShowCard : UserControl
         else if (!s.IsOnline) { StatusText.Text = "OFFLINE"; StatusBadge.Visibility = Visibility.Visible; }
         else StatusBadge.Visibility = Visibility.Collapsed;
 
-        CardRoot.Height = CardHeight;
+        CardRoot.Height = CardSize.Height;
         InvalidateMeasure();   // the S / M / L / XL size may have changed
         ShowProgress(s);
 
@@ -233,8 +243,8 @@ public sealed partial class TvShowCard : UserControl
     // that fit on one line of the wider card still took two and sat a line too high.
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
     {
-        var size = new Windows.Foundation.Size(CardWidth, CardHeight);
-        base.MeasureOverride(new Windows.Foundation.Size(DrawnWidth(availableSize.Width), CardHeight));
+        var size = new Windows.Foundation.Size(CardSize.Width, CardSize.Height);
+        base.MeasureOverride(new Windows.Foundation.Size(DrawnWidth(availableSize.Width), CardSize.Height));
         return size;
     }
 
@@ -249,8 +259,8 @@ public sealed partial class TvShowCard : UserControl
     // Past that the card keeps to the left of its cell, in line with the title.
     // Rows don't stretch their cards (no width to fill), so they get the size asked for.
     private double DrawnWidth(double cellWidth)
-        => double.IsInfinity(cellWidth) ? CardWidth
-         : Math.Max(CardWidth, Math.Min(cellWidth, Math.Max(CardWidth, CardHeight * 2 / 3)));
+        => double.IsInfinity(cellWidth) ? CardSize.Width
+         : Math.Max(CardSize.Width, Math.Min(cellWidth, Math.Max(CardSize.Width, CardSize.Height * 2 / 3)));
 
     private int _token;
     private async void LoadPosterAsync(string? relPath)

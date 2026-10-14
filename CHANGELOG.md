@@ -6,6 +6,25 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.5.1] - 2026-10-14
+
+### Changed
+- **The main rating is the one your `.nfo` marks as default**
+  (`default="true"`), as in Kodi. Before, CineLibrary took the first
+  rating listed. Ratings out of another scale (`max="100"`) count out of
+  10, as in Kodi. Movies pick this up once at start-up, with no rescan;
+  TV shows and episodes on their next rescan.
+- **Movie window: the ratings row shows only when there's more than one
+  source.** With one, it repeated the yellow ★ chip.
+- **AUDIO is back** as the label of the audio track languages (4.5.0
+  called it Language). It comes from the `.nfo`'s `<audio>` details,
+  beside SUBTITLES.
+
+### Fixed
+- **TV show cards on Favorites, To Watch, lists and search follow the
+  page's Size.** They kept the All TV Shows size, so at S, L or XL the
+  shows row didn't match the movies under it.
+
 ## [4.5.0] - 2026-10-12
 
 Favorite and Play from the card, and a movie window you can browse.

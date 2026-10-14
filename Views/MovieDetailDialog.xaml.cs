@@ -981,7 +981,8 @@ public sealed partial class MovieDetailDialog : Window
     private void PopulateRatingsPanel(MovieDetail m)
     {
         RatingsPanel.Children.Clear();
-        if (m.AllRatings.Count == 0)
+        // v4.5.1 (#24): one source would only repeat the yellow chip.
+        if (m.AllRatings.Count < 2)
         {
             RatingsPanel.Visibility = Visibility.Collapsed;
             return;
@@ -998,10 +999,14 @@ public sealed partial class MovieDetailDialog : Window
                 CharacterSpacing = 150, Opacity = 0.65,
                 Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             });
+            // v4.5.1: values are out of 10 now (max="100" is scaled), so the
+            // Rotten Tomatoes score goes back to a percentage.
+            var tomatoes = rt.Source.ToLowerInvariant() is "rottentomatoes" or "tomatometerallcritics" or "tomatometerallaudience";
             stack.Children.Add(new TextBlock
             {
-                Text = rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                       + (rt.Source.Equals("rottentomatoes", StringComparison.OrdinalIgnoreCase) ? "%" : ""),
+                Text = tomatoes
+                    ? (rt.Value * 10).ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + "%"
+                    : rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
                 FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
             });
@@ -1022,7 +1027,8 @@ public sealed partial class MovieDetailDialog : Window
     {
         "imdb" => "IMDb",
         "themoviedb" or "tmdb" => "TMDb",
-        "rottentomatoes" => "Rotten Tomatoes",
+        "rottentomatoes" or "tomatometerallcritics" => "Rotten Tomatoes",
+        "tomatometerallaudience" => "RT Audience",
         "metacritic" => "Metacritic",
         "default" => "Rating",
         _ => char.ToUpper(src[0]) + src.Substring(1),

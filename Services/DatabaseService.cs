@@ -529,6 +529,19 @@ CREATE TABLE IF NOT EXISTS user_list_movies (
             }
         }
 
+        // v4.5.1: the main rating is now the .nfo's default="true" one, and a
+        // rating out of another max is scaled to 10 (Kodi). Movies skip unchanged
+        // .nfo files on a rescan, so re-read the cached copies once.
+        var mainRatingKey = "_migration_main_rating_v451";
+        if (GetPref(mainRatingKey) != "done")
+        {
+            try { RecomputeMainRatings(); SetPref(mainRatingKey, "done"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"main rating recompute v4.5.1 skipped: {ex.Message}");
+            }
+        }
+
         // ── v2.9 Phase 2 (Memory) ───────────────────────────────────────────
 
         // Watch events — append-only log of every play / mark-watched /
@@ -845,6 +858,72 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
                     link.Parameters.AddWithValue("@m", row.id);
                     link.Parameters.AddWithValue("@w", wid);
                     link.ExecuteNonQuery();
+                }
+            }
+            tx.Commit();
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// v4.5.1 one-shot: take the main rating and the per-source values again (see
+    /// NfoParser) from the cached .nfo of the movies where they can change: more
+    /// than one source, or a value that isn't out of 10 (re-reading every .nfo
+    /// took about 3 s at start-up on a 4,000-movie library).
+    /// </summary>
+    private void RecomputeMainRatings()
+    {
+        var rows = new List<(int id, string nfoRel)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = @"SELECT id, local_nfo FROM movies WHERE local_nfo IS NOT NULL
+                                AND id IN (SELECT movie_id FROM movie_ratings GROUP BY movie_id
+                                           HAVING COUNT(*) > 1 OR MAX(value) > 10)";
+            using var r = sel.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+        }
+        if (rows.Count == 0) return;
+
+        using var tx = _conn.BeginTransaction();
+        try
+        {
+            foreach (var row in rows)
+            {
+                var nfoPath = Path.Combine(_dataDir, row.nfoRel);
+                if (!File.Exists(nfoPath)) continue;
+                var p = NfoParser.Parse(nfoPath);
+                if (p == null || p.Ratings.Count == 0) continue;
+
+                using (var upd = _conn.CreateCommand())
+                {
+                    upd.Transaction = tx;
+                    upd.CommandText = "UPDATE movies SET rating=@ra, votes=@vo WHERE id=@id";
+                    upd.Parameters.AddWithValue("@id", row.id);
+                    upd.Parameters.AddWithValue("@ra", (object?)p.Rating ?? DBNull.Value);
+                    upd.Parameters.AddWithValue("@vo", (object?)p.Votes ?? DBNull.Value);
+                    upd.ExecuteNonQuery();
+                }
+                using (var del = _conn.CreateCommand())
+                {
+                    del.Transaction = tx;
+                    del.CommandText = "DELETE FROM movie_ratings WHERE movie_id=@id";
+                    del.Parameters.AddWithValue("@id", row.id);
+                    del.ExecuteNonQuery();
+                }
+                foreach (var rt in p.Ratings)
+                {
+                    using var ins = _conn.CreateCommand();
+                    ins.Transaction = tx;
+                    ins.CommandText = "INSERT OR REPLACE INTO movie_ratings VALUES (@m,@s,@v,@vt)";
+                    ins.Parameters.AddWithValue("@m", row.id);
+                    ins.Parameters.AddWithValue("@s", rt.Source);
+                    ins.Parameters.AddWithValue("@v", rt.Value);
+                    ins.Parameters.AddWithValue("@vt", (object?)rt.Votes ?? DBNull.Value);
+                    ins.ExecuteNonQuery();
                 }
             }
             tx.Commit();
