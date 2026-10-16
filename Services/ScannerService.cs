@@ -757,6 +757,7 @@ public class ScannerService
 
         using var tx = conn.BeginTransaction();
         var lookup = LookupCache.Load(conn, tx);
+        var merged = new List<(int ShowId, List<string> OldFolders)>();
         try
         {
             foreach (var folder in FindTvShowFolders(walkFrom))
@@ -799,11 +800,84 @@ public class ScannerService
 
                 // Re-import show + episode personal state from the sidecar.
                 TvStateSidecar.ImportIntoShow(_db, conn, tx, showId, folder);
+
+                var old = MergeNestedShows(conn, tx, volumeSerial, folderRel, showId, show);
+                if (old.Count > 0) merged.Add((showId, old));
             }
             tx.Commit();
         }
         catch (OperationCanceledException) { tx.Rollback(); throw; }
         catch { tx.Rollback(); throw; }
+
+        // The merged state goes onto the drive with the show; the old entries'
+        // cached pictures go
+        var connected = new Dictionary<string, string> { [volumeSerial] = driveRoot[..1] };
+        foreach (var (showId, oldFolders) in merged)
+        {
+            TvStateSidecar.Sync(_db, showId, connected);
+            foreach (var rel in oldFolders)
+                try { Directory.Delete(Path.Combine(dataDir, "cache", ComputeMovieKey(volumeSerial, rel)), true); }
+                catch { /* not there, or in use: harmless leftovers */ }
+        }
+    }
+
+    /// <summary>
+    /// v4.6.1: a show folder can turn up above shows already in the library, e.g.
+    /// "Dark/Dark Season 1 Complete", once scraped as one show per season, given
+    /// one tvshow.nfo in "Dark" (CineLibrary Essentials 1.3.1 does that). The old
+    /// ones are never found again, since a show folder isn't searched further, so
+    /// those of the same show hand their personal state over (watched, favorite,
+    /// watchlist, note, lists, tags) and are removed. Returns their folders.
+    /// </summary>
+    private static List<string> MergeNestedShows(SqliteConnection conn, SqliteTransaction tx, string serial,
+        string folderRel, int showId, ParsedTvShow show)
+    {
+        var nested = new List<(int Id, string Folder)>();
+        using (var find = conn.CreateCommand())
+        {
+            find.Transaction = tx;
+            find.CommandText = @"SELECT id, folder_rel_path, tmdb_id, title FROM tv_shows
+                WHERE volume_serial=@s AND id<>@id AND substr(folder_rel_path, 1, length(@p)) = @p COLLATE NOCASE";
+            find.Parameters.AddWithValue("@s", serial);
+            find.Parameters.AddWithValue("@id", showId);
+            find.Parameters.AddWithValue("@p", folderRel + "/");
+            using var r = find.ExecuteReader();
+            while (r.Read())
+            {
+                var tmdb = r.IsDBNull(2) ? null : r.GetString(2).Trim();
+                bool same = !string.IsNullOrEmpty(tmdb) && !string.IsNullOrWhiteSpace(show.TmdbId)
+                    ? tmdb == show.TmdbId.Trim()
+                    : string.Equals(r.GetString(3).Trim(), show.Title.Trim(), StringComparison.OrdinalIgnoreCase);
+                if (same) nested.Add((r.GetInt32(0), r.GetString(1)));
+            }
+        }
+
+        foreach (var (oldId, _) in nested)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = @"
+                UPDATE tv_shows SET
+                    is_favorite = MAX(COALESCE(is_favorite,0), COALESCE((SELECT is_favorite FROM tv_shows WHERE id=@old),0)),
+                    is_watchlist = MAX(COALESCE(is_watchlist,0), COALESCE((SELECT is_watchlist FROM tv_shows WHERE id=@old),0)),
+                    note = COALESCE(NULLIF(TRIM(note),''), (SELECT note FROM tv_shows WHERE id=@old))
+                 WHERE id=@new;
+                UPDATE tv_episodes SET
+                    is_watched = MAX(COALESCE(tv_episodes.is_watched,0), COALESCE(o.is_watched,0)),
+                    last_played_at = MAX(COALESCE(tv_episodes.last_played_at,0), COALESCE(o.last_played_at,0)),
+                    is_favorite = MAX(COALESCE(tv_episodes.is_favorite,0), COALESCE(o.is_favorite,0)),
+                    note = COALESCE(NULLIF(TRIM(tv_episodes.note),''), o.note)
+                  FROM tv_episodes o
+                 WHERE tv_episodes.show_id=@new AND o.show_id=@old
+                   AND o.season=tv_episodes.season AND o.episode=tv_episodes.episode;
+                INSERT OR IGNORE INTO user_list_shows(list_id, show_id) SELECT list_id, @new FROM user_list_shows WHERE show_id=@old;
+                INSERT OR IGNORE INTO tv_show_tags(show_id, tag_id) SELECT @new, tag_id FROM tv_show_tags WHERE show_id=@old;
+                DELETE FROM tv_shows WHERE id=@old;";
+            cmd.Parameters.AddWithValue("@old", oldId);
+            cmd.Parameters.AddWithValue("@new", showId);
+            cmd.ExecuteNonQuery();
+        }
+        return nested.Select(n => n.Folder).ToList();
     }
 
     private record ScannedEpisode(ParsedEpisode? ParsedNfo, ParsedEpisode Parsed,

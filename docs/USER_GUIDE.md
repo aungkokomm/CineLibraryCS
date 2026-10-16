@@ -108,6 +108,10 @@ A few tips:
 
 - **Add as many roots as you like.** Each external drive, each
   subdivision of your collection — separate entries are fine.
+- **One folder for many.** Adding a folder that holds folders you added
+  before (say `G:\Serials`, after `G:\Serials\Mirzapur` and others)
+  replaces them in the list with that one folder. Nothing leaves your
+  library, and every show and movie under it is scanned.
 - **Give drives friendly names.** Right-click a drive entry and rename
   it (e.g. *"Seagate Red 5TB — Movies"*) so the sidebar reads cleanly.
 - **Re-scan after MediaElch updates.** If you re-scrape metadata or add

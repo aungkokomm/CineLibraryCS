@@ -6,6 +6,22 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.6.1] - 2026-10-16
+
+### Fixed
+- **A show split into one entry per season becomes one show again.** When
+  a show's season folders (`Dark/Dark Season 1 Complete`, ...) were each
+  scraped as their own show and the show is then given one `tvshow.nfo`
+  in its main folder (CineLibrary Essentials 1.3.1 does this), the old
+  per-season entries no longer stay behind marked missing. Their watched
+  episodes, favorite, watchlist, note, lists and tags move to the show,
+  and are saved onto the drive with it.
+- **Adding a folder that holds folders you already added** (for example
+  `G:\Serials` after adding its shows one by one) now replaces them in
+  the drive's list with that one folder, instead of keeping them all and
+  scanning them twice on Update. Nothing leaves the library. Adding a
+  folder that's inside one already listed says so.
+
 ## [4.6.0] - 2026-10-16
 
 The movie window and the show page show everything CineLibrary

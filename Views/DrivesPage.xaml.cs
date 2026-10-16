@@ -166,8 +166,18 @@ public sealed partial class DrivesPage : Page
                 await ShowInfoDialog("Already added", $"'{(relPath == "" ? "(drive root)" : relPath)}' is already tracked on this drive.");
                 return;
             }
+            var coveredBy = existingRoots.FirstOrDefault(x => x.RootPath == ""
+                || relPath.StartsWith(x.RootPath + "/", StringComparison.OrdinalIgnoreCase));
+            if (coveredBy != null)
+            {
+                await ShowInfoDialog("Already added",
+                    $"'{relPath}' is inside '{(coveredBy.RootPath == "" ? "(drive root)" : coveredBy.RootPath)}', which is already tracked on this drive.");
+                return;
+            }
 
             AppState.Instance.Db.AddDriveRoot(serial, relPath);
+            // Tracked folders inside this one are covered by it now: one entry instead of many
+            AppState.Instance.Db.RemoveDriveRootsInside(serial, relPath);
 
             // Now scan just that folder
             await ScanDriveAsync(serial, letter, drive?.Label ?? serial, folder.Path);

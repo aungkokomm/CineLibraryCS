@@ -1617,6 +1617,24 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// v4.6.1: drops the tracked folders inside <paramref name="relPath"/> (the
+    /// whole drive when empty) from the list, as that folder covers them now.
+    /// What they hold stays in the library. Returns how many were dropped.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int RemoveDriveRootsInside(string serial, string relPath)
+    {
+        var norm = (relPath ?? "").Replace('\\', '/').Trim().TrimEnd('/');
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = norm.Length == 0
+            ? "DELETE FROM drive_roots WHERE volume_serial=@s AND root_path<>''"
+            : "DELETE FROM drive_roots WHERE volume_serial=@s AND substr(root_path, 1, length(@p)) = @p COLLATE NOCASE";
+        cmd.Parameters.AddWithValue("@s", serial);
+        cmd.Parameters.AddWithValue("@p", norm + "/");
+        return cmd.ExecuteNonQuery();
+    }
+
     /// <summary>Removes a tracked folder and purges its movies (+ cached artwork) from the DB.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RemoveDriveRoot(string serial, string relPath)
