@@ -34,7 +34,7 @@ CineLibrary is a native Windows app (C# + WinUI 3) that turns your already-organ
 
 Unplug a drive and its titles don't vanish; they fade to **offline** (posters and metadata intact) and wake up when you plug it back in. It's **free and open-source**, runs **portably** from any folder, and asks for nothing - no account, no subscription, no telemetry.
 
-CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive. When a title comes in only **partly scraped**, you can now **fetch just the missing details from TMDb on demand** - a deliberate, per-movie action, not a bulk scraper - and optionally write them back to the drive. Everything else stays fully offline.
+CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive. When a title comes in only **partly scraped**, you can now **fetch just the missing details from TMDb on demand** - a deliberate, per-movie action, not a bulk scraper - and optionally write them back to the drive. It also goes online when you click **Update IMDb ratings**, and to ask TMDb which episodes of a show you're missing (you can turn that off in Settings). Everything else stays fully offline.
 
 ---
 
@@ -56,14 +56,16 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 ## ✨ Highlights
 
-- **📺 Movies & TV shows** - full show pages with seasons, episodes, per-episode watched/favorite/notes, and "▶ Play next unwatched."
+- **📺 Movies & TV shows** - full show pages with seasons, episodes, IMDb and TMDb ratings, the aired episodes you're missing, per-episode watched/favorite/notes, and "▶ Play next unwatched."
+- **🔁 Made for CineLibrary Essentials** - shows everything Essentials writes (editions, every studio, tags, both ratings), and **Reload from .nfo** picks up an edit at once.
 - **💾 Multi-drive, offline-aware** - index any number of external drives; offline ones stay visible with posters intact.
 - **🔎 Fast search & filters** - title, actor, director, year; filter by genre, decade, rating, collection, tags, watched status.
 - **🏷️ Your own organization** - favorites, watchlist, notes, free-form tags, and custom lists.
 - **🧭 Discovery** - Continue Watching, Recently Watched, Recently Added, On This Day, and a filter-aware Surprise Me.
 - **🎬 Watched & Gone** - a *memory keeper* for films you watched then deleted: the poster, your notes, tags and history stay as a record, isolated from your library so you never re-download by mistake. **Add watched movie** also logs ones you saw *elsewhere* - at the cinema, on streaming, or a friend's copy (looked up on TMDb).
 - **🩹 Fetch missing info from TMDB** - a partly-scraped movie? Fill just the blanks (poster, plot, cast, year, …) on demand from any detail window. **Fill-only** - your existing MediaElch data is never overwritten.
-- **🔄 Sync to drive (state + fetched art)** - write your personal state *and* any fetched art/details back into the movie folders (poster, fanart, `.actors\` - **never** rewriting your `.nfo`), so the drive stays the source of truth and a rescan can't lose them.
+- **⭐ IMDb ratings for your whole library** - one click on the Drives page gets every title's IMDb rating and votes (finding missing IMDb ids on TMDb), makes it the main ★, and writes it into each `.nfo` (only the ratings), now or when an unplugged drive comes back.
+- **🔄 Fetched art goes onto your drives** - after a fetch, the poster, fanart and cast photos are copied into the movie's or show's folder (`.actors\` too, only missing files, **never** rewriting your `.nfo`); a drive that isn't connected gets them when you plug it in. **Sync to drive** does a whole drive at once, and a Settings switch turns the automatic copy off.
 - **🧹 Find duplicates (Dupes).** Spots movies you have more than once and recommends which copy to keep, with reclaimable-space totals. Your dubbed and multi-language copies are left alone (recognised as kept on purpose). Non-destructive: it points you to the files, you decide.
 - **💾 Backup & restore** - export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.
 - **🪪 State travels with the drive** - watched/favorite/notes/tags live next to each title, so they survive a drive move to another PC.

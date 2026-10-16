@@ -179,3 +179,13 @@ public class TmdbTvSearchResult
     [JsonPropertyName("results")]
     public List<TmdbTvShow> Results { get; set; } = new();
 }
+
+/// <summary>v4.6.0: what the missing-episodes check needs from a show.</summary>
+public class TmdbTvSeasons
+{
+    /// <summary>(season, episode) of the last aired episode; null when none has aired.</summary>
+    public (int Season, int Episode)? LastAired { get; set; }
+    public List<(int Number, int EpisodeCount)> Seasons { get; } = new();
+}
+
+public record TmdbEpisode(int Number, string Name, string? AirDate);

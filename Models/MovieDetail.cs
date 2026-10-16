@@ -101,6 +101,13 @@ public class MovieDetail
     public List<(string Source, double Value, int? Votes)> AllRatings { get; set; } = new();
     /// <summary>v2.9 — free-form personal tags assigned to this movie.</summary>
     public List<string> Tags { get; set; } = new();
+    // v4.6.0: from the .nfo
+    public string? Edition { get; set; }
+    /// <summary>Every studio and country (Studio / Country are the first).</summary>
+    public List<string> Studios { get; set; } = new();
+    public List<string> Countries { get; set; } = new();
+    /// <summary>The .nfo's own tags, apart from <see cref="Tags"/>.</summary>
+    public List<string> NfoTags { get; set; } = new();
 
     public string RatingText => Rating.HasValue ? $"★ {Rating:F1}" : "";
     public string RuntimeText => Runtime.HasValue ? $"{Runtime} min" : "";

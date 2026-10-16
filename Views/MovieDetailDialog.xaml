@@ -233,6 +233,14 @@
                                 BorderThickness="0" CornerRadius="8" Padding="16,8">
                             <TextBlock Text="▶ Play"/>
                         </Button>
+                        <!-- v4.6.0: the trailer link from the .nfo -->
+                        <Button x:Name="TrailerBtn" Content="🎞 Trailer" Click="OnTrailer"
+                                Visibility="Collapsed"
+                                Background="{ThemeResource CardBrush}"
+                                Foreground="{ThemeResource TextBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}"
+                                CornerRadius="8" Padding="12,8"
+                                ToolTipService.ToolTip="Watch the trailer in your web browser"/>
                         <Button x:Name="FolderBtn" Content="📂 Open Folder" Click="OnOpenFolder"
                                 Background="{ThemeResource CardBrush}"
                                 Foreground="{ThemeResource TextBrush}"
@@ -278,6 +286,17 @@
                                 <TextBlock Text="Fetch missing info from TMDB"/>
                             </StackPanel>
                         </Button>
+                        <!-- v4.6.0: read the folder again, e.g. after editing it in Essentials -->
+                        <Button x:Name="ReloadNfoBtn" Click="OnReloadNfo"
+                                Background="{ThemeResource CardBrush}" Foreground="{ThemeResource TextBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}" CornerRadius="8" Padding="12,8"
+                                ToolTipService.ToolTip="Read this movie's .nfo and pictures from the drive again, for example after you edit it in CineLibrary Essentials">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE72C;" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                <TextBlock Text="Reload from .nfo"/>
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="SyncDriveBtn" Click="OnSyncToDrive" Visibility="Collapsed"
                                 Background="{ThemeResource CardBrush}" Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}" CornerRadius="8" Padding="12,8"
@@ -314,6 +333,14 @@
                                 Margin="0,10,0,0">
                         <TextBlock Text="🏷" FontSize="14" VerticalAlignment="Center" Opacity="0.7"/>
                         <ItemsControl x:Name="TagChipsRepeater">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="6"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <!-- v4.6.0: tags from the .nfo (no ✕: they're changed in the .nfo) -->
+                        <ItemsControl x:Name="NfoTagChipsRepeater">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="6"/>
@@ -520,8 +547,9 @@
                                 <TextBlock x:Name="StudioText" Visibility="Collapsed"
                                            FontSize="13" Foreground="{ThemeResource TextBrush}"
                                            TextWrapping="Wrap"/>
-                                <HyperlinkButton x:Name="StudioLink" Visibility="Collapsed"
-                                                 Padding="0" FontSize="13"/>
+                                <!-- v4.6.0: every studio, not just the first -->
+                                <controls:WrapPanel x:Name="StudioLinks" Visibility="Collapsed"
+                                                    HorizontalSpacing="4" VerticalSpacing="2"/>
                             </StackPanel>
                         </Grid>
                     </StackPanel>

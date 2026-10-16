@@ -26,20 +26,21 @@ of movies in under five minutes.
 9. [Tags — your own labels](#tags--your-own-labels)
 10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
 11. [Filling in missing details (TMDB)](#filling-in-missing-details-tmdb)
-12. [Finding duplicates (Dupes)](#finding-duplicates-dupes)
-13. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
-14. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-15. [State that travels with your drives](#state-that-travels-with-your-drives)
-16. [Backup and restore](#backup-and-restore)
-17. [Statistics](#statistics)
-18. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-19. [Themes and sidebar](#themes-and-sidebar)
-20. [Settings](#settings)
-21. [Keyboard shortcuts](#keyboard-shortcuts)
-22. [Exporting your catalog](#exporting-your-catalog)
-23. [Updates](#updates)
-24. [Where your data lives](#where-your-data-lives)
-25. [Troubleshooting](#troubleshooting)
+12. [IMDb ratings](#imdb-ratings)
+13. [Finding duplicates (Dupes)](#finding-duplicates-dupes)
+14. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+15. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+16. [State that travels with your drives](#state-that-travels-with-your-drives)
+17. [Backup and restore](#backup-and-restore)
+18. [Statistics](#statistics)
+19. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+20. [Themes and sidebar](#themes-and-sidebar)
+21. [Settings](#settings)
+22. [Keyboard shortcuts](#keyboard-shortcuts)
+23. [Exporting your catalog](#exporting-your-catalog)
+24. [Updates](#updates)
+25. [Where your data lives](#where-your-data-lives)
+26. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -149,9 +150,16 @@ is). When the `.nfo` has more than one source, each one is listed
 beside it with its votes.
 
 The genres sit as chips right under the rating, year, runtime and
-certification; click one to see every movie in that genre. Further down
-are the **Director**, **Writer** and **Studio** (a long list of writers
-shows the first four; point at it for the rest).
+certification; click one to see every movie in that genre. A purple chip
+beside the runtime names the **edition** when the `.nfo` has one
+(Director's Cut, Extended, IMAX). Further down are the **Director**,
+**Writer** and **Studio** (a long list of writers shows the first four;
+point at it for the rest). A movie made by several studios lists them
+all; click any of them to see its movies. **Country** in the file details
+lists every country too.
+
+**🎞 Trailer** next to Play opens the movie's trailer in your web browser,
+when its `.nfo` has a trailer link.
 
 The cast lists everyone in the movie's `.nfo`, in billing order, with
 photos from the movie folder's `.actors` folder (or fetched from TMDB).
@@ -363,16 +371,19 @@ Click a show to open its page:
 
 - **Header**: the show's fanart as a banner across the top, with
   **IMDb** and **TMDb** buttons that open the show's pages. Below it sit
-  the poster, the title, an info line (year, rating, certification such
-  as TV-14, status, a watched roll-up like "12/62 watched", and the
-  studio), the genre chips, the plot and **Located on**: the show's drive,
-  with a green dot and its letter while it's connected, as in the movie
-  details window. Then the buttons: **📂 Open Folder**,
-  **♡ Favorite**, **📋 Watchlist** and **Add to list**, and under them
-  **📝 Add note** and **Fetch missing info from TMDB** (see
-  [Filling in missing details](#filling-in-missing-details-tmdb)) with
-  your tags beside them. Open Folder works while the show's drive is
-  connected.
+  the poster, the title (with the original title and tagline under it
+  when the `.nfo` has them), an info line (year, rating, certification
+  such as TV-14, status, how long an episode is, and a watched roll-up
+  like "12/62 watched"), each rating source with its votes when the
+  `.nfo` has more than one (IMDb and TMDb), the genre chips, the plot,
+  **Created by**, the studios and networks, the country, and
+  **Located on**: the show's drive, with a green dot and its letter while
+  it's connected, as in the movie details window. Then the buttons:
+  **📂 Open Folder**, **♡ Favorite**, **📋 Watchlist** and **Add to list**,
+  and under them **📝 Add note**, **Fetch missing info from TMDB** (see
+  [Filling in missing details](#filling-in-missing-details-tmdb)) and
+  **Reload from .nfo**, with your tags beside them. Open Folder and
+  Reload from .nfo work while the show's drive is connected.
 - **📝 Add note**: a note of your own about the show. It appears under
   the plot as **Your note**, and the show is listed on the **Notes**
   page above your noted movies. Click **📝 Edit note** to change it;
@@ -390,6 +401,17 @@ Click a show to open its page:
   next to Mark all watched to move a page at a time. Each card shows
   the episode thumbnail, `SxxExx`, title, runtime/rating, an
   **○ / ✓ Mark-watched** toggle, and **▶ Play** on hover.
+- **Missing episodes**: when the show has a TMDb id and you're online,
+  CineLibrary asks TMDb which episodes have aired. Each one you don't
+  have appears greyed in its season's row, marked **Not in your library**
+  with its air date, and the season's line says how many are missing
+  ("8 episodes · 2 missing"). Seasons you have none of are listed under
+  the season tabs, like "Not in your library: Season 4 (10 episodes)".
+  Specials and episodes that haven't aired yet never count, a file that
+  holds two episodes (`S01E01E02`) counts as both, and a show kept in one
+  folder per season counts every folder. Offline, the page simply shows
+  what you have. To turn the check off, use **Settings → Show missing
+  episodes**.
 
 ### Watching episodes
 
@@ -547,6 +569,16 @@ Like lists, favorites, and notes, tags are saved into the drive's
 sidecar file. Plug the drive into another PC running CineLibrary and
 your tags come back on the next scan.
 
+### Tags from your .nfo files
+
+Tags that are already in a movie's or show's `.nfo` (for example ones
+you added in CineLibrary Essentials' editor) show after your own, with an
+outline and no **✕**. They work like yours: click one to see every movie
+with it, and they're in the sidebar's **🏷 TAGS**. They change with the
+`.nfo`, so edit them where you made them; after the next scan (or
+**Reload from .nfo**) CineLibrary follows. They're not written to the
+sidecar file or your backups, since the `.nfo` already carries them.
+
 ---
 
 ## Watched & Gone
@@ -672,20 +704,63 @@ blank poster, fanart, plot, year, rating, certification, status, network,
 genres and cast (with photos), matched by the show's TMDb id or confirmed
 in the same picker. A rescan keeps what was fetched: your `.nfo` wins
 wherever it has a value, and a fetched value stays only where it's blank.
-Sync to drive doesn't cover shows yet, so a show's fetched details live in
-CineLibrary's own library data.
+A show's fetched pictures go onto the drive like a movie's (below); its
+other fetched details live in CineLibrary's own library data.
 
-**Making it permanent on the drive.** What you fetch lives in CineLibrary
-right away. To write it home — so a future rescan can never lose it — use
-the Drives page's **Sync to drive (state + fetched art)** action. It copies
-the fetched poster, fanart and cast photos into the movie's folder and
-records the rest in the sidecar, **without ever rewriting your `.nfo`**.
-After that the drive holds everything, and an **Update** reads it straight
-back.
+**Saved onto the drive by itself.** Right after a fetch, CineLibrary copies
+the fetched poster, fanart and cast photos into the movie's or show's
+folder (`poster.jpg`, `fanart.jpg`, `.actors\First_Last.jpg`), and a
+movie's fetched details into its CineLibrary state file there. The message
+next to the button says "saved to the movie's folder". Only files that
+aren't there yet are added, and **your `.nfo` is never changed**. If the
+title's drive isn't connected, the message says so, and everything goes
+onto the drive the next time you plug it in (or start CineLibrary with it
+connected). A drive that's read-only or full is simply tried again later.
+To keep CineLibrary from writing to your drives, turn off **Settings →
+Save fetched info to your drives**.
 
-> This and **Add watched movie** are the only features that use the
-> internet, and only when you click them. Everything else in CineLibrary is
-> fully offline.
+**Sync to drive (state + fetched art)** on the Drives page does it for a
+whole drive at once, whatever that setting says. It also covers movies
+fetched before version 4.6.0 that only got cast photos. After that the
+drive holds everything, and an **Update** reads it straight back.
+
+**Changed a title in CineLibrary Essentials?** Click **Reload from .nfo**
+in the movie window or on the show page. CineLibrary reads that one folder
+again (the details, the pictures and, for a show, its episodes) without
+updating the whole drive. It needs the drive connected.
+
+> This, **Add watched movie**, **Update IMDb ratings** and the
+> missing-episodes check on a show page (when you open a show that has a
+> TMDb id; you can turn it off in Settings) are the only features that use
+> the internet. Everything else in CineLibrary is fully offline.
+
+---
+
+## IMDb ratings
+
+Movies and shows scraped with CineLibrary Essentials 1.3 or later already
+carry their IMDb rating. For the rest of your library, click
+**Update IMDb ratings** at the top of the **Drives** page:
+
+- CineLibrary gets the IMDb rating and votes of every movie and show from
+  IMDb's daily ratings, 100 titles at a time. A title whose `.nfo` only has
+  a TMDb id (CineLibrary Essentials before 1.1.10 wrote those) gets its
+  IMDb id from TMDb first.
+- With **Make IMDb the main rating** ticked (it is to begin with), IMDb's
+  becomes the **★** on cards and in the windows.
+- The ratings show in CineLibrary right away, for titles on unplugged
+  drives too.
+- They're written into each `.nfo`, as CineLibrary Essentials' Refresh
+  IMDb ratings does: only the ratings change (and the IMDb id is added
+  where it was missing), so other players and Essentials see them too.
+  Connected drives get them at once; the others the next time you plug
+  them in, or start CineLibrary with them connected. **Cancel** while the
+  files are being written finishes the rest later in the same way.
+- Run it again any time to bring the votes up to date.
+
+In the movie window and on a show's page, each rating source is listed with
+its votes when there's more than one: IMDb's in gold, like the ★, and
+TMDb's in green.
 
 ---
 
@@ -1058,6 +1133,26 @@ details window and TV episodes) then opens videos there. **Use Windows
 default** goes back to whatever Windows opens video files with. If the
 chosen program is later uninstalled, Play falls back to the Windows
 default by itself.
+
+### Save fetched info to your drives
+
+**On by default.** After **Fetch missing info from TMDB**, CineLibrary
+copies the fetched poster, fanart and cast photos into the movie's or
+show's folder, and a movie's details into its CineLibrary state file
+there, now or the next time that drive is connected (see
+[Filling in missing details](#filling-in-missing-details-tmdb)). Only
+missing files are added and your `.nfo` is never changed. Turn it off and
+CineLibrary never writes them to your drives by itself; turning it back
+on catches up.
+
+### Show missing episodes
+
+**On by default.** When you open a show, CineLibrary asks TMDb which aired
+episodes aren't in your library and shows them greyed (see
+[The show page](#the-show-page)). It's the only thing CineLibrary goes
+online for by itself. Turn it off to keep CineLibrary fully offline unless
+you click **Fetch missing info from TMDB**. It applies the next time you
+open a show.
 
 ---
 

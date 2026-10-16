@@ -387,18 +387,49 @@ public sealed partial class TvShowsPage : Page
 
     private TvShowDetail? _detail;
 
-    private void LoadShow()
+    /// <param name="keepSeason">v4.6.0: stay on the season shown (Reload from .nfo).</param>
+    private void LoadShow(bool keepSeason = false)
     {
         if (_currentShow == null) { _level = Level.Shows; ShowLevel(); return; }
         TitleText.Text = _currentShow.Title;   // as written, not in capitals (v3.10.0, issue #12)
         BackLabel.Text = "All TV Shows";
         EmptyState.Visibility = Visibility.Collapsed;
 
-        _selectedSeason = null;   // a newly opened show starts on its default season
+        if (!keepSeason) _selectedSeason = null;   // a newly opened show starts on its default season
         ShowTmdbStatus.Visibility = Visibility.Collapsed;
+        _gaps = null;
         PopulateShowHeader();
         BuildSeasonSections();
+        _ = CheckMissingEpisodesAsync();
     }
+
+    // v4.6.0: TMDb's aired episodes that aren't on disk, null until known
+    private List<MissingEpisodes.Gap>? _gaps;
+
+    /// <summary>
+    /// Asks TMDb which aired episodes aren't on disk (counting every folder of
+    /// the show, e.g. one per season), then shows them. Quietly does nothing
+    /// offline or for a show without a TMDb id.
+    /// </summary>
+    private async Task CheckMissingEpisodesAsync()
+    {
+        var detail = _detail;
+        if (!UiSettings.CheckMissingEpisodes) return;   // turned off in Settings
+        if (detail == null || !int.TryParse(detail.TmdbId?.Trim(), out var tmdbId) || tmdbId <= 0) return;
+        try
+        {
+            var local = await Task.Run(() =>
+                MissingEpisodes.Covered(AppState.Instance.Db.GetEpisodesOnDisk(detail.Id, detail.TmdbId)));
+            if (local.Count == 0) return;
+            var gaps = await MissingEpisodes.CheckAsync(tmdbId, local);
+            if (gaps == null || !ReferenceEquals(_detail, detail) || _level != Level.Show) return;
+            _gaps = gaps;
+            if (gaps.Count > 0) BuildSeasonSections();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Missing episodes: {ex.Message}"); }
+    }
+
+    private static string EpisodesText(int n) => n == 1 ? "1 episode" : $"{n} episodes";
 
     // v3.8.0: the show page shows one season at a time, picked from a row of
     // season tabs, so a long show doesn't need a long scroll to reach season 10.
@@ -414,6 +445,14 @@ public sealed partial class TvShowsPage : Page
         var connected = AppState.Instance.Connected;
         var seasons = AppState.Instance.Db.GetSeasons(_currentShow.Id);
         SubText.Text = $"{seasons.Count} season{(seasons.Count == 1 ? "" : "s")}";
+        // v4.6.0: what's missing, once TMDb has said: in this folder's seasons, and
+        // whole seasons no folder of the show has (a gap in a season that's in
+        // another folder of it is shown there)
+        var seasonsHere = seasons.Select(s => s.Season).ToHashSet();
+        var gaps = (_gaps ?? new List<MissingEpisodes.Gap>())
+            .Where(g => g.Episode == 0 || seasonsHere.Contains(g.Season)).ToList();
+        var missingTotal = MissingEpisodes.Total(gaps);
+        if (missingTotal > 0) SubText.Text += $" · {missingTotal} missing";
 
         var episodes = new Dictionary<int, List<TvEpisodeItem>>();
         foreach (var season in seasons)
@@ -436,9 +475,34 @@ public sealed partial class TvShowsPage : Page
         if (tabs.Count > 0)
             SeasonSectionsHost.Children.Add(BuildSeasonTabs(tabs));
 
+        // v4.6.0: whole seasons that have aired but aren't in any folder of the show
+        var wholeSeasons = gaps.Where(g => g.Episode == 0).ToList();
+        if (wholeSeasons.Count > 0)
+            SeasonSectionsHost.Children.Add(new TextBlock
+            {
+                Text = "Not in your library: " + string.Join(" · ",
+                    wholeSeasons.Select(g => $"Season {g.Season} ({EpisodesText(g.Count)})")),
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(24, 0, 24, 0),
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
+            });
+
         foreach (var season in tabs.Where(s => s.Season == _selectedSeason))
         {
             var eps = episodes[season.Season];
+            // v4.6.0: aired episodes of this season you don't have, greyed, in episode order
+            var missing = gaps.Where(g => g.Season == season.Season && g.Episode > 0)
+                .Select(g => new TvEpisodeItem
+                {
+                    ShowId = _currentShow.Id,
+                    Season = g.Season,
+                    Episode = g.Episode,
+                    Title = string.IsNullOrWhiteSpace(g.Title) ? $"Episode {g.Episode}" : g.Title,
+                    Aired = g.AirDate,
+                    NotInLibrary = true,
+                }).ToList();
+            var cards = missing.Count == 0 ? eps : eps.Concat(missing).OrderBy(e => e.Episode).ToList();
 
             // Episode cards in a HORIZONTAL row (Netflix/Disney+ style).
             // Critical for performance: a vertical UniformGridLayout nested
@@ -464,12 +528,12 @@ public sealed partial class TvShowsPage : Page
                     Spacing = 14,
                 },
                 ItemTemplate = (DataTemplate)Resources["EpisodeCardTemplate"],
-                ItemsSource = eps,
+                ItemsSource = cards,
             };
             rowScroller.Content = repeater;
 
             // Section header — label + episode/watched counts + actions.
-            SeasonSectionsHost.Children.Add(BuildSeasonHeader(season, eps, rowScroller));
+            SeasonSectionsHost.Children.Add(BuildSeasonHeader(season, eps, rowScroller, missing.Count));
             SeasonSectionsHost.Children.Add(rowScroller);
         }
 
@@ -511,7 +575,7 @@ public sealed partial class TvShowsPage : Page
     /// sub-line, and Play-season + Mark-all-watched actions on the right,
     /// plus ‹ › buttons that page the episode row a screenful at a time.
     /// </summary>
-    private FrameworkElement BuildSeasonHeader(TvSeason season, List<TvEpisodeItem> eps, ScrollViewer row)
+    private FrameworkElement BuildSeasonHeader(TvSeason season, List<TvEpisodeItem> eps, ScrollViewer row, int missing = 0)
     {
         var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
         var text = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
@@ -531,6 +595,7 @@ public sealed partial class TvShowsPage : Page
         });
         var totalMins = eps.Where(e => e.Runtime.HasValue).Sum(e => e.Runtime!.Value);
         var subBits = new List<string> { $"{season.EpisodeCount} episodes", $"{season.WatchedCount} watched" };
+        if (missing > 0) subBits.Insert(1, $"{missing} missing");   // v4.6.0
         if (totalMins > 0) subBits.Add(totalMins >= 60 ? $"{totalMins / 60}h {totalMins % 60}m" : $"{totalMins}m");
         left.Children.Add(new TextBlock
         {
@@ -651,9 +716,20 @@ public sealed partial class TvShowsPage : Page
         ShowStatus.Text = _detail.Status ?? "";
         ShowStatus.Visibility = string.IsNullOrEmpty(_detail.Status) ? Visibility.Collapsed : Visibility.Visible;
         ShowProgress.Text = $"{_detail.WatchedCount}/{_detail.EpisodeCount} watched";
-        ShowStudio.Text = _detail.Studio ?? "";
-        ShowStudio.Visibility = string.IsNullOrWhiteSpace(_detail.Studio) ? Visibility.Collapsed : Visibility.Visible;
-        ShowFolderBtn.IsEnabled = ResolveShowFolderAbs(_detail) != null;
+        // v4.6.0: original title, tagline, episode length, every rating source,
+        // and created by / studios / country (the studio moved there)
+        ShowOriginalTitle.Text = _detail.OriginalTitle ?? "";
+        ShowOriginalTitle.Visibility = !string.IsNullOrWhiteSpace(_detail.OriginalTitle) && _detail.OriginalTitle != _detail.Title
+            ? Visibility.Visible : Visibility.Collapsed;
+        ShowTagline.Text = _detail.Tagline ?? "";
+        ShowTagline.Visibility = string.IsNullOrWhiteSpace(_detail.Tagline) ? Visibility.Collapsed : Visibility.Visible;
+        ShowRuntime.Text = _detail.Runtime is > 0 ? $"{_detail.Runtime}-min episodes" : "";
+        ShowRuntime.Visibility = _detail.Runtime is > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PopulateShowRatings(_detail);
+        PopulateShowFacts(_detail);
+        var folderOnline = ResolveShowFolderAbs(_detail) != null;
+        ShowFolderBtn.IsEnabled = folderOnline;
+        ReloadShowNfoBtn.IsEnabled = folderOnline;
         // One flowing paragraph: a blank line between paragraphs would use up
         // one of the five visible lines and hide the "…" that says there's more.
         ShowPlot.Text = System.Text.RegularExpressions.Regex.Replace(_detail.Plot ?? "", @"\s*\n\s*", " ").Trim();
@@ -704,12 +780,108 @@ public sealed partial class TvShowsPage : Page
         _ = LoadShowImage(ShowFanart, _detail.LocalFanart, 1600);
     }
 
+    // ── v4.6.0: ratings, created by / studios / country, reload from .nfo ──
+
+    /// <summary>Each rating source with its votes, as in the movie window: only with more than one.</summary>
+    private void PopulateShowRatings(TvShowDetail d)
+    {
+        ShowRatingsPanel.Children.Clear();
+        ShowRatingsPanel.Visibility = d.AllRatings.Count < 2 ? Visibility.Collapsed : Visibility.Visible;
+        if (d.AllRatings.Count < 2) return;
+        var label = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF));
+        foreach (var (source, value, votes) in d.AllRatings)
+        {
+            var stack = new StackPanel { Spacing = 2 };
+            stack.Children.Add(new TextBlock
+            {
+                Text = MovieDetailDialog.PrettySource(source).ToUpperInvariant(),
+                FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                CharacterSpacing = 150, Foreground = label,
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
+                FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                // IMDb gold (as the ★ above), TMDb green; the header is dark in both themes
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(source.ToLowerInvariant() switch
+                {
+                    "imdb" => Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B),
+                    "themoviedb" or "tmdb" => Windows.UI.Color.FromArgb(0xFF, 0x01, 0xD2, 0x77),
+                    _ => Microsoft.UI.Colors.White,
+                }),
+            });
+            if (votes is > 0)
+                stack.Children.Add(new TextBlock { Text = MovieDetailDialog.FormatVotes(votes.Value), FontSize = 10, Foreground = label });
+            ShowRatingsPanel.Children.Add(stack);
+        }
+    }
+
+    private void PopulateShowFacts(TvShowDetail d)
+    {
+        ShowFacts.Children.Clear();
+        void Fact(string caption, IReadOnlyList<string> values)
+        {
+            if (values.Count == 0) return;
+            var stack = new StackPanel { Spacing = 2, MaxWidth = 360 };
+            stack.Children.Add(new TextBlock
+            {
+                Text = caption, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                CharacterSpacing = 120,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF)),
+            });
+            stack.Children.Add(new TextBlock
+            {
+                Text = string.Join(", ", values), FontSize = 13, TextWrapping = TextWrapping.Wrap,
+                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xE0, 0xE0, 0xE0)),
+            });
+            ShowFacts.Children.Add(stack);
+        }
+        Fact("CREATED BY", d.Creators);
+        Fact(d.Studios.Count > 1 ? "STUDIOS" : "STUDIO", d.Studios);
+        Fact(d.Countries.Count > 1 ? "COUNTRIES" : "COUNTRY", d.Countries);
+        ShowFacts.Visibility = ShowFacts.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void OnReloadShowNfo(object sender, RoutedEventArgs e)
+    {
+        if (_detail == null || _currentShow == null) return;
+        var show = _detail;
+        ShowTmdbBusyState(true, "Reading the folder again…");
+        try
+        {
+            var ok = await AppState.Instance.ReloadFolderAsync(show.VolumeSerial, show.FolderRelPath);
+            if (!ReferenceEquals(_detail, show)) { ShowTmdbBusyState(false); return; }   // another show opened meanwhile
+            if (!ok)
+            {
+                ShowTmdbBusyState(false, "The show's folder isn't there. Is its drive connected?");
+                return;
+            }
+            _freshImages = true;
+            var id = _currentShow.Id;   // the title may have changed
+            _currentShow = AppState.Instance.Db.GetTvShows(AppState.Instance.Connected)
+                               .FirstOrDefault(s => s.Id == id) ?? _currentShow;
+            LoadShow(keepSeason: true);   // header, seasons and the missing-episodes check again
+            ShowTmdbBusyState(false, "Reloaded from the .nfo.");
+            SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Reload show from .nfo failed: {ex.Message}");
+            ShowTmdbBusyState(false, "Couldn't read the folder. Please try again.");
+        }
+    }
+
+    // Set once a show has been read again: actor photos then skip the image
+    // cache, which would keep showing a replaced photo.
+    private bool _freshImages;
+
     // ── v3.10.0: Fetch missing info from TMDB (mirrors the movie window) ──
 
     private void ShowTmdbBusyState(bool busy, string? status = null)
     {
         ShowTmdbBusy.IsActive = busy;
         FetchShowTmdbBtn.IsEnabled = !busy;
+        ReloadShowNfoBtn.IsEnabled = !busy && _detail != null && ResolveShowFolderAbs(_detail) != null;   // v4.6.0
         if (status != null) { ShowTmdbStatus.Text = status; ShowTmdbStatus.Visibility = Visibility.Visible; }
     }
 
@@ -788,8 +960,19 @@ public sealed partial class TvShowsPage : Page
                 db.AddManualShowActors(show.Id, actors);
             }
 
-            ShowTmdbBusyState(false, "Updated.");
-            if (ReferenceEquals(_detail, show)) PopulateShowHeader();   // re-render in place
+            // v4.6.0: onto the drive now if it's connected, else when it is
+            var saved = await Task.Run(() => AppState.Instance.SyncFetchedTitle(true, show.Id, show.VolumeSerial));
+            ShowTmdbBusyState(false, saved switch
+            {
+                AppState.DriveSave.Saved   => "Updated, and saved to the show's folder.",
+                AppState.DriveSave.Waiting => "Updated. It goes onto the drive when you connect it.",
+                _                          => "Updated.",
+            });
+            if (ReferenceEquals(_detail, show))
+            {
+                PopulateShowHeader();   // re-render in place
+                _ = CheckMissingEpisodesAsync();   // v4.6.0: it may have a TMDb id now
+            }
         }
         catch (Exception ex)
         {
@@ -979,6 +1162,7 @@ public sealed partial class TvShowsPage : Page
 
     private async Task LoadCastThumbsAsync(IReadOnlyList<Models.Actor> actors, string? showFolderAbs)
     {
+        var fresh = _freshImages;
         await Task.Run(() =>
         {
             var actorsDir = showFolderAbs == null ? null : Path.Combine(showFolderAbs, ".actors");
@@ -1013,6 +1197,7 @@ public sealed partial class TvShowsPage : Page
                     {
                         // 100 × 150 portrait cards (v3.10.0), sharp up to 200 % scale.
                         var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 200 };
+                        if (fresh) bmp.CreateOptions = Microsoft.UI.Xaml.Media.Imaging.BitmapCreateOptions.IgnoreImageCache;
                         bmp.UriSource = capturedUri;
                         a.ThumbBitmap = bmp;
                     }
@@ -1142,6 +1327,14 @@ public sealed partial class TvShowsPage : Page
         _detail.Tags = AppState.Instance.Db.GetTagNamesForShow(_detail.Id);
         foreach (var name in _detail.Tags)
             ShowTagChipsRepeater.Items.Add(BuildShowTagChip(name));
+        // v4.6.0: then the tvshow.nfo's (less any that are also your own)
+        ShowNfoTagChipsRepeater.Items.Clear();
+        _detail.NfoTags = AppState.Instance.Db.GetNfoTagNames(_detail.Id, show: true);
+        var outline = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
+        var white = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White);
+        foreach (var name in _detail.NfoTags)
+            ShowNfoTagChipsRepeater.Items.Add(MovieDetailDialog.BuildNfoTagChip(name,
+                tag => { if (App.MainWindow is MainWindow mw) mw.NavigateLibraryByTag(tag); }, outline, white));
     }
 
     private FrameworkElement BuildShowTagChip(string tagName)

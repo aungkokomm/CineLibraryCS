@@ -47,7 +47,12 @@ public record ParsedMovie(
     List<ParsedActor> Actors,
     List<string> Sets,
     List<ParsedRating> Ratings,
-    ParsedStreamDetails? Stream
+    ParsedStreamDetails? Stream,
+    // v4.6.0: what CineLibrary Essentials 1.3 writes (or edits) besides the rest
+    string? Edition,
+    List<string> Studios,
+    List<string> Countries,
+    List<string> Tags
 );
 
 // ── TV Shows (v2.8) ──────────────────────────────────────────────────────
@@ -69,7 +74,15 @@ public record ParsedTvShow(
     string? TmdbId,
     string? TvdbId,
     List<string> Genres,
-    List<ParsedActor> Actors
+    List<ParsedActor> Actors,
+    // v4.6.0
+    string? Tagline,
+    int? Runtime,
+    List<string> Studios,
+    List<string> Countries,
+    List<string> Creators,
+    List<string> Tags,
+    List<ParsedRating> Ratings
 );
 
 /// <summary>Parsed `<episodedetails>` root from an episode .nfo.</summary>
@@ -141,7 +154,15 @@ public static class NfoParser
                 TmdbId: Get(root, "tmdbid") ?? Get(root, "uniqueid[@type='tmdb']"),
                 TvdbId: Get(root, "tvdbid") ?? Get(root, "uniqueid[@type='tvdb']") ?? Get(root, "id"),
                 Genres: genres,
-                Actors: actors
+                Actors: actors,
+                Tagline: Get(root, "tagline"),
+                Runtime: TryInt(Get(root, "runtime")),
+                Studios: MergeLists(ReadList(root, "studio")),
+                Countries: MergeLists(ReadList(root, "country")),
+                // Kodi keeps a show's writers in <credits>; Essentials puts its creators there
+                Creators: MergeLists(ReadList(root, "credits")),
+                Tags: MergeLists(ReadList(root, "tag")),
+                Ratings: ratings
             );
         }
         catch { return null; }
@@ -308,7 +329,11 @@ public static class NfoParser
                 Actors: actors,
                 Sets: sets,
                 Ratings: ratings,
-                Stream: streamDetails
+                Stream: streamDetails,
+                Edition: Get(root, "edition"),
+                Studios: MergeLists(ReadList(root, "studio")),
+                Countries: MergeLists(ReadList(root, "country")),
+                Tags: MergeLists(ReadList(root, "tag"))
             );
         }
         catch

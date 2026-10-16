@@ -387,6 +387,95 @@ public sealed partial class DrivesPage : Page
         }
     }
 
+    // ── v4.6.0: Update IMDb ratings ──────────────────────────────────────
+
+    private async void OnUpdateImdb(object sender, RoutedEventArgs e)
+    {
+        var count = await Task.Run(() => AppState.Instance.Db.GetTitlesForImdb().Count);
+        if (count == 0)
+        {
+            await ShowInfoDialog("Update IMDb ratings", "There are no movies or shows in your library yet.");
+            return;
+        }
+        var main = new CheckBox { Content = "Make IMDb the main rating (the ★)", IsChecked = true };
+        var dialog = new ContentDialog
+        {
+            Title = "Update IMDb ratings",
+            Content = new StackPanel
+            {
+                Spacing = 12,
+                MaxWidth = 460,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Text = $"CineLibrary gets the IMDb rating and votes of all {count:N0} movies and shows in your library, " +
+                               "from IMDb's daily ratings, 100 titles at a time. A title whose .nfo only has a TMDb id gets its IMDb id from TMDb first.",
+                    },
+                    new TextBlock
+                    {
+                        TextWrapping = TextWrapping.Wrap,
+                        Text = "The ratings show in CineLibrary right away. They're also written into each .nfo, changing only its ratings " +
+                               "(and adding the IMDb id where it was missing), so other players and CineLibrary Essentials see them too: " +
+                               "on connected drives now, on the others the next time you plug them in.",
+                    },
+                    main,
+                },
+            },
+            PrimaryButtonText = "Update",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        ScanOverlay.Visibility = Visibility.Visible;
+        ScanStatusText.Text = "Updating IMDb ratings…";
+        ScanDetailText.Text = "";
+        _scanCts = new CancellationTokenSource();
+        var status = new Progress<string>(s => ScanDetailText.Text = s);
+        string message;
+        try
+        {
+            var r = await ImdbUpdate.RunAsync(main.IsChecked == true, status, _scanCts.Token);
+            message = ImdbSummary(r, _scanCts.IsCancellationRequested);
+        }
+        catch (OperationCanceledException)
+        {
+            message = "Stopped before any rating was saved. Nothing was changed.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Something went wrong: {ex.Message}";
+        }
+        finally
+        {
+            ScanOverlay.Visibility = Visibility.Collapsed;
+            Refresh();
+            RefreshRequested?.Invoke(this, EventArgs.Empty);
+        }
+        await ShowInfoDialog("IMDb ratings", message);
+    }
+
+    private static string ImdbSummary(ImdbUpdate.Result r, bool stopped)
+    {
+        if (r.Unreachable)
+            return "Couldn't reach IMDb's ratings. Check your internet connection and try again.";
+        var lines = new List<string> { $"{r.Rated:N0} movies and shows have their IMDb rating now." };
+        if (r.Written > 0) lines.Add($"{r.Written:N0} .nfo files were updated.");
+        if (r.Waiting > 0)
+            lines.Add(stopped
+                ? $"Stopped: {r.Waiting:N0} .nfo files are still to be written. CineLibrary finishes them the next time it starts, or their drive is connected."
+                : $"{r.Waiting:N0} .nfo files get theirs the next time their drive is connected.");
+        if (r.WriteFailed > 0) lines.Add($"{r.WriteFailed:N0} .nfo files couldn't be written (read-only or in use); they're tried again later.");
+        if (r.LookedUp > 0) lines.Add($"{r.LookedUp:N0} IMDb ids were found on TMDb.");
+        if (r.NotOnImdb > 0) lines.Add($"{r.NotOnImdb:N0} have no IMDb rating.");
+        if (r.NoId > 0) lines.Add($"{r.NoId:N0} have neither an IMDb nor a TMDb id, so they were skipped.");
+        return string.Join("\n", lines);
+    }
+
     // ── Browse ────────────────────────────────────────────────────────────
 
     private void OnBrowseDrive(object sender, RoutedEventArgs e)
@@ -714,12 +803,18 @@ public sealed partial class DrivesPage : Page
         try
         {
             if (sender is not FrameworkElement btn || btn.Tag is not string serial) return;
-            var (written, skipped) = await Task.Run(() =>
-                AppState.Instance.SweepStateSidecars(serial, includeFetchedArt: true));
+            var (written, skipped, shows) = await Task.Run(() =>
+            {
+                var (w, s) = AppState.Instance.SweepStateSidecars(serial, includeFetchedArt: true);
+                // v4.6.0: and the fetched pictures of shows
+                return (w, s, AppState.Instance.SyncFetched(serial, evenIfOff: true).Shows);
+            });
             if (App.MainWindow is CineLibraryCS.MainWindow mw)
-                mw.ShowToast(written == 0
-                    ? "Nothing to sync — no personal state or fetched info on this drive yet."
-                    : $"Synced {written} movie(s) to drive — state + any fetched art{(skipped > 0 ? $", {skipped} skipped" : "")}");
+                mw.ShowToast(written == 0 && shows == 0
+                    ? "Nothing to sync: no personal state or fetched info on this drive yet."
+                    : $"Synced {written} title(s) to drive: state and any fetched art"
+                      + (shows > 0 ? $", plus fetched pictures for {shows} show(s)" : "")
+                      + (skipped > 0 ? $", {skipped} skipped" : ""));
         }
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }

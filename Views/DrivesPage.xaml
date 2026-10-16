@@ -50,6 +50,21 @@
                                 <TextBlock Text="Refresh changes" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
+                        <!-- v4.6.0 -->
+                        <Button x:Name="UpdateImdbBtn" Click="OnUpdateImdb"
+                                Background="Transparent"
+                                Foreground="{ThemeResource TextBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8" Padding="12,8"
+                                ToolTipService.ToolTip="Get the IMDb rating of every movie and show, and write it into their .nfo files">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource ImdbGoldBrush}"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Update IMDb ratings" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                         <Button Click="OnAddDrive"
                                 Background="{StaticResource BrandPurpleBrush}" Foreground="White"
                                 BorderThickness="0" CornerRadius="8" Padding="14,8">

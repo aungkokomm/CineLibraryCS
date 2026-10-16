@@ -27,13 +27,18 @@ public sealed partial class TvEpisodeCard : UserControl
     public TvEpisodeCard()
     {
         InitializeComponent();
-        PointerEntered += (_, _) => { HoverOverlay.Visibility = Visibility.Visible; HoverOverlay.Opacity = 1; };
+        // v4.6.0: a card for an episode you don't have can't be played or opened
+        PointerEntered += (_, _) =>
+        {
+            if (Episode?.NotInLibrary == true) return;
+            HoverOverlay.Visibility = Visibility.Visible; HoverOverlay.Opacity = 1;
+        };
         PointerExited  += (_, _) => { HoverOverlay.Opacity = 0; HoverOverlay.Visibility = Visibility.Collapsed; };
-        DoubleTapped   += (_, _) => { if (Episode != null) AnyPlay?.Invoke(Episode); };
+        DoubleTapped   += (_, _) => { if (Episode is { NotInLibrary: false }) AnyPlay?.Invoke(Episode); };
         // Single tap on the card body (not its buttons) → episode details.
         Tapped += (_, e) =>
         {
-            if (Episode == null) return;
+            if (Episode == null || Episode.NotInLibrary) return;
             if (TapOnButton(e.OriginalSource as DependencyObject)) return;
             AnyDetails?.Invoke(Episode);
         };
@@ -70,12 +75,34 @@ public sealed partial class TvEpisodeCard : UserControl
     {
         CodeText.Text = ep.Code;
         TitleText.Text = ep.Title;
+        // v4.6.0: an aired episode you don't have: greyed, with its air date.
+        // Cards are reused while scrolling, so every branch sets everything.
+        CardRoot.Opacity = ep.NotInLibrary ? 0.55 : 1;
+        NotInLibraryBadge.Visibility = ep.NotInLibrary ? Visibility.Visible : Visibility.Collapsed;
+        WatchedToggleBtn.Visibility = ep.NotInLibrary ? Visibility.Collapsed : Visibility.Visible;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this,
+            ep.NotInLibrary ? $"{ep.Code} {ep.Title}, not in your library" : $"{ep.Code} {ep.Title}");
+        if (ep.NotInLibrary)
+        {
+            MetaText.Text = AiredText(ep.Aired);
+            ApplyWatchedVisual(false);
+            ApplyFavoriteVisual(false);
+            LoadThumbAsync(null);
+            return;
+        }
         MetaText.Text = string.Join("  ·  ", new[] { ep.RuntimeText, ep.RatingText }
             .Where(s => !string.IsNullOrEmpty(s)));
         ApplyWatchedVisual(ep.IsWatched);
         ApplyFavoriteVisual(ep.IsFavorite);
         LoadThumbAsync(ep.LocalThumb);
     }
+
+    /// <summary>"Aired 27 Jun 2020" from TMDb's yyyy-MM-dd.</summary>
+    private static string AiredText(string? aired)
+        => DateTime.TryParseExact(aired, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+               System.Globalization.DateTimeStyles.None, out var d)
+            ? $"Aired {d.ToString("d MMM yyyy", System.Globalization.CultureInfo.CurrentCulture)}"
+            : "";
 
     private void ApplyWatchedVisual(bool watched)
     {

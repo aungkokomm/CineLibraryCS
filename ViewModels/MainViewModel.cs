@@ -45,6 +45,11 @@ public partial class MainViewModel : ObservableObject
         {
             try { _state.SweepStateSidecars(); }
             catch { /* sweep is best-effort */ }
+            // v4.6.0: fetched pictures and IMDb ratings still waiting for their drive
+            try { _state.SyncFetched(); }
+            catch { }
+            try { ImdbUpdate.WritePending(); }
+            catch { }
         });
     }
 
@@ -107,7 +112,16 @@ public partial class MainViewModel : ObservableObject
             prev.TryGetValue(drive.VolumeSerial, out var wasConnected);
             var nowConnected = curr.ContainsKey(drive.VolumeSerial);
             if (!wasConnected && nowConnected)
+            {
                 ShowToast($"Drive '{drive.Label}' connected");
+                // v4.6.0: what was fetched while it was away goes onto it now
+                var serial = drive.VolumeSerial;
+                _ = Task.Run(() =>
+                {
+                    try { _state.SyncFetched(serial); } catch { }
+                    try { ImdbUpdate.WritePending(serial); } catch { }
+                });
+            }
         }
 
         // Track every known drive's CONNECTED state (true / false), not just

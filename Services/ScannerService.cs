@@ -92,6 +92,7 @@ public class ScannerService
             hdr_type=@hdr, audio_codec=@ac, audio_channels=@ach,
             audio_languages=@al, subtitle_languages=@sl, duration_seconds=@dur,
             container_ext=@cx, file_size_bytes=@fs,
+            edition=@ed, studios=@sts, countries=@cts,
             is_missing=0, date_modified=strftime('%s','now')
             WHERE id=@id";
 
@@ -102,9 +103,9 @@ public class ScannerService
             premiered, studio, country, trailer, local_poster, local_fanart, local_nfo,
             video_width, video_height, video_codec, video_aspect, hdr_type,
             audio_codec, audio_channels, audio_languages, subtitle_languages,
-            duration_seconds, container_ext, file_size_bytes)
+            duration_seconds, container_ext, file_size_bytes, edition, studios, countries)
             VALUES (@vs,@fr,@vfr,@t,@ot,@st,@y,@ra,@vo,@ru,@pl,@ou,@tg,@mp,@im,@tm,@pr,@su,@co,@tr,@lp,@lf,@ln,
-                    @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs)";
+                    @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs,@ed,@sts,@cts)";
 
         // v3.3 — revive: when a movie is found at a NEW path/drive that matches
         // an archived Watched & Gone record, un-archive that record and move it
@@ -373,6 +374,10 @@ public class ScannerService
         cmd.Parameters.AddWithValue("@dur", (object?)sd?.DurationSeconds   ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@cx",  (object?)containerExt          ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@fs",  (object?)fileSize              ?? DBNull.Value);
+        // v4.6.0
+        cmd.Parameters.AddWithValue("@ed",  (object?)p.Edition             ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sts", (object?)DatabaseService.JoinLines(p.Studios)   ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@cts", (object?)DatabaseService.JoinLines(p.Countries) ?? DBNull.Value);
     }
 
     /// <summary>
@@ -444,6 +449,7 @@ public class ScannerService
         public Dictionary<string, int> Writers { get; } = new();
         public Dictionary<string, int> Actors { get; } = new();
         public Dictionary<string, int> Sets { get; } = new();
+        public Dictionary<string, int> Tags { get; private set; } = new();   // v4.6.0, .nfo tags
 
         public static LookupCache Load(SqliteConnection conn, SqliteTransaction tx)
         {
@@ -465,6 +471,7 @@ public class ScannerService
             try { Fill("SELECT id, name FROM writers",   c.Writers); } catch { /* table may not exist on very old DBs */ }
             Fill("SELECT id, name FROM actors",    c.Actors);
             Fill("SELECT id, name FROM sets",      c.Sets);
+            c.Tags = DatabaseService.LoadTagCache(conn, tx);
             return c;
         }
     }
@@ -567,6 +574,7 @@ public class ScannerService
             using var c = Cmd("INSERT OR IGNORE INTO movie_sets VALUES (@m,@s)");
             c.Parameters.AddWithValue("@m", movieId); c.Parameters.AddWithValue("@s", sid); c.ExecuteNonQuery();
         }
+        DatabaseService.WriteNfoTags(conn, tx, "movie_nfo_tags", "movie_id", movieId, p.Tags, cache.Tags);
     }
 
     /// <summary>
@@ -680,7 +688,7 @@ public class ScannerService
         new(@"[Ss](\d{1,2})[\s._-]*[Ee](\d{1,3})",
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    private static string? FindNfo(string folder)
+    internal static string? FindNfo(string folder)
     {
         try
         {
@@ -882,6 +890,8 @@ public class ScannerService
                 studio=COALESCE(@su,studio), status=COALESCE(@status,status),
                 imdb_id=COALESCE(@im,imdb_id), tmdb_id=COALESCE(@tm,tmdb_id), tvdb_id=COALESCE(@tv,tvdb_id),
                 local_poster=COALESCE(@lp,local_poster), local_fanart=COALESCE(@lf,local_fanart),
+                tagline=COALESCE(@tg,tagline), runtime=COALESCE(@ru,runtime), studios=COALESCE(@sts,studios),
+                countries=COALESCE(@cts,countries), creators=COALESCE(@cr,creators),
                 local_nfo=@ln, is_missing=0, date_modified=strftime('%s','now') WHERE id=@id";
             BindShow(cmd, s, poster, fanart, nfo);
             cmd.Parameters.AddWithValue("@id", id);
@@ -892,8 +902,10 @@ public class ScannerService
         {
             cmd.CommandText = @"INSERT INTO tv_shows
                 (volume_serial, folder_rel_path, title, original_title, sort_title, year, rating, votes,
-                 plot, mpaa, premiered, studio, status, imdb_id, tmdb_id, tvdb_id, local_poster, local_fanart, local_nfo)
-                VALUES (@vs,@fr,@t,@ot,@st,@y,@ra,@vo,@pl,@mp,@pr,@su,@status,@im,@tm,@tv,@lp,@lf,@ln);
+                 plot, mpaa, premiered, studio, status, imdb_id, tmdb_id, tvdb_id, local_poster, local_fanart, local_nfo,
+                 tagline, runtime, studios, countries, creators)
+                VALUES (@vs,@fr,@t,@ot,@st,@y,@ra,@vo,@pl,@mp,@pr,@su,@status,@im,@tm,@tv,@lp,@lf,@ln,
+                        @tg,@ru,@sts,@cts,@cr);
                 SELECT last_insert_rowid();";
             cmd.Parameters.AddWithValue("@vs", serial);
             cmd.Parameters.AddWithValue("@fr", folderRel);
@@ -921,6 +933,7 @@ public class ScannerService
         cmd.Parameters.AddWithValue("@lp", (object?)poster ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@lf", (object?)fanart ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ln", (object?)nfo ?? DBNull.Value);
+        DatabaseService.BindShowExtras(cmd, s);   // v4.6.0
     }
 
     private static void UpsertTvShowRelated(SqliteConnection conn, SqliteTransaction tx, int showId,
@@ -972,6 +985,9 @@ public class ScannerService
             link.Parameters.AddWithValue("@o", a.Order);
             link.ExecuteNonQuery();
         }
+        // v4.6.0
+        DatabaseService.WriteShowRatings(conn, tx, showId, s.Ratings);
+        DatabaseService.WriteNfoTags(conn, tx, "tv_show_nfo_tags", "show_id", showId, s.Tags, lookup.Tags);
     }
 
     private static void UpsertEpisode(SqliteConnection conn, SqliteTransaction tx, int showId,
@@ -1126,7 +1142,7 @@ public class ScannerService
         upd.ExecuteNonQuery();
     }
 
-    private static string ComputeMovieKey(string volumeSerial, string folderRelPath)
+    internal static string ComputeMovieKey(string volumeSerial, string folderRelPath)
     {
         var input = $"{volumeSerial}|{folderRelPath}";
         var hash = SHA1.HashData(Encoding.UTF8.GetBytes(input));

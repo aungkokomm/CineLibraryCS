@@ -9,6 +9,8 @@ namespace CineLibraryCS.Services.Tmdb;
 /// CineLibrary is otherwise fully offline; this client is reached only when the
 /// user asks for it: "Add watched movie" in Watched &amp; Gone, and "Fetch missing
 /// info" on a movie or (v3.10.0) a TV show. Search → pick → details → poster.
+/// v4.6.0: also the show page's missing-episodes check, when a show with a
+/// TMDb id is opened (see MissingEpisodes).
 /// </summary>
 public sealed class TmdbClient : IDisposable
 {
@@ -174,6 +176,63 @@ public sealed class TmdbClient : IDisposable
         }
         return show;
     }
+
+    /// <summary>
+    /// v4.6.0: a show's seasons (number, episode count) and the last episode that
+    /// has aired, for the missing-episodes check. Null when TMDb can't be reached.
+    /// Read by hand: TMDb sends null for numbers it doesn't know.
+    /// </summary>
+    public async Task<TmdbTvSeasons?> GetTvSeasonsAsync(int tmdbId)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync(WithLanguage($"{BaseUrl}/tv/{tmdbId}?api_key={_apiKey}"));
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        var root = doc.RootElement;
+
+        var result = new TmdbTvSeasons();
+        if (root.TryGetProperty("last_episode_to_air", out var last) && last.ValueKind == JsonValueKind.Object)
+            result.LastAired = (Int(last, "season_number"), Int(last, "episode_number"));
+        if (root.TryGetProperty("seasons", out var seasons) && seasons.ValueKind == JsonValueKind.Array)
+            foreach (var s in seasons.EnumerateArray())
+                result.Seasons.Add((Int(s, "season_number"), Int(s, "episode_count")));
+        return result;
+    }
+
+    /// <summary>v4.6.0: one season's episodes: number, title and air date.</summary>
+    public async Task<List<TmdbEpisode>> GetTvSeasonEpisodesAsync(int tmdbId, int season)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync(WithLanguage($"{BaseUrl}/tv/{tmdbId}/season/{season}?api_key={_apiKey}"));
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+
+        var list = new List<TmdbEpisode>();
+        if (doc.RootElement.TryGetProperty("episodes", out var eps) && eps.ValueKind == JsonValueKind.Array)
+            foreach (var e in eps.EnumerateArray())
+                list.Add(new TmdbEpisode(Int(e, "episode_number"),
+                    e.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "",
+                    e.TryGetProperty("air_date", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() : null));
+        return list;
+    }
+
+    /// <summary>
+    /// v4.6.0: a movie's or show's IMDb id from TMDb, for .nfo files that only
+    /// carry a TMDb id. Null when TMDb has none.
+    /// </summary>
+    public async Task<string?> GetImdbIdAsync(int tmdbId, bool tv, CancellationToken ct = default)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync($"{BaseUrl}/{(tv ? "tv" : "movie")}/{tmdbId}/external_ids?api_key={_apiKey}", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+        return doc.RootElement.TryGetProperty("imdb_id", out var id) && id.ValueKind == JsonValueKind.String
+            ? id.GetString() : null;
+    }
+
+    private static int Int(JsonElement e, string name)
+        => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : 0;
 
     /// <summary>Pulls Directors (job == Director) and Writers (department ==
     /// Writing) out of credits.crew — the two crew groups Kodi/MediaElch surface.</summary>

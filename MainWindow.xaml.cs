@@ -359,6 +359,38 @@ public sealed partial class MainWindow : Window
             FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
         });
 
+        // ── Drives (v4.6.0) ──
+        panel.Children.Add(Header("DRIVES"));
+        var saveToggle = new ToggleSwitch
+        {
+            Header = "Save fetched info to your drives",
+            IsOn = UiSettings.SaveFetchedToDrives,
+            OffContent = "Off", OnContent = "On",
+        };
+        saveToggle.Toggled += (_, _) => UiSettings.SetSaveFetchedToDrives(saveToggle.IsOn);
+        panel.Children.Add(saveToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "After Fetch missing info from TMDB, CineLibrary copies the poster, fanart and cast photos into the movie's or show's folder, and a movie's details into its CineLibrary state file there. Only missing files are added, and your .nfo is never changed. A drive that isn't connected gets them the next time you plug it in.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
+        // ── TV shows (v4.6.0) ──
+        panel.Children.Add(Header("TV SHOWS"));
+        var missingToggle = new ToggleSwitch
+        {
+            Header = "Show missing episodes",
+            IsOn = UiSettings.CheckMissingEpisodes,
+            OffContent = "Off", OnContent = "On",
+        };
+        missingToggle.Toggled += (_, _) => UiSettings.SetCheckMissingEpisodes(missingToggle.IsOn);
+        panel.Children.Add(missingToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "When you open a show, CineLibrary asks TMDb which aired episodes aren't in your library and shows them greyed. It's the only thing CineLibrary goes online for by itself: turn it off to stay fully offline unless you click Fetch missing info. Applies the next time you open a show.",
+            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+        });
+
         var dialog = new ContentDialog
         {
             Title = "Settings",

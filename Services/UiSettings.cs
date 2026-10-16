@@ -19,6 +19,8 @@ public static class UiSettings
     private const string KeyMica = "ui_mica";              // legacy bool
     private const string KeyMicaLevel = "ui_micaLevel";   // v3.3.2 — off|subtle|strong
     private const string KeyPlayerPath = "ui_playerPath"; // v3.6.0: "" = Windows default
+    private const string KeyMissingEpisodes = "tv_checkMissingEpisodes"; // v4.6.0
+    private const string KeySaveFetched = "drive_saveFetched";            // v4.6.0
 
     /// <summary>How much Windows Mica material shows behind the window.
     /// Off = flat solid (also best on weak GPUs); Subtle / Strong control how
@@ -44,6 +46,14 @@ public static class UiSettings
     /// Empty = whatever Windows opens video files with. See VideoPlayer.</summary>
     public static string PlayerPath { get; private set; } = "";
 
+    /// <summary>v4.6.0: a show page asks TMDb which aired episodes aren't on
+    /// disk (the one thing CineLibrary goes online for by itself). Default on.</summary>
+    public static bool CheckMissingEpisodes { get; private set; } = true;
+
+    /// <summary>v4.6.0: copy what Fetch missing info gets into the title's folder,
+    /// now or when its drive is next connected (AppState.SyncFetched). Default on.</summary>
+    public static bool SaveFetchedToDrives { get; private set; } = true;
+
     /// <summary>Raised after any setting changes so live UI can re-apply it.</summary>
     public static event Action? Changed;
 
@@ -54,6 +64,8 @@ public static class UiSettings
         CardShadows  = AppState.Instance.GetPref(KeyCardShadows,  "false") == "true";
         ReduceMotion = AppState.Instance.GetPref(KeyReduceMotion, "false") == "true";
         PlayerPath   = AppState.Instance.GetPref(KeyPlayerPath,   "");
+        CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
+        SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
 
         var lvl = AppState.Instance.GetPref(KeyMicaLevel, "");
         Mica = lvl switch
@@ -96,6 +108,21 @@ public static class UiSettings
     {
         PlayerPath = value;
         AppState.Instance.SetPref(KeyPlayerPath, value);
+    }
+
+    /// <summary>No Changed event: it applies the next time a show page opens.</summary>
+    public static void SetCheckMissingEpisodes(bool value)
+    {
+        CheckMissingEpisodes = value;
+        AppState.Instance.SetPref(KeyMissingEpisodes, value ? "true" : "false");
+    }
+
+    /// <summary>No Changed event; turning it on catches up in the background.</summary>
+    public static void SetSaveFetchedToDrives(bool value)
+    {
+        SaveFetchedToDrives = value;
+        AppState.Instance.SetPref(KeySaveFetched, value ? "true" : "false");
+        if (value) _ = Task.Run(() => { try { AppState.Instance.SyncFetched(); } catch { } });
     }
 
     public static void SetReduceMotion(bool value)

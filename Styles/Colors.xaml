@@ -48,6 +48,9 @@
             <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#55A78BFA"/>
             <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#66A78BFA"/>
             <SolidColorBrush x:Key="NavHoverBorderBrush"        Color="#55A78BFA"/>
+            <!-- v4.6.0: the IMDb (gold, as the ★) and TMDb (green) rating values -->
+            <SolidColorBrush x:Key="ImdbGoldBrush"  Color="#F59E0B"/>
+            <SolidColorBrush x:Key="TmdbGreenBrush" Color="#01D277"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -90,6 +93,9 @@
             <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#44A78BFA"/>
             <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#55A78BFA"/>
             <SolidColorBrush x:Key="NavHoverBorderBrush"        Color="#88A78BFA"/>
+            <!-- v4.6.0: the IMDb (gold, as the ★) and TMDb (green) rating values -->
+            <SolidColorBrush x:Key="ImdbGoldBrush"  Color="#B45309"/>
+            <SolidColorBrush x:Key="TmdbGreenBrush" Color="#047857"/>
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Default">
@@ -132,6 +138,9 @@
             <SolidColorBrush x:Key="NavActiveBgBrush"           Color="#55A78BFA"/>
             <SolidColorBrush x:Key="NavActiveHoverBgBrush"      Color="#66A78BFA"/>
             <SolidColorBrush x:Key="NavHoverBorderBrush"        Color="#55A78BFA"/>
+            <!-- v4.6.0: the IMDb (gold, as the ★) and TMDb (green) rating values -->
+            <SolidColorBrush x:Key="ImdbGoldBrush"  Color="#F59E0B"/>
+            <SolidColorBrush x:Key="TmdbGreenBrush" Color="#01D277"/>
         </ResourceDictionary>
 
     </ResourceDictionary.ThemeDictionaries>

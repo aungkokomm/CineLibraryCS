@@ -78,6 +78,12 @@ public partial class TvEpisodeItem : ObservableObject
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private string? _note;
 
+    /// <summary>
+    /// v4.6.0: an aired episode you don't have (from TMDb), shown greyed in its
+    /// season's row. It has no Id and can't be played or marked watched.
+    /// </summary>
+    public bool NotInLibrary { get; init; }
+
     public string Code => $"S{Season:D2}E{Episode:D2}";
     public string Header => $"{Code} · {Title}";
     public string RuntimeText => Runtime.HasValue ? $"{Runtime} min" : "";
@@ -180,4 +186,14 @@ public class TvShowDetail
     public int WatchedCount { get; set; }
     /// <summary>v2.9 — free-form personal tags assigned to this show.</summary>
     public List<string> Tags { get; set; } = new();
+    // v4.6.0: from the tvshow.nfo
+    public string? OriginalTitle { get; set; }
+    public string? Tagline { get; set; }
+    /// <summary>An episode's length in minutes.</summary>
+    public int? Runtime { get; set; }
+    public List<string> Studios { get; set; } = new();
+    public List<string> Countries { get; set; } = new();
+    public List<string> Creators { get; set; } = new();
+    public List<(string Source, double Value, int? Votes)> AllRatings { get; set; } = new();
+    public List<string> NfoTags { get; set; } = new();
 }

@@ -6,6 +6,65 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.6.0] - 2026-10-16
+
+The movie window and the show page show everything CineLibrary
+Essentials 1.3 writes and catch up with an edit in one click, and your
+whole library can get its IMDb ratings.
+
+### Added
+- **Missing episodes on the show page.** Each season's row shows the
+  episodes that have aired but aren't in your library, greyed with their
+  air date, and the season's line says how many ("8 episodes · 2
+  missing"). Seasons you have none of are listed under the season tabs.
+  CineLibrary asks TMDb when you open a show that has a TMDb id; offline,
+  the page shows what you have. Specials and episodes that haven't aired
+  never count, a double-episode file counts as both, and a show kept in
+  one folder per season counts every folder. **Settings → Show missing
+  episodes** turns the check off, so CineLibrary stays fully offline.
+- **IMDb and TMDb ratings on the show page**, each with its votes, as in
+  the movie window.
+- **More about a show:** Created by, every studio and network, the
+  country, the tagline, the original title and how long an episode is.
+- **Edition in the movie window** (Director's Cut, Extended, IMAX),
+  beside the year and runtime.
+- **🎞 Trailer in the movie window**, when the `.nfo` has a trailer link.
+  It opens in your web browser.
+- **Tags from your `.nfo` files** show after your own tags, outlined.
+  Click one to see every movie with it; they're in the sidebar's Tags
+  too. They change with the `.nfo` (for example in Essentials' editor),
+  so they have no ✕ and stay out of your backups and state files.
+- **Update IMDb ratings** on the Drives page. It gets the IMDb rating and
+  votes of every movie and show (a title whose `.nfo` only has a TMDb id
+  gets its IMDb id from TMDb first), makes IMDb the main ★ unless you
+  untick it, and shows them at once. They're written into each `.nfo` the
+  way CineLibrary Essentials' Refresh IMDb ratings does, changing only the
+  ratings and a missing IMDb id: on connected drives now, on the others
+  the next time you plug them in.
+- **Fetched pictures go onto your drives by themselves.** After Fetch
+  missing info, the poster, fanart and cast photos are copied into the
+  movie's or show's folder (and a movie's details into its state file),
+  only where that file isn't there yet; your `.nfo` is never changed. A
+  drive that isn't connected gets them the next time you plug it in, or
+  start CineLibrary with it. Turn it off with **Settings → Save fetched
+  info to your drives**. Shows are new here: Sync to drive copied a
+  movie's pictures only.
+- **Reload from .nfo**, in the movie window and on the show page, reads
+  that one folder again: the details, the pictures and a show's
+  episodes. Handy after editing a title in CineLibrary Essentials,
+  without updating the whole drive.
+
+### Changed
+- **IMDb ratings in gold, TMDb's in green**, in the movie window and on
+  the show page, IMDb first.
+- **Every studio and country**, where the movie window showed the first.
+  Click any studio to see its movies. On the show page the studios moved
+  from the info line to their own place, beside Created by.
+
+The new details from your `.nfo` files (edition, every studio, tags, a
+show's ratings and more) appear once at start-up, from the copies of the
+`.nfo` files CineLibrary keeps, with no rescan.
+
 ## [4.5.1] - 2026-10-14
 
 ### Changed

@@ -103,40 +103,137 @@ public class AppState
     /// v3.4 — copy a movie's fetched poster / fanart / cast photos out of the
     /// data cache into its drive folder, only where the file is absent. A later
     /// rescan then discovers them like any MediaElch artwork. Best-effort.
+    /// v4.6.0: false when a copy failed (e.g. a read-only or full drive), so the
+    /// automatic sync tries again later.
     /// </summary>
-    private void CopyFetchedArtToFolder(int movieId, string folderAbs)
+    private bool CopyFetchedArtToFolder(int movieId, string folderAbs)
     {
         try
         {
-            if (!Directory.Exists(folderAbs)) return;
+            if (!Directory.Exists(folderAbs)) return false;
             var (posterRel, fanartRel, actors) = Db.GetMovieArtForSync(movieId);
-
-            if (posterRel != null && posterRel.StartsWith("manual_posters/", StringComparison.Ordinal))
-                CopyCacheFileIfAbsent(posterRel, Path.Combine(folderAbs, "poster.jpg"));
-            if (fanartRel != null && fanartRel.StartsWith("manual_fanart/", StringComparison.Ordinal))
-                CopyCacheFileIfAbsent(fanartRel, Path.Combine(folderAbs, "fanart.jpg"));
-
-            var actorsDir = Path.Combine(folderAbs, ".actors");
-            foreach (var (name, thumb) in actors)
-            {
-                if (thumb == null || !thumb.StartsWith("manual_actors/", StringComparison.Ordinal)) continue;
-                CopyCacheFileIfAbsent(thumb, Path.Combine(actorsDir, name.Replace(' ', '_') + ".jpg"));
-            }
+            return CopyFetchedArt(posterRel, fanartRel, actors, folderAbs);
         }
-        catch { /* best-effort — drive offline / read-only / locked */ }
+        catch { return false; /* best-effort: drive offline / read-only / locked */ }
     }
 
-    private void CopyCacheFileIfAbsent(string cacheRel, string destAbs)
+    /// <summary>The fetched ones (in the data folder) among a title's pictures,
+    /// into its folder where that file is absent. False when a copy failed.</summary>
+    private bool CopyFetchedArt(string? posterRel, string? fanartRel,
+        IEnumerable<(string Name, string? Thumb)> actors, string folderAbs)
+    {
+        bool ok = true;
+        if (posterRel != null && posterRel.StartsWith("manual_posters/", StringComparison.Ordinal))
+            ok &= CopyCacheFileIfAbsent(posterRel, Path.Combine(folderAbs, "poster.jpg"));
+        if (fanartRel != null && fanartRel.StartsWith("manual_fanart/", StringComparison.Ordinal))
+            ok &= CopyCacheFileIfAbsent(fanartRel, Path.Combine(folderAbs, "fanart.jpg"));
+
+        var actorsDir = Path.Combine(folderAbs, ".actors");
+        foreach (var (name, thumb) in actors)
+        {
+            if (thumb == null || !thumb.StartsWith("manual_actors/", StringComparison.Ordinal)) continue;
+            var file = name.Replace(' ', '_') + ".jpg";
+            if (file.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) continue;   // can't be named on disk
+            ok &= CopyCacheFileIfAbsent(thumb, Path.Combine(actorsDir, file));
+        }
+        return ok;
+    }
+
+    public enum DriveSave { Saved, Waiting, Off }
+
+    /// <summary>
+    /// v4.6.0: copies what Fetch missing info got into the folders of the titles
+    /// fetched since it last reached them: the poster, fanart and cast photos
+    /// (only files that aren't there yet), and for a movie its details into the
+    /// state file. The .nfo is never changed. A title whose drive isn't connected
+    /// waits for the next pass (when the drive is plugged in, or at start-up).
+    /// Off with Settings → Save fetched info to your drives, unless
+    /// <paramref name="evenIfOff"/> (Sync to drive). Call off the UI thread.
+    /// </summary>
+    public (int Movies, int Shows) SyncFetched(string? onlyVolumeSerial = null, bool evenIfOff = false)
+    {
+        if (!evenIfOff && !UiSettings.SaveFetchedToDrives) return (0, 0);
+        lock (_syncGate) return SyncFetchedLocked(onlyVolumeSerial);
+    }
+
+    // One pass at a time: start-up, a drive plugged in and a fetch can overlap.
+    private readonly object _syncGate = new();
+
+    private (int Movies, int Shows) SyncFetchedLocked(string? onlyVolumeSerial)
+    {
+        var (movies, shows) = Db.GetPendingDriveSync(onlyVolumeSerial);
+        var connected = _connected;
+        int m = 0, s = 0;
+        foreach (var id in movies)
+        {
+            try
+            {
+                var composed = MovieStateSidecar.Compose(Db, id, connected);
+                if (composed == null) continue;                    // drive not connected
+                var (folderAbs, state) = composed.Value;
+                if (!CopyFetchedArtToFolder(id, folderAbs)) continue;
+                state.Meta = MovieStateSidecar.ComposeMeta(Db, id);
+                MovieStateSidecar.TryWrite(folderAbs, state);
+                Db.MarkSyncedToDrive(false, id);
+                m++;
+            }
+            catch { /* tried again next time */ }
+        }
+        foreach (var id in shows)
+        {
+            try
+            {
+                if (Db.GetTvShowArtForSync(id) is not { } art || art.FolderRel == null
+                    || !connected.TryGetValue(art.Serial, out var letter)) continue;
+                var folderAbs = Path.Combine($"{letter}:\\", art.FolderRel.Replace('/', '\\'));
+                if (!Directory.Exists(folderAbs) || !CopyFetchedArt(art.Poster, art.Fanart, art.Actors, folderAbs)) continue;
+                Db.MarkSyncedToDrive(true, id);
+                s++;
+            }
+            catch { /* tried again next time */ }
+        }
+        return (m, s);
+    }
+
+    /// <summary>v4.6.0: right after a fetch: saves it to the drive now when it can.</summary>
+    public DriveSave SyncFetchedTitle(bool show, int id, string volumeSerial)
+    {
+        if (!UiSettings.SaveFetchedToDrives || volumeSerial == "__archive__") return DriveSave.Off;   // Watched & Gone: no folder
+        if (!_connected.ContainsKey(volumeSerial)) return DriveSave.Waiting;
+        SyncFetched(volumeSerial);
+        return Db.IsSyncedToDrive(show, id) ? DriveSave.Saved : DriveSave.Waiting;
+    }
+
+    /// <summary>
+    /// v4.6.0: reads one movie or show folder again (its .nfo and pictures, and a
+    /// show's episodes), e.g. after editing it in CineLibrary Essentials, and
+    /// forgets its old pictures. False when the drive isn't connected or the
+    /// folder is gone.
+    /// </summary>
+    public async Task<bool> ReloadFolderAsync(string volumeSerial, string? folderRelPath)
+    {
+        if (folderRelPath == null || !_connected.TryGetValue(volumeSerial, out var letter)) return false;
+        var driveRoot = $"{letter}:\\";
+        var folderAbs = Path.Combine(driveRoot, folderRelPath.Replace('/', '\\'));
+        if (!Directory.Exists(folderAbs)) return false;
+        await Scanner.ScanAsync(volumeSerial, driveRoot, scanFolder: folderAbs);
+        ImageCache.Forget($"cache/{ScannerService.ComputeMovieKey(volumeSerial, folderRelPath)}/");
+        return true;
+    }
+
+    /// <returns>v4.6.0: false only when the copy failed (nothing to copy is fine).</returns>
+    private bool CopyCacheFileIfAbsent(string cacheRel, string destAbs)
     {
         try
         {
-            if (File.Exists(destAbs)) return;
+            if (File.Exists(destAbs)) return true;
             var src = Db.GetCachedImagePath(cacheRel);
-            if (src == null) return;
+            if (src == null) return true;
             Directory.CreateDirectory(Path.GetDirectoryName(destAbs)!);
             File.Copy(src, destAbs, overwrite: false);
+            return true;
         }
-        catch { /* best-effort */ }
+        catch { return false; /* best-effort */ }
     }
 
     private static string GetDataDir()

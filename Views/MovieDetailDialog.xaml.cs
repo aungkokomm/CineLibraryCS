@@ -209,6 +209,7 @@ public sealed partial class MovieDetailDialog : Window
         }
         if (m.Year.HasValue) AddChip(m.Year.ToString()!);
         if (m.Runtime.HasValue) AddChip($"{m.Runtime} min");
+        if (m.Edition != null) AddChip(m.Edition, "#4C1D95");   // v4.6.0: Director's Cut, Extended, IMAX…
         if (m.Mpaa != null) AddChip(m.Mpaa);
         if (m.IsMissing) AddChip("MISSING", "#3A1010");
 
@@ -220,6 +221,7 @@ public sealed partial class MovieDetailDialog : Window
 
         // Actions
         PlayBtn.IsEnabled = m.Playable;
+        TrailerBtn.Visibility = TrailerUri(m.Trailer) != null ? Visibility.Visible : Visibility.Collapsed;
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = m.IsFavorite ? "♥ Favorited" : "♡ Favorite";
         WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
@@ -291,16 +293,22 @@ public sealed partial class MovieDetailDialog : Window
         // v2.9 — Free-form tags chip row + autocomplete.
         RefreshTagChips();
 
-        // Studio — clickable HyperlinkButton (was a plain TextBlock)
-        if (m.Studio != null)
+        // Studios, each a link to the library filtered by it (v4.6.0: all of
+        // them, where it showed the first)
+        if (m.Studios.Count > 0)
         {
+            StudioLabel.Text = m.Studios.Count > 1 ? "Studios" : "Studio";
             StudioLabel.Visibility = Visibility.Visible;
             StudioText.Visibility = Visibility.Collapsed;
-            StudioLink.Visibility = Visibility.Visible;
-            StudioLink.Content = m.Studio;
-            // Detach prior handler in case dialog is reused
-            StudioLink.Click -= OnStudioClick;
-            StudioLink.Click += OnStudioClick;
+            StudioLinks.Children.Clear();
+            foreach (var s in m.Studios)
+            {
+                var captured = s;
+                var btn = new HyperlinkButton { Content = s, Padding = new Thickness(0), FontSize = 13 };
+                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByStudio(captured));
+                StudioLinks.Children.Add(btn);
+            }
+            StudioLinks.Visibility = Visibility.Visible;
         }
 
         // Cast — show the list right away; trickle thumbnail loads in
@@ -362,6 +370,9 @@ public sealed partial class MovieDetailDialog : Window
         // existing "Sync state to drive" action, so there's no per-movie Sync
         // button here (avoids a third button for the same kind of action).
         SyncDriveBtn.Visibility = Visibility.Collapsed;
+        // v4.6.0: a Watched & Gone record has no folder to read
+        ReloadNfoBtn.Visibility = IsArchiveRecord(m) ? Visibility.Collapsed : Visibility.Visible;
+        ReloadNfoBtn.IsEnabled = m.IsOnline;
         TmdbActionsRow.Visibility = Visibility.Visible;
         TmdbStatus.Visibility = Visibility.Collapsed;
     }
@@ -371,7 +382,70 @@ public sealed partial class MovieDetailDialog : Window
         TmdbBusy.IsActive = busy;
         FetchTmdbBtn.IsEnabled = !busy;
         SyncDriveBtn.IsEnabled = !busy;
+        ReloadNfoBtn.IsEnabled = !busy && _movie?.IsOnline == true;
         if (status != null) { TmdbStatus.Text = status; TmdbStatus.Visibility = Visibility.Visible; }
+    }
+
+    // ── v4.6.0: reload from the .nfo, trailer ────────────────────────────────
+
+    // Set once the folder has been read again: pictures then skip the image
+    // cache, which would keep showing a replaced actor photo.
+    private bool _freshImages;
+
+    private async void OnReloadNfo(object sender, RoutedEventArgs e)
+    {
+        if (_movie == null) return;
+        var m = _movie;
+        TmdbBusyState(true, "Reading the folder again…");
+        try
+        {
+            var ok = await AppState.Instance.ReloadFolderAsync(m.VolumeSerial, m.FolderRelPath);
+            if (_closed) return;
+            if (!ok)
+            {
+                TmdbBusyState(false, "The movie's folder isn't there. Is its drive connected?");
+                return;
+            }
+            _freshImages = true;
+            ResetForAnotherMovie();
+            await LoadAsync();
+            if (_closed) return;
+            TmdbBusyState(false, "Reloaded from the .nfo.");
+            WatchlistChanged?.Invoke(this, EventArgs.Empty);   // the grid shows the new title / poster
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Reload from .nfo failed: {ex.Message}");
+            if (!_closed) TmdbBusyState(false, "Couldn't read the folder. Please try again.");
+        }
+    }
+
+    private async void OnTrailer(object sender, RoutedEventArgs e)
+    {
+        if (TrailerUri(_movie?.Trailer) is not { } uri) return;
+        try { await Launcher.LaunchUriAsync(uri); }
+        catch
+        {
+            if (App.MainWindow is MainWindow mw) mw.ShowToast("Couldn't open the trailer. Is a web browser installed?");
+        }
+    }
+
+    /// <summary>
+    /// A web address for an .nfo's &lt;trailer&gt;: itself when it's one, or the
+    /// YouTube page for Kodi's YouTube add-on links
+    /// (plugin://plugin.video.youtube/?action=play_video&amp;videoid=…). Null otherwise.
+    /// </summary>
+    internal static Uri? TrailerUri(string? trailer)
+    {
+        if (string.IsNullOrWhiteSpace(trailer)) return null;
+        var t = trailer.Trim();
+        if ((t.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+             t.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) &&
+            Uri.TryCreate(t, UriKind.Absolute, out var web))
+            return web;
+        var yt = System.Text.RegularExpressions.Regex.Match(t, @"video_?id=([\w-]{6,})",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return yt.Success ? new Uri("https://www.youtube.com/watch?v=" + yt.Groups[1].Value) : null;
     }
 
     private async void OnFetchMissing(object sender, RoutedEventArgs e)
@@ -465,9 +539,19 @@ public sealed partial class MovieDetailDialog : Window
                 AppState.Instance.Db.AddManualActors(m.Id, actors);
             }
 
+            // v4.6.0: onto the drive now if it's connected, else when it is
+            var saved = await Task.Run(() => AppState.Instance.SyncFetchedTitle(false, m.Id, m.VolumeSerial));
+
             // Reload from the DB and re-render in place.
             TmdbBusyState(false, "Updated.");
             await LoadAsync();
+            if (_closed) return;
+            TmdbBusyState(false, saved switch
+            {
+                AppState.DriveSave.Saved   => "Updated, and saved to the movie's folder.",
+                AppState.DriveSave.Waiting => "Updated. It goes onto the drive when you connect it.",
+                _                          => "Updated.",
+            });
         }
         catch (Exception ex)
         {
@@ -538,7 +622,7 @@ public sealed partial class MovieDetailDialog : Window
     ///   2. Inline `<thumb>` URL from the nfo (TMDb http URL or local path).
     /// Falls back to the initials TextBlock behind the Image when both miss.
     /// </summary>
-    private static void LoadActorThumb(Models.Actor a, string? movieFolderAbs)
+    private static void LoadActorThumb(Models.Actor a, string? movieFolderAbs, bool fresh = false)
     {
         try
         {
@@ -558,7 +642,7 @@ public sealed partial class MovieDetailDialog : Window
                         foreach (var ext in ActorThumbExts)
                         {
                             var p = Path.Combine(actorsDir, stem + ext);
-                            if (File.Exists(p)) { ApplyBitmap(a, SafeFileUri(p)); return; }
+                            if (File.Exists(p)) { ApplyBitmap(a, SafeFileUri(p), fresh); return; }
                         }
                     }
                 }
@@ -581,7 +665,7 @@ public sealed partial class MovieDetailDialog : Window
                     var cached = Services.AppState.Instance.Db.GetCachedImagePath(raw);
                     if (cached != null) uri = SafeFileUri(cached);
                 }
-                if (uri != null) ApplyBitmap(a, uri);
+                if (uri != null) ApplyBitmap(a, uri, fresh);
             }
         }
         catch { }
@@ -602,10 +686,11 @@ public sealed partial class MovieDetailDialog : Window
         return new Uri(absolutePath);
     }
 
-    private static void ApplyBitmap(Models.Actor a, Uri uri)
+    private static void ApplyBitmap(Models.Actor a, Uri uri, bool fresh = false)
     {
         // 280 px decode = ~2× the 140-wide rendered slot for HiDPI crispness
         var bmp = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 280 };
+        if (fresh) bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;   // v4.6.0: after a reload
         bmp.UriSource = uri;
         a.ThumbBitmap = bmp;
     }
@@ -632,7 +717,7 @@ public sealed partial class MovieDetailDialog : Window
         for (int i = 0; i < actors.Count; i++)
         {
             if (_closed) return;
-            LoadActorThumb(actors[i], movieFolderAbs);
+            LoadActorThumb(actors[i], movieFolderAbs, _freshImages);
             if ((i + 1) % batchSize == 0)
                 await Task.Delay(30);
         }
@@ -747,7 +832,7 @@ public sealed partial class MovieDetailDialog : Window
         foreach (var e in new FrameworkElement[]
                  {
                      OriginalTitle, TaglineWrap, PlotSection, PlotDivider, DirectorField, WriterField,
-                     StudioLabel, StudioText, StudioLink, CastSection, CastDivider, CastShowAllBtn,
+                     StudioLabel, StudioText, StudioLinks, CastSection, CastDivider, CastShowAllBtn, TrailerBtn,
                      CollectionSection, DirectorSection, FileInfoPanel, FiRuntimeBlock, FiReleaseBlock,
                      FiMpaaBlock, FiCountryBlock, FiSizeBlock, FiDurBlock, FiContainerBlock, FiLangBlock,
                      FiSubsBlock, AddTagBox,
@@ -755,6 +840,7 @@ public sealed partial class MovieDetailDialog : Window
             e.Visibility = Visibility.Collapsed;
         AddTagBtn.Visibility = Visibility.Visible;
         DirectorLinks.Children.Clear();
+        StudioLinks.Children.Clear();
         ToolTipService.SetToolTip(WriterText, null);
         CastRepeater.ItemsSource = null;
         CollectionRepeater.ItemsSource = null;
@@ -818,13 +904,6 @@ public sealed partial class MovieDetailDialog : Window
     }
 
     // ── Actions ───────────────────────────────────────────────────────────
-
-    private void OnStudioClick(object sender, RoutedEventArgs e)
-    {
-        if (_movie?.Studio == null) return;
-        var s = _movie.Studio;
-        NavigateAndClose(mw => mw.NavigateLibraryByStudio(s));
-    }
 
     private void OnActorClick(object sender, RoutedEventArgs e)
     {
@@ -1008,7 +1087,13 @@ public sealed partial class MovieDetailDialog : Window
                     ? (rt.Value * 10).ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + "%"
                     : rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
                 FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
+                // v4.6.0: IMDb gold (as the ★), TMDb green
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get(rt.Source.ToLowerInvariant() switch
+                {
+                    "imdb" => "ImdbGoldBrush",
+                    "themoviedb" or "tmdb" => "TmdbGreenBrush",
+                    _ => "TextBrush",
+                }),
             });
             if (rt.Votes.HasValue && rt.Votes.Value > 0)
             {
@@ -1023,7 +1108,7 @@ public sealed partial class MovieDetailDialog : Window
         }
     }
 
-    private static string PrettySource(string src) => src.ToLowerInvariant() switch
+    internal static string PrettySource(string src) => src.ToLowerInvariant() switch
     {
         "imdb" => "IMDb",
         "themoviedb" or "tmdb" => "TMDb",
@@ -1034,7 +1119,7 @@ public sealed partial class MovieDetailDialog : Window
         _ => char.ToUpper(src[0]) + src.Substring(1),
     };
 
-    private static string FormatVotes(int votes) => votes switch
+    internal static string FormatVotes(int votes) => votes switch
     {
         >= 1_000_000 => $"{votes / 1_000_000.0:F1}M votes",
         >= 1_000     => $"{votes / 1_000.0:F1}K votes",
@@ -1072,9 +1157,9 @@ public sealed partial class MovieDetailDialog : Window
             FiMpaaBlock.Visibility = Visibility.Visible;
             any = true;
         }
-        if (!string.IsNullOrWhiteSpace(m.Country))
+        if (m.Countries.Count > 0)   // v4.6.0: all of them
         {
-            FiCountry.Text = m.Country!;
+            FiCountry.Text = string.Join(", ", m.Countries);
             FiCountryBlock.Visibility = Visibility.Visible;
             any = true;
         }
@@ -1382,6 +1467,40 @@ public sealed partial class MovieDetailDialog : Window
             _movie.Tags = AppState.Instance.Db.GetTagNamesForMovie(_movie.Id);
             foreach (var name in _movie.Tags)
                 TagChipsRepeater.Items.Add(BuildTagChip(name));
+            // v4.6.0: then the .nfo's (less any that are also your own)
+            NfoTagChipsRepeater.Items.Clear();
+            _movie.NfoTags = AppState.Instance.Db.GetNfoTagNames(_movie.Id);
+            foreach (var name in _movie.NfoTags)
+                NfoTagChipsRepeater.Items.Add(BuildNfoTagChip(name, tag => NavigateAndClose(mw => mw.NavigateLibraryByTag(tag))));
+        }
+
+        /// <summary>
+        /// v4.6.0: a tag from the .nfo, outlined and without a ✕ (it changes in
+        /// the .nfo, e.g. in CineLibrary Essentials). A click filters by it.
+        /// </summary>
+        internal static UIElement BuildNfoTagChip(string tagName, Action<string> onClick,
+            Microsoft.UI.Xaml.Media.Brush? border = null, Microsoft.UI.Xaml.Media.Brush? foreground = null)
+        {
+            var label = new HyperlinkButton
+            {
+                Content = tagName,
+                FontSize = 12,
+                Padding = new Thickness(0),
+                MinHeight = 0,
+            };
+            if (foreground != null) label.Foreground = foreground;
+            label.Click += (_, _) => onClick(tagName);
+            var chip = new Border
+            {
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderBrush = border ?? CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(10, 3, 10, 3),
+                Child = label,
+            };
+            ToolTipService.SetToolTip(chip, "From the .nfo file");
+            return chip;
         }
 
         private UIElement BuildTagChip(string tagName)

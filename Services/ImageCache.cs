@@ -100,6 +100,29 @@ public static class ImageCache
         }
     }
 
+    /// <summary>
+    /// v4.6.0: drops every image under a cache folder (e.g. "cache/1a2b…/"), raw
+    /// and decoded, so pictures read again from the drive show their new look.
+    /// </summary>
+    public static void Forget(string keyPrefix)
+    {
+        lock (_gate)
+        {
+            foreach (var key in _map.Keys.Where(k => k.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                _bytes -= _map[key].Value.Bytes.Length;
+                _lru.Remove(_map[key]);
+                _map.Remove(key);
+            }
+            foreach (var key in _decMap.Keys.Where(k => k.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                _decBytes -= _decMap[key].Value.Size;
+                _decLru.Remove(_decMap[key]);
+                _decMap.Remove(key);
+            }
+        }
+    }
+
     public static void Clear()
     {
         lock (_gate)

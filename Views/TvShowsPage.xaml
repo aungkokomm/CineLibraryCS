@@ -165,16 +165,26 @@
                                         <!-- Meta -->
                                         <StackPanel x:Name="ShowMeta" Grid.Column="1" Spacing="14" VerticalAlignment="Top"
                                                     Margin="0,122,0,0">
-                                            <TextBlock x:Name="ShowTitle" FontSize="26" FontWeight="Bold"
-                                                       Foreground="White" TextWrapping="Wrap"/>
+                                            <StackPanel Spacing="4">
+                                                <TextBlock x:Name="ShowTitle" FontSize="26" FontWeight="Bold"
+                                                           Foreground="White" TextWrapping="Wrap"/>
+                                                <!-- v4.6.0: original title and tagline, as in the movie window -->
+                                                <TextBlock x:Name="ShowOriginalTitle" FontSize="14" FontStyle="Italic"
+                                                           Foreground="#B8B8C4" TextWrapping="Wrap" Visibility="Collapsed"/>
+                                                <TextBlock x:Name="ShowTagline" FontSize="14" FontStyle="Italic"
+                                                           Foreground="#C4B5FD" TextWrapping="Wrap" Visibility="Collapsed"/>
+                                            </StackPanel>
                                             <controls:WrapPanel x:Name="ShowMetaRow" HorizontalSpacing="14" VerticalSpacing="4">
                                                 <TextBlock x:Name="ShowYear" FontSize="13" Foreground="#D8D8D8"/>
                                                 <TextBlock x:Name="ShowRating" FontSize="13" Foreground="#F59E0B"/>
                                                 <TextBlock x:Name="ShowMpaa" FontSize="13" Foreground="#D8D8D8"/>
                                                 <TextBlock x:Name="ShowStatus" FontSize="13" Foreground="#A78BFA"/>
+                                                <TextBlock x:Name="ShowRuntime" FontSize="13" Foreground="#D8D8D8"/>
                                                 <TextBlock x:Name="ShowProgress" FontSize="13" Foreground="#D8D8D8"/>
-                                                <TextBlock x:Name="ShowStudio" FontSize="13" Foreground="#D8D8D8"/>
                                             </controls:WrapPanel>
+                                            <!-- v4.6.0: each rating source with its votes, when there's more than one -->
+                                            <StackPanel x:Name="ShowRatingsPanel" Orientation="Horizontal" Spacing="18"
+                                                        Visibility="Collapsed"/>
                                             <!-- v4.4.1 (#20): genres right under the info line, above the plot and note -->
                                             <StackPanel x:Name="ShowGenres" Orientation="Horizontal" Spacing="6"/>
                                             <TextBlock x:Name="ShowPlot" FontSize="14" LineHeight="22" Foreground="#E0E0E0"
@@ -197,6 +207,10 @@
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </Grid>
+                                            <!-- v4.6.0: created by, studios, country -->
+                                            <controls:WrapPanel x:Name="ShowFacts" HorizontalSpacing="32" VerticalSpacing="10"
+                                                                MaxWidth="760" HorizontalAlignment="Left"
+                                                                Visibility="Collapsed"/>
                                             <!-- v4.0.1: drive location, as in the movie window -->
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="Located on:" FontSize="12" Foreground="#A0A0A0"
@@ -257,6 +271,17 @@
                                                             <TextBlock Text="Fetch missing info from TMDB"/>
                                                         </StackPanel>
                                                     </Button>
+                                                    <!-- v4.6.0 -->
+                                                    <Button x:Name="ReloadShowNfoBtn" Click="OnReloadShowNfo"
+                                                            Background="#22FFFFFF" Foreground="White"
+                                                            BorderThickness="0" CornerRadius="8" Padding="12,7"
+                                                            ToolTipService.ToolTip="Read this show's .nfo files, pictures and episodes from the drive again, for example after you edit it in CineLibrary Essentials">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <FontIcon Glyph="&#xE72C;" FontSize="14"
+                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                            <TextBlock Text="Reload from .nfo"/>
+                                                        </StackPanel>
+                                                    </Button>
                                                     <ProgressRing x:Name="ShowTmdbBusy" IsActive="False" Width="18" Height="18"
                                                                   VerticalAlignment="Center"/>
                                                     <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
@@ -269,6 +294,14 @@
                                                                Foreground="#D8D8D8"
                                                                VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0.8"/>
                                                     <ItemsControl x:Name="ShowTagChipsRepeater" VerticalAlignment="Top">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                    <!-- v4.6.0: tags from the tvshow.nfo -->
+                                                    <ItemsControl x:Name="ShowNfoTagChipsRepeater" VerticalAlignment="Top">
                                                         <ItemsControl.ItemsPanel>
                                                             <ItemsPanelTemplate>
                                                                 <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
