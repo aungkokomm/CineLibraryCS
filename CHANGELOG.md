@@ -6,6 +6,17 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.6.2] - 2026-10-17
+
+### Added
+- **Leave a folder out with `.nomedia`**, as in Kodi. An empty file named
+  `.nomedia` in a folder keeps that folder and everything inside it out
+  of the library, movies and TV shows alike. Handy for episodes whose
+  `.nfo` says `<movie>` (some old scrapers wrote those), which CineLibrary
+  otherwise reads as movies, as the standard says. Anything from such a
+  folder already in your library shows as missing after the next Update,
+  and **Review** on the Drives page removes it.
+
 ## [4.6.1] - 2026-10-16
 
 ### Fixed

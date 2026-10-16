@@ -593,6 +593,13 @@ public class ScannerService
     };
 
     /// <summary>
+    /// v4.6.2: Kodi's way to leave a folder out. An empty file named ".nomedia"
+    /// in a folder keeps that folder and everything inside it out of the scan,
+    /// for movies and TV shows alike.
+    /// </summary>
+    private static bool HasNoMedia(string dir) => File.Exists(Path.Combine(dir, ".nomedia"));
+
+    /// <summary>
     /// Manual recursive walk that:
     ///   1. Skips well-known Windows system folders by name.
     ///   2. Swallows UnauthorizedAccessException / IOException per-folder so
@@ -607,6 +614,7 @@ public class ScannerService
         while (stack.Count > 0)
         {
             var dir = stack.Pop();
+            if (HasNoMedia(dir)) continue;
 
             // A folder with tvshow.nfo is a TV show, not a movie — skip it
             // (and don't descend; its episodes belong to the show). The TV
@@ -655,6 +663,7 @@ public class ScannerService
         while (stack.Count > 0)
         {
             var dir = stack.Pop();
+            if (HasNoMedia(dir)) continue;
             if (File.Exists(Path.Combine(dir, "tvshow.nfo")))
             {
                 yield return dir;
@@ -896,9 +905,20 @@ public class ScannerService
         try { files = Directory.EnumerateFiles(folder, "*", new EnumerationOptions { RecurseSubdirectories = true }); }
         catch { return result; }
 
+        // A subfolder of the show with a .nomedia file is left out, as on a scan
+        var leftOut = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        bool InNoMediaFolder(string dir)
+        {
+            if (dir.Length <= folder.Length) return false;
+            if (!leftOut.TryGetValue(dir, out var skip))
+                leftOut[dir] = skip = HasNoMedia(dir) || InNoMediaFolder(Path.GetDirectoryName(dir)!);
+            return skip;
+        }
+
         foreach (var f in files)
         {
             if (!VideoExts.Contains(Path.GetExtension(f))) continue;
+            if (InNoMediaFolder(Path.GetDirectoryName(f)!)) continue;
             var name = Path.GetFileNameWithoutExtension(f);
             var m = EpisodeRe.Match(name);
             if (!m.Success) continue;

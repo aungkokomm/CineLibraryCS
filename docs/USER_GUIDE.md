@@ -112,6 +112,12 @@ A few tips:
   before (say `G:\Serials`, after `G:\Serials\Mirzapur` and others)
   replaces them in the list with that one folder. Nothing leaves your
   library, and every show and movie under it is scanned.
+- **Leave a folder out.** Put an empty file named `.nomedia` in a
+  folder, as in Kodi, and CineLibrary skips that folder and everything
+  inside it, for movies and TV shows. Useful for episodes whose `.nfo`
+  calls them movies, or a folder you haven't sorted out yet. Anything
+  from it already in your library shows as missing after the next
+  Update; **Review N…** on the drive lets you remove it.
 - **Give drives friendly names.** Right-click a drive entry and rename
   it (e.g. *"Seagate Red 5TB — Movies"*) so the sidebar reads cleanly.
 - **Re-scan after MediaElch updates.** If you re-scrape metadata or add
