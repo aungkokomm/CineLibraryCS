@@ -512,7 +512,34 @@
                                                Text="⌃" FontSize="11" Margin="6,0,0,0"/>
                                 </Grid>
                             </Button>
-                            <StackPanel x:Name="TagsItemsPanel"/>
+                            <!-- v4.6.3: a repeater, so only the tags on screen are
+                                 built (a library can have hundreds from its .nfo files). -->
+                            <ItemsRepeater x:Name="TagsRepeater" ElementPrepared="OnTagPrepared">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Orientation="Vertical"/>
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource NavItemStyle}" Click="OnNavTagItem">
+                                            <Grid HorizontalAlignment="Stretch">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                                    <TextBlock Text="🏷" FontSize="13" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                                    <TextBlock Text="{Binding Total}" FontSize="11"
+                                                               HorizontalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
                         </StackPanel>
 
                         <!-- Libraries section (collapsible, custom header) -->

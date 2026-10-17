@@ -6,6 +6,11 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.6.3] - 2026-10-17
+
+### Fixed
+- Tag performance improvements: fixes a UI delay at start-up.
+
 ## [4.6.2] - 2026-10-17
 
 ### Added

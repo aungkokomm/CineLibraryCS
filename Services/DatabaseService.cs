@@ -4975,7 +4975,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.ExecuteNonQuery();
     }
 
-    public record TagSummary(int Id, string Name, int MovieCount, int ShowCount);
+    public record TagSummary(int Id, string Name, int MovieCount, int ShowCount)
+    {
+        public int Total => MovieCount + ShowCount;   // the sidebar badge
+    }
 
     /// <summary>Every tag with its current movie and show counts.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
