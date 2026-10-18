@@ -6,6 +6,11 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.7.1] - 2026-10-19
+
+### Fixed
+- Fixed the logo being cut off in the slim sidebar.
+
 ## [4.7.0] - 2026-10-19
 
 ### Added

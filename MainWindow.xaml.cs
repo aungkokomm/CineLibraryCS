@@ -2173,6 +2173,10 @@ public sealed partial class MainWindow : Window
         NavScroller.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         RailScroller.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
         LogoTextPanel.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        // v4.7.1: the strip is too narrow for the tile and the side padding, which
+        // cut its right edge off; centred over the icons instead
+        LogoBtn.Padding = collapsed ? new Thickness(0, 12, 0, 8) : new Thickness(14, 12, 14, 8);
+        LogoBtn.HorizontalContentAlignment = collapsed ? HorizontalAlignment.Center : HorizontalAlignment.Left;
         foreach (var b in new[] { BtnDrives, ThemeBtn, SettingsBtn, HelpBtn })   // in the strip, or in Settings
             b.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
         SidebarToggleIcon.Glyph = collapsed ? "\uE89F" : "\uE8A0";

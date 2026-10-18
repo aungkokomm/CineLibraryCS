@@ -106,7 +106,7 @@
                      faint top-edge highlight so it reads as a crisp, lifted
                      badge instead of the flat pale lavender it was before.
                      Click opens the About dialog. -->
-                <Button Grid.Row="0" Click="OnAboutClick"
+                <Button x:Name="LogoBtn" Grid.Row="0" Click="OnAboutClick"
                         Background="Transparent" BorderThickness="0"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         Padding="14,12,14,8">
