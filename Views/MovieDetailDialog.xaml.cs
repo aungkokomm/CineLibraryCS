@@ -209,8 +209,9 @@ public sealed partial class MovieDetailDialog : Window
         }
         if (m.Year.HasValue) AddChip(m.Year.ToString()!);
         if (m.Runtime.HasValue) AddChip($"{m.Runtime} min");
-        if (m.Edition != null) AddChip(m.Edition, "#4C1D95");   // v4.6.0: Director's Cut, Extended, IMAX…
         if (m.Mpaa != null) AddChip(m.Mpaa);
+        // v4.6.0: Director's Cut, Extended, IMAX…; after the age rating (#25)
+        if (m.Edition != null) AddChip(m.Edition, "#4C1D95");
         if (m.IsMissing) AddChip("MISSING", "#3A1010");
 
         // Drive
@@ -1061,7 +1062,7 @@ public sealed partial class MovieDetailDialog : Window
     {
         RatingsPanel.Children.Clear();
         // v4.5.1 (#24): one source would only repeat the yellow chip.
-        if (m.AllRatings.Count < 2)
+        if (m.AllRatings.Count < 2 && m.UserRating == null)
         {
             RatingsPanel.Visibility = Visibility.Collapsed;
             return;
@@ -1106,6 +1107,28 @@ public sealed partial class MovieDetailDialog : Window
             }
             RatingsPanel.Children.Add(stack);
         }
+        if (m.UserRating is double user)
+            RatingsPanel.Children.Add(UserRatingStack(user,
+                CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"), CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"), 0.65));
+    }
+
+    /// <summary>v4.7.0 (#25): the .nfo's user rating, after the other sources.</summary>
+    internal static StackPanel UserRatingStack(double value, Microsoft.UI.Xaml.Media.Brush label,
+        Microsoft.UI.Xaml.Media.Brush valueBrush, double labelOpacity = 1)
+    {
+        var stack = new StackPanel { Spacing = 2 };
+        stack.Children.Add(new TextBlock
+        {
+            Text = "USER RATING",
+            FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 150, Opacity = labelOpacity, Foreground = label,
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "/10",
+            FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = valueBrush,
+        });
+        return stack;
     }
 
     internal static string PrettySource(string src) => src.ToLowerInvariant() switch

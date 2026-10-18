@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private DupesPage? _dupesPage;
     private BrowsePage? _browsePage;
     private CollectionsBrowsePage? _collectionsPage;
+    private TagsPage? _tagsPage;   // v4.7.0
     private TvShowsPage? _tvShowsPage;
     private OnThisDayPage? _onThisDayPage;
     private WatchedGonePage? _watchedGonePage;
@@ -49,6 +50,7 @@ public sealed partial class MainWindow : Window
         UiSettings.Load();
 
         InitializeComponent();
+        SetUpSidebarHiding();
 
         // Extend content into titlebar for Mica effect + use our custom drag region
         ExtendsContentIntoTitleBar = true;
@@ -391,6 +393,24 @@ public sealed partial class MainWindow : Window
             FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
         });
 
+        // ── Sidebar (v4.7.0) ──
+        panel.Children.Add(Header("SIDEBAR"));
+        var hiddenText = new TextBlock { FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap };
+        var showAgain = new Button { Content = "Show hidden items again" };
+        void ShowHidden()
+        {
+            var hidden = SidebarPrefs.HiddenItems;
+            var names = HideableNav.Where(b => hidden.Contains(b.Name)).Select(b => NavParts(b).Label).ToList();
+            hiddenText.Text = names.Count == 0
+                ? "Right-click an item in the sidebar to hide one you don't use."
+                : "Hidden from the sidebar: " + string.Join(", ", names) + ".";
+            showAgain.Visibility = names.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        }
+        showAgain.Click += (_, _) => { SidebarPrefs.ShowAll(); ApplySidebarHidden(); RefreshSidebar(); ShowHidden(); };
+        ShowHidden();
+        panel.Children.Add(hiddenText);
+        panel.Children.Add(showAgain);
+
         var dialog = new ContentDialog
         {
             Title = "Settings",
@@ -567,6 +587,7 @@ public sealed partial class MainWindow : Window
         // Body runs on UI thread (caller dispatches). The original inline
         // DispatcherQueue.TryEnqueue is gone — we already arrived here via
         // the dispatch in the debouncer above.
+        RestoreSidebarFolds();
         {
             var stats = _vm.Stats;
             TotalBadge.Text = stats?.TotalMovies.ToString() ?? "0";
@@ -635,6 +656,7 @@ public sealed partial class MainWindow : Window
 
             RefreshUserLists();
         }
+        ApplySidebarHidden();
     }
 
     /// <summary>
@@ -661,8 +683,16 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var tags = AppState.Instance.Db.GetAllTags();
-            TagsRepeater.ItemsSource = tags;
+            var tags = AppState.Instance.Db.GetAllTags().Where(t => t.Total > 0).ToList();
+            TagsCountBadge.Text = tags.Count.ToString();
+            // v4.7.0: the sidebar lists the tags pinned on the Tags page, in pinning order
+            var byName = tags.GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var pinned = SidebarPrefs.PinnedTags
+                .Select(n => byName.TryGetValue(n, out var t) ? t : null)
+                .OfType<DatabaseService.TagSummary>().ToList();
+            TagsRepeater.ItemsSource = pinned;
+            PinTagsHint.Visibility = pinned.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             TagsHeader.Visibility = tags.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         }
         catch { /* sidebar refresh must never throw — table may not exist mid-migration */ }
@@ -1164,19 +1194,37 @@ public sealed partial class MainWindow : Window
     private void OnSidebarSectionToggle(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not string tag) return;
+        var folded = SetSidebarFold(tag, null);
+        if (folded != null) AppState.Instance.SetPref("sidebarFolded_" + tag, folded.Value ? "1" : "0");
+    }
+
+    // v4.7.0: a section stays folded (or open) the way you left it, across restarts
+    private bool _sidebarFoldsRestored;
+    private void RestoreSidebarFolds()
+    {
+        if (_sidebarFoldsRestored) return;
+        _sidebarFoldsRestored = true;
+        foreach (var tag in new[] { "Libraries", "UserLists", "Tags" })
+            if (AppState.Instance.GetPref("sidebarFolded_" + tag) == "1") SetSidebarFold(tag, true);
+    }
+
+    /// <summary>Folds or opens a sidebar section (null: the other way round). The new state, or null for an unknown section.</summary>
+    private bool? SetSidebarFold(string tag, bool? fold)
+    {
         var (repeater, chevron) = tag switch
         {
             "Libraries"   => ((FrameworkElement)DrivesRepeater,      LibrariesChevron),
             // "Genres" and "Collections" sub-sections removed in v2.1 — their
             // BROWSE pages replace them. Map kept tolerant of missing keys.
             "UserLists"   => (UserListsItemsPanel,                   UserListsChevron),
-            "Tags"        => (TagsRepeater,                          TagsChevron),
+            "Tags"        => (TagsBody,                              TagsChevron),
             _             => (null!,                                  null!),
         };
-        if (repeater == null) return;
-        var collapsed = repeater.Visibility == Visibility.Collapsed;
-        repeater.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
-        chevron.Text = collapsed ? "⌃" : "⌄"; // ⌃ open / ⌄ closed
+        if (repeater == null) return null;
+        var folded = fold ?? repeater.Visibility == Visibility.Visible;
+        repeater.Visibility = folded ? Visibility.Collapsed : Visibility.Visible;
+        chevron.Text = folded ? "⌄" : "⌃"; // ⌃ open / ⌄ closed
+        return folded;
     }
 
     // ── Navigation ────────────────────────────────────────────────────────
@@ -1329,6 +1377,12 @@ public sealed partial class MainWindow : Window
             _collectionsPage.Load();
             ContentFrame.Content = _collectionsPage;
         }
+        else if (page == "tags")
+        {
+            _tagsPage ??= new TagsPage();
+            _tagsPage.Load();
+            ContentFrame.Content = _tagsPage;
+        }
         else if (page == "tvshows")
         {
             if (_tvShowsPage == null)
@@ -1422,6 +1476,7 @@ public sealed partial class MainWindow : Window
         if (btn != null) btn.Style = _navItemActiveStyleCached;
         _activeNavBtn = btn;
         _activeTagId = tagId;
+        if (_sidebarCollapsed) UpdateRailActive();
     }
 
     // v4.2.0 (#15): Backup and Export open a dialog or a menu rather than a page,
@@ -1466,9 +1521,14 @@ public sealed partial class MainWindow : Window
     // it offers the whole library, plus what All movies shows when that is a
     // narrower view, and always writes every matching movie.
 
-    private void OnNavExport(object sender, RoutedEventArgs e)
+    // v4.7.0: Backup and Export are one sidebar item: Backup or restore, then the exports
+    private void OnNavBackupExport(object sender, RoutedEventArgs e)
     {
         var menu = new MenuFlyout { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.RightEdgeAlignedTop };
+        var backup = new MenuFlyoutItem { Text = "Backup or restore…" };
+        backup.Click += (_, _) => OnNavBackup(BtnBackupExport, new RoutedEventArgs());
+        menu.Items.Add(backup);
+        menu.Items.Add(new MenuFlyoutSeparator());
         void Add(string text, Func<Task<List<MovieListItem>>> load, bool html)
         {
             var item = new MenuFlyoutItem { Text = text };
@@ -1488,7 +1548,7 @@ public sealed partial class MainWindow : Window
             Add($"This view ({label}) as CSV…", _libraryPage.GetViewMoviesAsync, html: false);
             Add($"This view ({label}) as HTML…", _libraryPage.GetViewMoviesAsync, html: true);
         }
-        var restore = HighlightWhileOpen(sender as Button ?? BtnExport);
+        var restore = HighlightWhileOpen(sender as Button ?? BtnBackupExport);
         menu.Closed += (_, _) => restore();
         menu.ShowAt((FrameworkElement)sender);
     }
@@ -1614,6 +1674,23 @@ public sealed partial class MainWindow : Window
     {
         NavigateTo("collections");
         SetActiveNav(sender as Button ?? BtnCollections);
+    }
+
+    // v4.7.0: the Tags page (also the "Pin tags" hint under PINNED TAGS)
+    private void OnNavBrowseTags(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("tags");
+        SetActiveNav(BtnBrowseTags);
+    }
+
+    /// <summary>v4.7.0: a tag picked on the Tags page; Back goes there again.</summary>
+    public void NavigateLibraryByTag(int id, string name)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByTag(id, name);
+        if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
+        _libraryBackAction = () => { NavigateTo("tags"); SetActiveNav(BtnBrowseTags); };
+        _libraryPage?.ShowBrowseBack("Tags");
     }
 
     private void OnNavContinueWatching(object sender, RoutedEventArgs e)
@@ -1777,7 +1854,7 @@ public sealed partial class MainWindow : Window
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
         };
-        var restore = HighlightWhileOpen(sender as Button ?? BtnBackup);
+        var restore = HighlightWhileOpen(sender as Button ?? BtnBackupExport);
         try { await dlg.ShowAsync(); } catch { }
         restore();
     }
@@ -1791,19 +1868,6 @@ public sealed partial class MainWindow : Window
             return v?.ToString(3) ?? "";
         }
         catch { return ""; }
-    }
-
-    private async void OnNavRandomPick(object sender, RoutedEventArgs e)
-    {
-        var id = AppState.Instance.Db.GetRandomUnwatchedId(AppState.Instance.Connected);
-        if (id == null)
-        {
-            ShowToast("Nothing unwatched left — fully caught up 🎉");
-            return;
-        }
-        var dialog = new MovieDetailDialog(id.Value);
-        dialog.WatchlistChanged += (_, _) => { _ = RefreshSidebarAsync(); };
-        dialog.Activate();
     }
 
     /// <summary>
@@ -2104,24 +2168,165 @@ public sealed partial class MainWindow : Window
     private void ApplySidebarCollapsed(bool collapsed)
     {
         _sidebarCollapsed = collapsed;
-        if (collapsed)
-        {
-            SidebarCol.Width = new GridLength(0);
-            // Hide the whole floating card (not just the inner grid) so no
-            // rounded sliver / margin is left behind when collapsed.
-            SidebarCard.Visibility = Visibility.Collapsed;
-            ContentCard.Margin = new Thickness(8, 4, 8, 8);   // the same 8 at the left edge
-            SidebarReopenBtn.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            SidebarCol.Width = new GridLength(248);   // keep in sync with SidebarCol default (236 inner + 12 margin)
-            SidebarCard.Visibility = Visibility.Visible;
-            ContentCard.Margin = new Thickness(4, 4, 8, 8);
-            SidebarReopenBtn.Visibility = Visibility.Collapsed;
-        }
+        // v4.7.0: collapsed is a slim strip of the items' icons, not nothing
+        SidebarCol.Width = new GridLength(collapsed ? 72 : 248);   // 248: 236 inner + 12 margin
+        NavScroller.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        RailScroller.Visibility = collapsed ? Visibility.Visible : Visibility.Collapsed;
+        LogoTextPanel.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var b in new[] { BtnDrives, ThemeBtn, SettingsBtn, HelpBtn })   // in the strip, or in Settings
+            b.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+        SidebarToggleIcon.Glyph = collapsed ? "\uE89F" : "\uE8A0";
+        var tip = collapsed ? "Expand sidebar" : "Collapse sidebar";
+        ToolTipService.SetToolTip(SidebarToggleBtn, tip);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SidebarToggleBtn, tip);
+        if (collapsed) BuildRail();
         AppState.Instance.SetPref("sidebarCollapsed", collapsed ? "true" : "false");
     }
+
+    // ── v4.7.0: slim mode ────────────────────────────────────────────────
+
+    private readonly Dictionary<Button, Button> _railFor = new();   // sidebar item → its icon
+
+    /// <summary>
+    /// The visible sidebar items as icons, their names as tooltips; each icon
+    /// clicks its item, so it does exactly what the item does. My lists, the
+    /// pinned tags and Libraries stay in the full sidebar.
+    /// </summary>
+    private void BuildRail()
+    {
+        RailPanel.Children.Clear();
+        _railFor.Clear();
+        bool lastWasItem = false;
+        foreach (var child in NavPanel.Children)
+        {
+            if (child is TextBlock { Visibility: Visibility.Visible } && lastWasItem)   // a group label
+            {
+                RailPanel.Children.Add(RailSeparator());
+                lastWasItem = false;
+            }
+            else if (child is Button { Visibility: Visibility.Visible } item)
+            {
+                RailPanel.Children.Add(RailButton(item));
+                lastWasItem = true;
+            }
+        }
+        RailPanel.Children.Add(RailSeparator());
+        RailPanel.Children.Add(RailButton(BtnDrives, "Drives"));
+        RailPanel.Children.Add(RailButton(SettingsBtn, "Settings"));
+        UpdateRailActive();
+    }
+
+    private static Border RailSeparator() => new()
+    {
+        Height = 1, Margin = new Thickness(10, 6, 10, 6), Background = ThemeBrushes.Get("BorderBrush"),
+    };
+
+    private Button RailButton(Button source, string? label = null)
+    {
+        var (icon, text) = NavParts(source);
+        var name = label ?? text;
+        var b = new Button
+        {
+            Width = 44, Height = 36, Padding = new Thickness(0), CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Colors.Transparent), BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Content = new FontIcon
+            {
+                Glyph = icon?.Glyph ?? "\uE8B7", FontSize = 16,
+                FontFamily = new FontFamily("Segoe Fluent Icons,Segoe MDL2 Assets"),
+                Foreground = icon?.Foreground ?? ThemeBrushes.Get("MutedBrush"),
+            },
+        };
+        ToolTipService.SetToolTip(b, new ToolTip
+        {
+            Content = name, Placement = Microsoft.UI.Xaml.Controls.Primitives.PlacementMode.Right,
+        });
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(b, name);
+        b.Click += (_, _) =>
+        {
+            new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(source).Invoke();
+            UpdateRailActive();
+        };
+        _railFor[source] = b;
+        return b;
+    }
+
+    private void UpdateRailActive()
+    {
+        foreach (var (item, icon) in _railFor)
+            icon.Background = ReferenceEquals(item, _activeNavBtn)
+                ? ThemeBrushes.Get("NavActiveBgBrush")
+                : new SolidColorBrush(Colors.Transparent);
+    }
+
+    /// <summary>A sidebar item's icon and label (the count badge is left out).</summary>
+    private static (FontIcon? Icon, string Label) NavParts(Button b)
+    {
+        FontIcon? icon = null;
+        string? label = null;
+        void Walk(object? o)
+        {
+            switch (o)
+            {
+                case FontIcon fi: icon ??= fi; break;
+                case TextBlock tb: label ??= tb.Text; break;
+                case Panel panel: foreach (var c in panel.Children) Walk(c); break;
+                // a Border holds the count badge
+            }
+        }
+        Walk(b.Content);
+        return (icon, label ?? b.Name);
+    }
+
+    // ── v4.7.0: hide what you don't use (right-click → Hide from sidebar) ─
+
+    private Button[] HideableNav => new[]
+    {
+        BtnTvShows, BtnFavorites, BtnWatchlist, BtnNotes, BtnWatchedGone,
+        BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay,
+        BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags,
+        BtnStatistics, BtnDupes, BtnBackupExport,
+    };
+
+    // Shown only when there's something in them (RefreshSidebarImmediate decides)
+    private Button[] ConditionalNav => new[] { BtnWatchedGone, BtnContinueWatching, BtnRecentlyWatched, BtnOnThisDay };
+
+    private void SetUpSidebarHiding()
+    {
+        foreach (var b in HideableNav)
+        {
+            var btn = b;
+            var hide = new MenuFlyoutItem { Text = "Hide from sidebar", Icon = new FontIcon { Glyph = "\uED1A" } };
+            hide.Click += (_, _) =>
+            {
+                SidebarPrefs.SetHidden(btn.Name, true);
+                ApplySidebarHidden();
+                ShowToast($"“{NavParts(btn).Label}” is hidden. Settings shows it again.");
+            };
+            var menu = new MenuFlyout();
+            menu.Items.Add(hide);
+            btn.ContextFlyout = menu;
+        }
+    }
+
+    private void ApplySidebarHidden()
+    {
+        var hidden = SidebarPrefs.HiddenItems.ToHashSet(StringComparer.Ordinal);
+        var conditional = ConditionalNav;
+        foreach (var b in HideableNav)
+        {
+            if (hidden.Contains(b.Name)) b.Visibility = Visibility.Collapsed;
+            else if (!conditional.Contains(b)) b.Visibility = Visibility.Visible;
+        }
+        // A group label goes when nothing under it shows
+        DiscoverLabel.Visibility = AnyVisible(BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay);
+        BrowseLabel.Visibility = AnyVisible(BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags);
+        ToolsLabel.Visibility = AnyVisible(BtnStatistics, BtnDupes, BtnBackupExport);
+        if (_sidebarCollapsed) BuildRail();
+    }
+
+    private static Visibility AnyVisible(params Button[] items)
+        => items.Any(b => b.Visibility == Visibility.Visible) ? Visibility.Visible : Visibility.Collapsed;
 }
 
 public record LibraryNavParam(

@@ -90,8 +90,8 @@
 
                     <!-- v2.9 — Surprise Me 🎲: filter-aware random pick. Honours
                          whatever is currently filtered/searched/listed, so you
-                         can "random pick from current view". The existing
-                         sidebar 'Surprise me' stays as the unfiltered version. -->
+                         can "random pick from current view". v4.7.0: the only
+                         Surprise me (the sidebar one was the same, unfiltered). -->
                     <Button x:Name="SurpriseMeBtn" Click="OnSurpriseMeClick"
                             Background="{ThemeResource InputBgBrush}"
                             Foreground="{ThemeResource TextBrush}"
@@ -249,7 +249,7 @@
                            FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
                            Opacity="0.75"
                            Foreground="{ThemeResource MutedBrush}"/>
-                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                <ScrollViewer x:Name="ShowsInSearchCards" HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
                               Padding="24,0,24,0">
@@ -264,6 +264,17 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                 </ScrollViewer>
+                <!-- v4.7.0 (#25): the same shows as rows, in list view -->
+                <ItemsRepeater x:Name="ShowsInSearchRows" Margin="24,0,24,0" Visibility="Collapsed">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" Spacing="2"/>
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:TvShowListItem">
+                            <local:TvShowRowControl Show="{x:Bind}"/>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
             </StackPanel>
 
             <!-- v2.8.2 — when viewing a user list that also contains TV
@@ -274,7 +285,7 @@
                 <TextBlock x:Name="ShowsInListHeader" Text="TV SHOWS IN THIS LIST" Margin="24,4,24,0"
                            FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
                            Opacity="0.7" Foreground="{ThemeResource MutedBrush}"/>
-                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                <ScrollViewer x:Name="ShowsInListCards" HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
                               Padding="24,0,24,0">
@@ -289,6 +300,17 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                 </ScrollViewer>
+                <!-- v4.7.0 (#25): the same shows as rows, in list view -->
+                <ItemsRepeater x:Name="ShowsInListRows" Margin="24,0,24,0" Visibility="Collapsed">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" Spacing="2"/>
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:TvShowListItem">
+                            <local:TvShowRowControl Show="{x:Bind}"/>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
             </StackPanel>
 
             <Grid>

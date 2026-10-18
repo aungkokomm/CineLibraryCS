@@ -92,10 +92,23 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="MetaText" Grid.Column="0" FontSize="11"
                                    Foreground="{ThemeResource MutedBrush}" VerticalAlignment="Center"/>
-                        <Button x:Name="WatchedToggleBtn" Grid.Column="1" Click="OnToggleWatched"
-                                Background="Transparent" BorderThickness="0"
-                                CornerRadius="6" Padding="6,2" FontSize="12"
-                                Foreground="{ThemeResource MutedBrush}"/>
+                        <!-- v4.7.0 (#25): Favorite and Watched, as on a movie card -->
+                        <StackPanel x:Name="ToggleButtons" Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="FavBtn" Click="OnToggleFavorite"
+                                    Style="{StaticResource RowIconToggleStyle}"
+                                    Width="26" Height="26" CornerRadius="13"
+                                    AutomationProperties.Name="Favorite">
+                                <FontIcon x:Name="FavIcon" FontSize="12"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Button x:Name="WatchedBtn" Click="OnToggleWatched"
+                                    Style="{StaticResource RowIconToggleStyle}"
+                                    Width="26" Height="26" CornerRadius="13"
+                                    AutomationProperties.Name="Watched">
+                                <FontIcon x:Name="WatchedIcon" Glyph="&#xE73E;" FontSize="12"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </Grid>
             </Grid>

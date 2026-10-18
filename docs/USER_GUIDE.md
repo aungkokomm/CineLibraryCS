@@ -206,21 +206,27 @@ scanning hundreds of titles at once.
 
 ### Sidebar shortcuts
 
-The sidebar is grouped into four sections:
+The sidebar is grouped into sections:
 
 - **LIBRARY**: All Movies, Favorites, To Watch.
-- **DISCOVER**: Continue Watching, Recently Added, Surprise me.
-- **BROWSE**: banner-style pages: *By Genre*, *By Decade*, *By Rating*,
-  *Collections*. Each entry shows count and a representative cover; click
-  to filter your library to that slice.
-- **TOOLS**: Statistics, Dupes, Backup and Export.
+- **DISCOVER**: Continue Watching, Recently Added, Recently Watched.
 - **MY LISTS**: your custom lists. Click **+** to add one.
+- **BROWSE**: banner-style pages: *By Genre*, *By Decade*, *By Rating*,
+  *Collections*, and the **Tags** page. Each entry shows count and a
+  representative cover; click to filter your library to that slice.
+- **TOOLS**: Statistics, Dupes, and Backup & Export.
+- **PINNED TAGS**: the tags you pinned on the Tags page.
 - **LIBRARIES**: one entry per drive root, with a live online/offline
   dot and a count.
 
-Each collapsible section can be collapsed by clicking its header. Each
+My Lists, Pinned Tags and Libraries fold when you click their header, and
+stay folded (or open) the way you left them, after a restart too. Each
 section's icons have their own colour, so you can find your way at a
 glance.
+
+Don't use an item? Right-click it and choose **Hide from sidebar**.
+**Settings → Sidebar** lists what you hid and shows it again. The random
+pick (Surprise me) is the 🔀 button on the library's toolbar.
 
 The small buttons at the bottom of the sidebar are **Drives**, the theme
 switch, **Settings**, keyboard shortcuts and collapse sidebar.
@@ -560,9 +566,17 @@ page.
 
 ### Filtering by tag
 
-Every tag you've used shows up under **🏷 TAGS** in the sidebar with a
-count badge. Click any tag → the library filters to that tag. A
-removable filter chip appears at the top.
+**Tags** (under Browse) shows every tag with how many movies and shows
+have it. Search them, sort by most used or A to Z, and show **All**,
+**Your tags** or the ones **From .nfo files**. Click any tag → the library
+filters to that tag, with a **‹ Tags** button to go back. A removable
+filter chip appears at the top.
+
+Right-click a tag to **Pin to sidebar**: pinned tags sit under **PINNED
+TAGS** in the sidebar for one-click access. Right-click one of your own
+tags to **Rename** it (on every movie and show that has it; renaming it to
+a tag you already have joins the two) or **Delete** it (it's taken off
+everything; no files change).
 
 You can also click a tag chip in the detail dialog to jump straight to
 that filtered view.
@@ -571,7 +585,7 @@ that filtered view.
 
 In the detail dialog, click the **✕** on any tag chip. That movie or
 show drops the tag; if no items still carry the tag, it disappears from
-the sidebar.
+the Tags page.
 
 ### Tags travel with the drive
 
@@ -584,7 +598,7 @@ your tags come back on the next scan.
 Tags that are already in a movie's or show's `.nfo` (for example ones
 you added in CineLibrary Essentials' editor) show after your own, with an
 outline and no **✕**. They work like yours: click one to see every movie
-with it, and they're in the sidebar's **🏷 TAGS**. They change with the
+with it, and they're on the **Tags** page. They change with the
 `.nfo`, so edit them where you made them; after the next scan (or
 **Reload from .nfo**) CineLibrary follows. They're not written to the
 sidecar file or your backups, since the `.nfo` already carries them.
@@ -996,8 +1010,8 @@ needs on the next change or sync.
 
 ## Backup and restore
 
-The sidecars give you per-drive resilience. The **Backup** entry under
-**TOOLS** in the sidebar gives you whole-library resilience — one JSON
+The sidecars give you per-drive resilience. **Backup & Export → Backup
+or restore…** under **TOOLS** in the sidebar gives you whole-library resilience: one JSON
 file covers every favorite, watchlist entry, note, list, tag, watched
 flag, last-played time, per-episode favorite/note, and watch-history
 event.
@@ -1087,8 +1101,10 @@ also set the theme from **Settings** (below).
 ### Collapsing the sidebar
 
 `Ctrl+B` collapses or expands the sidebar (or click the `⮜` button at
-the bottom-left). Collapsed mode gives the grid more room — useful on
-small displays.
+the bottom). Collapsed, the sidebar is a slim strip of icons: hover one
+for its name, click it to go there, and the strip's last two icons are
+Drives and Settings. It gives the grid more room, which helps on small
+displays.
 
 ---
 
@@ -1200,7 +1216,7 @@ typing in the search field still works normally.
 
 ## Exporting your catalog
 
-Click **Export** under **Tools** in the sidebar and choose:
+Click **Backup & Export** under **Tools** in the sidebar and choose:
 
 - **All movies** as CSV or HTML: every movie in your library.
 - **This view** as CSV or HTML: shown when All Movies is filtered,

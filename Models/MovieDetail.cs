@@ -103,6 +103,8 @@ public class MovieDetail
     public List<string> Tags { get; set; } = new();
     // v4.6.0: from the .nfo
     public string? Edition { get; set; }
+    /// <summary>v4.7.0: the .nfo's &lt;userrating&gt; (1 to 10), null when not set.</summary>
+    public double? UserRating { get; set; }
     /// <summary>Every studio and country (Studio / Country are the first).</summary>
     public List<string> Studios { get; set; } = new();
     public List<string> Countries { get; set; } = new();

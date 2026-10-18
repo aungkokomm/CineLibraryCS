@@ -194,6 +194,8 @@ public class TvShowDetail
     public List<string> Studios { get; set; } = new();
     public List<string> Countries { get; set; } = new();
     public List<string> Creators { get; set; } = new();
+    /// <summary>v4.7.0: the .nfo's &lt;userrating&gt; (1 to 10), null when not set.</summary>
+    public double? UserRating { get; set; }
     public List<(string Source, double Value, int? Votes)> AllRatings { get; set; } = new();
     public List<string> NfoTags { get; set; } = new();
 }

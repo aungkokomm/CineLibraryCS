@@ -52,7 +52,9 @@ public record ParsedMovie(
     string? Edition,
     List<string> Studios,
     List<string> Countries,
-    List<string> Tags
+    List<string> Tags,
+    // v4.7.0: Kodi's <userrating> (1 to 10), set in CineLibrary Essentials' editor
+    double? UserRating = null
 );
 
 // ── TV Shows (v2.8) ──────────────────────────────────────────────────────
@@ -82,7 +84,8 @@ public record ParsedTvShow(
     List<string> Countries,
     List<string> Creators,
     List<string> Tags,
-    List<ParsedRating> Ratings
+    List<ParsedRating> Ratings,
+    double? UserRating = null   // v4.7.0
 );
 
 /// <summary>Parsed `<episodedetails>` root from an episode .nfo.</summary>
@@ -162,7 +165,8 @@ public static class NfoParser
                 // Kodi keeps a show's writers in <credits>; Essentials puts its creators there
                 Creators: MergeLists(ReadList(root, "credits")),
                 Tags: MergeLists(ReadList(root, "tag")),
-                Ratings: ratings
+                Ratings: ratings,
+                UserRating: UserRating(root)
             );
         }
         catch { return null; }
@@ -330,10 +334,11 @@ public static class NfoParser
                 Sets: sets,
                 Ratings: ratings,
                 Stream: streamDetails,
-                Edition: Get(root, "edition"),
+                Edition: Edition(root),
                 Studios: MergeLists(ReadList(root, "studio")),
                 Countries: MergeLists(ReadList(root, "country")),
-                Tags: MergeLists(ReadList(root, "tag"))
+                Tags: MergeLists(ReadList(root, "tag")),
+                UserRating: UserRating(root)
             );
         }
         catch
@@ -473,6 +478,14 @@ public static class NfoParser
 
     private static bool IsDefault(XmlElement rt)
         => rt.GetAttribute("default").Equals("true", StringComparison.OrdinalIgnoreCase);
+
+    // tinyMediaManager writes <edition>NONE</edition> for a movie with no special edition
+    private static string? Edition(XmlElement root)
+        => Get(root, "edition") is { } e && !e.Trim().Equals("none", StringComparison.OrdinalIgnoreCase) ? e : null;
+
+    // 0 (or nothing) means no user rating
+    private static double? UserRating(XmlElement root)
+        => TryDouble(Get(root, "userrating")) is > 0 and <= 10 and var v ? v : null;
 
     private static double? TryDouble(string? s)
     {

@@ -57,6 +57,8 @@ public sealed partial class TvShowsPage : Page
             TvEpisodeCard.AnyPlay += OnEpisodePlay;
             TvEpisodeCard.AnyWatchedToggle -= OnEpisodeWatchedToggle;
             TvEpisodeCard.AnyWatchedToggle += OnEpisodeWatchedToggle;
+            TvEpisodeCard.AnyFavoriteToggle -= OnEpisodeFavoriteToggle;
+            TvEpisodeCard.AnyFavoriteToggle += OnEpisodeFavoriteToggle;
             TvEpisodeCard.AnyDetails -= OnEpisodeDetails;
             TvEpisodeCard.AnyDetails += OnEpisodeDetails;
         };
@@ -64,6 +66,7 @@ public sealed partial class TvShowsPage : Page
         {
             TvEpisodeCard.AnyPlay -= OnEpisodePlay;
             TvEpisodeCard.AnyWatchedToggle -= OnEpisodeWatchedToggle;
+            TvEpisodeCard.AnyFavoriteToggle -= OnEpisodeFavoriteToggle;
             TvEpisodeCard.AnyDetails -= OnEpisodeDetails;
         };
     }
@@ -743,8 +746,11 @@ public sealed partial class TvShowsPage : Page
             {
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)),
                 CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(8, 2, 8, 2),
-                Child = new TextBlock { Text = g, FontSize = 11, Foreground =
+                // v4.7.0 (#25): the text box runs from the capitals' top to the baseline
+                // (Tight), so the word sits in the middle whatever the font's spacing
+                // above capitals (Windows 10's Segoe UI put it low)
+                Padding = new Thickness(9, 5, 9, 5),
+                Child = new TextBlock { Text = g, FontSize = 11, TextLineBounds = TextLineBounds.Tight, Foreground =
                     new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White) },
             });
         }
@@ -776,7 +782,7 @@ public sealed partial class TvShowsPage : Page
         ShowInfoGrid.Margin = new Thickness(0, hasFanart ? -110 : 24, 0, 0);
         ShowMeta.Margin = hasFanart ? new Thickness(0, 122, 0, 0) : new Thickness(0, 0, 110, 0);
 
-        _ = LoadShowImage(ShowPoster, _detail.LocalPoster, 260);
+        _ = LoadShowImage(ShowPoster, _detail.LocalPoster, 360);
         _ = LoadShowImage(ShowFanart, _detail.LocalFanart, 1600);
     }
 
@@ -786,8 +792,9 @@ public sealed partial class TvShowsPage : Page
     private void PopulateShowRatings(TvShowDetail d)
     {
         ShowRatingsPanel.Children.Clear();
-        ShowRatingsPanel.Visibility = d.AllRatings.Count < 2 ? Visibility.Collapsed : Visibility.Visible;
-        if (d.AllRatings.Count < 2) return;
+        var show = d.AllRatings.Count >= 2 || d.UserRating != null;
+        ShowRatingsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show) return;
         var label = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF));
         foreach (var (source, value, votes) in d.AllRatings)
         {
@@ -814,6 +821,9 @@ public sealed partial class TvShowsPage : Page
                 stack.Children.Add(new TextBlock { Text = MovieDetailDialog.FormatVotes(votes.Value), FontSize = 10, Foreground = label });
             ShowRatingsPanel.Children.Add(stack);
         }
+        if (d.UserRating is double user)
+            ShowRatingsPanel.Children.Add(MovieDetailDialog.UserRatingStack(user, label,
+                new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)));
     }
 
     private void PopulateShowFacts(TvShowDetail d)
@@ -1255,6 +1265,14 @@ public sealed partial class TvShowsPage : Page
         AppState.Instance.Db.SetEpisodeWatched(ep.Id, newState);
         ep.IsWatched = newState;            // card updates via PropertyChanged
         RefreshHeaderProgress();
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    // v4.7.0 (#25): from the card's heart, as the episode window's Favorite button does
+    private void OnEpisodeFavoriteToggle(TvEpisodeItem ep)
+    {
+        ep.IsFavorite = !ep.IsFavorite;     // card updates via PropertyChanged
+        AppState.Instance.Db.SetEpisodeFavorite(ep.Id, ep.IsFavorite);
         SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 

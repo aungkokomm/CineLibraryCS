@@ -543,14 +543,16 @@ public sealed partial class DrivesPage : Page
             if (sender is not FrameworkElement fe || fe.Tag is not string serial) return;
             var drive = _drives.FirstOrDefault(d => d.VolumeSerial == serial);
             var missing = AppState.Instance.Db.GetMissingMovies(serial);
-            if (missing.Count == 0) return;
+            var missingShows = AppState.Instance.Db.GetMissingShows(serial);   // v4.7.0
+            if (missing.Count == 0 && missingShows.Count == 0) return;
 
             var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
             var chipBg = CineLibraryCS.Services.ThemeBrushes.Get("ChipBrush");
             var checkboxes = new List<(CheckBox box, int id)>();
+            var showBoxes = new List<(CheckBox box, int id)>();
 
             var listPanel = new StackPanel { Spacing = 4 };
-            foreach (var m in missing)
+            CheckBox AddRow(string? poster, string title, List<string> bits, bool keep, string? extra = null)
             {
                 var row = new Grid { Padding = new Thickness(2) };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -558,7 +560,7 @@ public sealed partial class DrivesPage : Page
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 var img = new Image { Width = 36, Height = 54, Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill };
-                var path = m.LocalPoster != null ? AppState.Instance.Db.GetCachedImagePath(m.LocalPoster) : null;
+                var path = poster != null ? AppState.Instance.Db.GetCachedImagePath(poster) : null;
                 if (path != null && File.Exists(path))
                     try { img.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 72, UriSource = new Uri(path) }; } catch { }
                 var imgBorder = new Border
@@ -569,43 +571,74 @@ public sealed partial class DrivesPage : Page
                 Grid.SetColumn(imgBorder, 0);
                 row.Children.Add(imgBorder);
 
-                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
                 info.Children.Add(new TextBlock
                 {
-                    Text = m.Title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Text = title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     FontSize = 13, TextTrimming = TextTrimming.CharacterEllipsis,
                 });
-                var bits = new List<string>();
-                if (m.Year != null) bits.Add(m.Year.ToString()!);
-                bits.Add(m.IsWatched ? "Watched" : "Unwatched");
-                if (m.HasNote) bits.Add("Has note");
-                info.Children.Add(new TextBlock { Text = string.Join("  ·  ", bits), FontSize = 11, Foreground = muted });
+                info.Children.Add(new TextBlock
+                {
+                    Text = string.Join("  ·  ", bits), FontSize = 11, Foreground = muted,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+                if (extra != null)
+                    info.Children.Add(new TextBlock { Text = extra, FontSize = 11, Foreground = muted, TextWrapping = TextWrapping.Wrap });
                 Grid.SetColumn(info, 1);
                 row.Children.Add(info);
 
                 var cb = new CheckBox
                 {
-                    IsChecked = m.IsWatched || m.HasNote,
+                    IsChecked = keep,
                     Content = "Keep", MinWidth = 0, VerticalAlignment = VerticalAlignment.Center,
                 };
                 Grid.SetColumn(cb, 2);
                 row.Children.Add(cb);
-                checkboxes.Add((cb, m.Id));
                 listPanel.Children.Add(row);
+                return cb;
             }
 
+            foreach (var m in missing)
+            {
+                var bits = new List<string>();
+                if (m.Year != null) bits.Add(m.Year.ToString()!);
+                bits.Add(m.IsWatched ? "Watched" : "Unwatched");
+                if (m.HasNote) bits.Add("Has note");
+                checkboxes.Add((AddRow(m.LocalPoster, m.Title, bits, m.IsWatched || m.HasNote), m.Id));
+            }
+            // v4.7.0: missing TV shows too. A kept one stays as it is; one that was
+            // moved shows the drive it's on now and isn't kept unless ticked.
+            foreach (var s in missingShows)
+            {
+                var bits = new List<string> { "TV show" };
+                if (s.Year != null) bits.Add(s.Year.ToString()!);
+                bits.Add($"{s.Watched} of {s.Episodes} episodes watched");
+                if (s.HasNote) bits.Add("Has note");
+                showBoxes.Add((AddRow(s.LocalPoster, s.Title, bits, s.Elsewhere == null && (s.Watched > 0 || s.HasNote),
+                    s.Elsewhere != null ? $"Now on {s.Elsewhere}" : null), s.Id));
+            }
+
+            var intro = new List<string>();
+            if (missing.Count > 0)
+                intro.Add($"{missing.Count} movie(s) on “{drive?.Label}” weren't found in the last scan. " +
+                          "Tick the ones to keep as records in Watched & Gone: their poster, details, notes and " +
+                          "watch history stay. Unticked ones are removed from CineLibrary.");
+            if (missingShows.Count > 0)
+                intro.Add($"{missingShows.Count} TV show(s) " +
+                          (missing.Count > 0 ? "weren't found either. " : $"on “{drive?.Label}” weren't found in the last scan. ") +
+                          "Ticked ones stay as they are. Unticked ones are removed, and one that's now on another drive " +
+                          "first passes its watched episodes, favorite, note, lists and tags on to it there.");
+            intro.Add("Your files are never touched.");
             var content = new StackPanel { Spacing = 6, MinWidth = 480 };
             content.Children.Add(new TextBlock
             {
-                Text = $"{missing.Count} movie(s) on “{drive?.Label}” weren't found in the last scan. " +
-                       "Tick the ones to keep as records in Watched & Gone — their poster, details, notes and " +
-                       "watch history stay. Unticked ones are removed from CineLibrary. Your files are never touched.",
+                Text = string.Join(" ", intro),
                 TextWrapping = TextWrapping.Wrap, FontSize = 13, Foreground = muted, Margin = new Thickness(0, 0, 0, 4),
             });
             var keepAll = new HyperlinkButton { Content = "Keep all" };
-            keepAll.Click += (_, _) => { foreach (var (b, _) in checkboxes) b.IsChecked = true; };
+            keepAll.Click += (_, _) => { foreach (var (b, _) in checkboxes.Concat(showBoxes)) b.IsChecked = true; };
             var keepNone = new HyperlinkButton { Content = "Keep none" };
-            keepNone.Click += (_, _) => { foreach (var (b, _) in checkboxes) b.IsChecked = false; };
+            keepNone.Click += (_, _) => { foreach (var (b, _) in checkboxes.Concat(showBoxes)) b.IsChecked = false; };
             var quick = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
             quick.Children.Add(keepAll);
             quick.Children.Add(keepNone);
@@ -619,7 +652,8 @@ public sealed partial class DrivesPage : Page
 
             var dialog = new ContentDialog
             {
-                Title = "Review missing movies",
+                Title = missingShows.Count == 0 ? "Review missing movies"
+                      : missing.Count == 0 ? "Review missing TV shows" : "Review missing titles",
                 Content = content,
                 PrimaryButtonText = "Apply",
                 CloseButtonText = "Cancel",
@@ -633,6 +667,15 @@ public sealed partial class DrivesPage : Page
             var dropIds = checkboxes.Where(c => c.box.IsChecked != true).Select(c => c.id).ToList();
             int kept = keepIds.Count > 0 ? AppState.Instance.Db.ArchiveMovies(keepIds) : 0;
             int removed = dropIds.Count > 0 ? AppState.Instance.Db.DeleteMoviesByIds(dropIds) : 0;
+            var dropShows = showBoxes.Where(c => c.box.IsChecked != true).Select(c => c.id).ToList();
+            if (dropShows.Count > 0)
+            {
+                var (gone, mergedInto) = AppState.Instance.Db.RemoveMissingShows(dropShows);
+                removed += gone;
+                // What a moved show passed on goes onto the drive with it
+                foreach (var id in mergedInto)
+                    try { TvStateSidecar.Sync(AppState.Instance.Db, id, AppState.Instance.Connected); } catch { }
+            }
 
             Refresh();
             RefreshRequested?.Invoke(this, EventArgs.Empty);

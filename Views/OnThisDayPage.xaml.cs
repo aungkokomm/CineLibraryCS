@@ -29,6 +29,14 @@ public sealed partial class OnThisDayPage : Page
     /// <summary>(Re)query today's matches and bind the two sections.</summary>
     public void Load()
     {
+        // Cards come in the library's Size (S to XL): slots of that size, or a
+        // bigger card overflows its slot and loses its corner buttons (#25)
+        foreach (var layout in new[] { WatchedRepeater.Layout, ReleasedRepeater.Layout }.OfType<UniformGridLayout>())
+        {
+            layout.MinItemWidth = MovieCardControl.GlobalCardWidth;
+            layout.MinItemHeight = MovieCardControl.GlobalCardHeight;
+        }
+
         var connected = AppState.Instance.Connected;
         var matches = AppState.Instance.Db.GetOnThisDayItems(connected, limit: 48);
 

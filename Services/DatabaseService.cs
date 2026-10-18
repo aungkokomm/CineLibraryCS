@@ -628,8 +628,11 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
         }
         foreach (var (col, type) in new[] { ("tagline", "TEXT"), ("runtime", "INTEGER"), ("studios", "TEXT"),
                                             ("countries", "TEXT"), ("creators", "TEXT"),
-                                            ("fetched_at", "INTEGER"), ("synced_at", "INTEGER") })
+                                            ("fetched_at", "INTEGER"), ("synced_at", "INTEGER"),
+                                            ("user_rating", "REAL") })
             if (!showCols.Contains(col)) Exec($"ALTER TABLE tv_shows ADD COLUMN {col} {type}");
+        // v4.7.0: Kodi's <userrating>, shown beside IMDb and TMDb
+        if (!cols.Contains("user_rating")) Exec("ALTER TABLE movies ADD COLUMN user_rating REAL");
         Exec(@"
 CREATE TABLE IF NOT EXISTS tv_show_ratings (
     show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
@@ -695,8 +698,65 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
             }
         }
 
+        // v4.7.0: user ratings already in the .nfo files, read once from the cached
+        // copies; and "NONE", tinyMediaManager's word for no edition, isn't one.
+        var userRatingKey = "_migration_user_rating_v470";
+        if (GetPref(userRatingKey) != "done")
+        {
+            try
+            {
+                Exec("UPDATE movies SET edition=NULL WHERE UPPER(TRIM(edition))='NONE'");
+                ReadUserRatings();
+                SetPref(userRatingKey, "done");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"user ratings v4.7.0 skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
+    }
+
+    /// <summary>
+    /// v4.7.0 one-shot: the user rating of every movie and show whose cached
+    /// .nfo has one (only those are parsed).
+    /// </summary>
+    private void ReadUserRatings()
+    {
+        var found = new List<(string Table, int Id, double Rating)>();
+        foreach (var (table, show) in new[] { ("movies", false), ("tv_shows", true) })
+        {
+            var rows = new List<(int Id, string Nfo)>();
+            using (var sel = _conn.CreateCommand())
+            {
+                sel.CommandText = $"SELECT id, local_nfo FROM {table} WHERE local_nfo IS NOT NULL";
+                using var r = sel.ExecuteReader();
+                while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+            }
+            foreach (var (id, nfoRel) in rows)
+            {
+                var path = Path.Combine(_dataDir, nfoRel);
+                string text;
+                try { text = File.ReadAllText(path); } catch { continue; }
+                if (!text.Contains("<userrating", StringComparison.OrdinalIgnoreCase)) continue;
+                var rating = show ? NfoParser.ParseTvShow(path)?.UserRating : NfoParser.Parse(path)?.UserRating;
+                if (rating != null) found.Add((table, id, rating.Value));
+            }
+        }
+        if (found.Count == 0) return;
+        using var tx = _conn.BeginTransaction();
+        foreach (var (table, id, rating) in found)
+        {
+            using var upd = _conn.CreateCommand();
+            upd.Transaction = tx;
+            upd.CommandText = $"UPDATE {table} SET user_rating=@r WHERE id=@id";
+            upd.Parameters.AddWithValue("@r", rating);
+            upd.Parameters.AddWithValue("@id", id);
+            upd.ExecuteNonQuery();
+        }
+        tx.Commit();
     }
 
     /// <summary>
@@ -801,6 +861,7 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
     /// <summary>Binds @tg @ru @sts @cts @cr, the show fields new in v4.6.0.</summary>
     internal static void BindShowExtras(SqliteCommand cmd, ParsedTvShow s)
     {
+        cmd.Parameters.AddWithValue("@ur", (object?)s.UserRating ?? DBNull.Value);   // v4.7.0
         cmd.Parameters.AddWithValue("@tg", (object?)s.Tagline ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ru", (object?)s.Runtime ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@sts", (object?)JoinLines(s.Studios) ?? DBNull.Value);
@@ -1489,16 +1550,21 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
         r.Close();
         // v2.8 — TV show count per drive (separate query; cheap).
-        var tvCounts = new Dictionary<string, int>();
+        var tvCounts = new Dictionary<string, (int All, int Missing)>();
         using (var tc = _conn.CreateCommand())
         {
-            tc.CommandText = "SELECT volume_serial, COUNT(*) FROM tv_shows GROUP BY volume_serial";
+            tc.CommandText = @"SELECT volume_serial, COUNT(*), SUM(CASE WHEN is_missing=1 THEN 1 ELSE 0 END)
+                               FROM tv_shows GROUP BY volume_serial";
             using var tr = tc.ExecuteReader();
-            while (tr.Read()) tvCounts[tr.GetString(0)] = tr.GetInt32(1);
+            while (tr.Read()) tvCounts[tr.GetString(0)] = (tr.GetInt32(1), tr.GetInt32(2));
         }
         foreach (var d in list)
         {
-            if (tvCounts.TryGetValue(d.VolumeSerial, out var n)) d.TvShowCount = n;
+            if (tvCounts.TryGetValue(d.VolumeSerial, out var n))
+            {
+                d.TvShowCount = n.All;
+                d.MissingCount += n.Missing;   // v4.7.0: Review takes missing shows too
+            }
             d.Folders = GetDriveRoots(d.VolumeSerial);
         }
         return list;
@@ -2096,7 +2162,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.video_width, m.video_height, m.video_codec, m.video_aspect, m.hdr_type,
                    m.audio_codec, m.audio_channels, m.audio_languages, m.subtitle_languages,
                    m.duration_seconds, m.container_ext, m.file_size_bytes,
-                   m.tmdb_id, m.edition, m.studios, m.countries
+                   m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -2158,6 +2224,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Edition           = r.IsDBNull(39) ? null : r.GetString(39),
                 Studios           = SplitLines(r.IsDBNull(40) ? null : r.GetString(40)),
                 Countries         = SplitLines(r.IsDBNull(41) ? null : r.GetString(41)),
+                UserRating        = r.IsDBNull(42) ? null : r.GetDouble(42),
             };
             // Rows from before v4.6.0 (or filled from TMDb) only have the first
             if (movie.Studios.Count == 0 && movie.Studio != null) movie.Studios.Add(movie.Studio);
@@ -3339,6 +3406,126 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return list;
     }
 
+    /// <summary>A missing TV show, for the Drives "Review missing" dialog.
+    /// <paramref name="Elsewhere"/>: the drive it's on now, when it was moved.</summary>
+    public record MissingShowRow(int Id, string Title, int? Year, string? LocalPoster,
+        int Episodes, int Watched, bool HasNote, string? Elsewhere);
+
+    // The same show found again, not missing (moved to another folder or drive).
+    private const string ShowTwinSql = @"SELECT t.id FROM tv_shows t
+        WHERE t.id <> s.id AND t.is_missing = 0
+          AND ((TRIM(COALESCE(s.tmdb_id,'')) <> '' AND TRIM(t.tmdb_id) = TRIM(s.tmdb_id))
+            OR (TRIM(COALESCE(s.imdb_id,'')) <> '' AND TRIM(t.imdb_id) = TRIM(s.imdb_id)))
+        ORDER BY t.id LIMIT 1";
+
+    /// <summary>v4.7.0: TV shows on this drive flagged is_missing=1.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<MissingShowRow> GetMissingShows(string serial)
+    {
+        var list = new List<MissingShowRow>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"SELECT s.id, s.title, s.year, s.local_poster,
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id = s.id),
+                   (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id = s.id AND e.is_watched = 1),
+                   (s.note IS NOT NULL AND TRIM(s.note) != ''),
+                   (SELECT d.label FROM drives d WHERE d.volume_serial =
+                       (SELECT volume_serial FROM tv_shows WHERE id = ({ShowTwinSql})))
+              FROM tv_shows s
+             WHERE s.volume_serial = @s AND s.is_missing = 1
+             ORDER BY s.sort_title, s.title";
+        cmd.Parameters.AddWithValue("@s", serial);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new MissingShowRow(
+                r.GetInt32(0), r.GetString(1),
+                r.IsDBNull(2) ? null : r.GetInt32(2),
+                r.IsDBNull(3) ? null : r.GetString(3),
+                r.GetInt32(4), r.GetInt32(5), r.GetInt32(6) == 1,
+                r.IsDBNull(7) ? null : r.GetString(7)));
+        return list;
+    }
+
+    /// <summary>v4.7.0: removes missing TV shows and their cached pictures (Review
+    /// missing). One found again elsewhere first hands its personal state over to
+    /// that one, as <see cref="MergeShowInto"/> does. Returns the shows that got
+    /// state, so it can be saved onto their drives.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (int Removed, List<int> MergedInto) RemoveMissingShows(IReadOnlyCollection<int> ids)
+    {
+        var mergedInto = new List<int>();
+        var cacheDirs = new List<string>();
+        int removed = 0;
+        using var tx = _conn.BeginTransaction();
+        foreach (var id in ids)
+        {
+            int? twin = null;
+            string? art = null;
+            using (var get = _conn.CreateCommand())
+            {
+                get.Transaction = tx;
+                get.CommandText = $"SELECT ({ShowTwinSql}), COALESCE(s.local_nfo, s.local_poster) FROM tv_shows s WHERE s.id = @id AND s.is_missing = 1";
+                get.Parameters.AddWithValue("@id", id);
+                using var r = get.ExecuteReader();
+                if (!r.Read()) continue;   // gone, or found again since
+                twin = r.IsDBNull(0) ? null : r.GetInt32(0);
+                art = r.IsDBNull(1) ? null : r.GetString(1);
+            }
+            if (twin is int t)
+            {
+                MergeShowInto(_conn, tx, id, t);
+                mergedInto.Add(t);
+            }
+            else
+            {
+                using var del = _conn.CreateCommand();
+                del.Transaction = tx;
+                del.CommandText = "DELETE FROM tv_shows WHERE id = @id";
+                del.Parameters.AddWithValue("@id", id);
+                del.ExecuteNonQuery();
+            }
+            removed++;
+            // A scanned show's pictures and .nfo copy live in their own "cache/<key>" folder
+            if (art?.Split('/') is [var top, var key, _] && top.Equals("cache", StringComparison.OrdinalIgnoreCase))
+                cacheDirs.Add(Path.Combine(_dataDir, "cache", key));
+        }
+        tx.Commit();
+        foreach (var dir in cacheDirs)
+            try { Directory.Delete(dir, true); } catch { /* not there, or in use: harmless leftovers */ }
+        return (removed, mergedInto);
+    }
+
+    /// <summary>
+    /// Hands one show's personal state (favorite, watchlist, note, watched
+    /// episodes, lists, tags) over to another entry of the same show, then removes
+    /// it. v4.6.1 for a show split by season (ScannerService.MergeNestedShows);
+    /// v4.7.0 also for a missing show that was moved.
+    /// </summary>
+    internal static void MergeShowInto(SqliteConnection conn, SqliteTransaction tx, int oldId, int newId)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = @"
+            UPDATE tv_shows SET
+                is_favorite = MAX(COALESCE(is_favorite,0), COALESCE((SELECT is_favorite FROM tv_shows WHERE id=@old),0)),
+                is_watchlist = MAX(COALESCE(is_watchlist,0), COALESCE((SELECT is_watchlist FROM tv_shows WHERE id=@old),0)),
+                note = COALESCE(NULLIF(TRIM(note),''), (SELECT note FROM tv_shows WHERE id=@old))
+             WHERE id=@new;
+            UPDATE tv_episodes SET
+                is_watched = MAX(COALESCE(tv_episodes.is_watched,0), COALESCE(o.is_watched,0)),
+                last_played_at = MAX(COALESCE(tv_episodes.last_played_at,0), COALESCE(o.last_played_at,0)),
+                is_favorite = MAX(COALESCE(tv_episodes.is_favorite,0), COALESCE(o.is_favorite,0)),
+                note = COALESCE(NULLIF(TRIM(tv_episodes.note),''), o.note)
+              FROM tv_episodes o
+             WHERE tv_episodes.show_id=@new AND o.show_id=@old
+               AND o.season=tv_episodes.season AND o.episode=tv_episodes.episode;
+            INSERT OR IGNORE INTO user_list_shows(list_id, show_id) SELECT list_id, @new FROM user_list_shows WHERE show_id=@old;
+            INSERT OR IGNORE INTO tv_show_tags(show_id, tag_id) SELECT @new, tag_id FROM tv_show_tags WHERE show_id=@old;
+            DELETE FROM tv_shows WHERE id=@old;";
+        cmd.Parameters.AddWithValue("@old", oldId);
+        cmd.Parameters.AddWithValue("@new", newId);
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>Delete specific missing movies by id (+ cached artwork). Used by
     /// the Review-missing dialog for the rows the user chose not to keep.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -4468,7 +4655,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             SELECT s.id, s.title, s.year, s.rating, s.plot, s.mpaa, s.studio, s.status, s.premiered,
                    s.imdb_id, s.tmdb_id, s.local_poster, s.local_fanart, s.volume_serial,
                    s.folder_rel_path, s.is_favorite, s.is_watchlist, s.note, d.label,
-                   s.original_title, s.tagline, s.runtime, s.studios, s.countries, s.creators
+                   s.original_title, s.tagline, s.runtime, s.studios, s.countries, s.creators, s.user_rating
               FROM tv_shows s LEFT JOIN drives d ON d.volume_serial=s.volume_serial
              WHERE s.id=@id";
         cmd.Parameters.AddWithValue("@id", showId);
@@ -4501,6 +4688,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             Studios = SplitLines(r.IsDBNull(22) ? null : r.GetString(22)),
             Countries = SplitLines(r.IsDBNull(23) ? null : r.GetString(23)),
             Creators = SplitLines(r.IsDBNull(24) ? null : r.GetString(24)),
+            UserRating = r.IsDBNull(25) ? null : r.GetDouble(25),
         };
         r.Close();
         if (d.Studios.Count == 0 && d.Studio != null) d.Studios.Add(d.Studio);
@@ -4975,7 +5163,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.ExecuteNonQuery();
     }
 
-    public record TagSummary(int Id, string Name, int MovieCount, int ShowCount)
+    /// <param name="Yours">v4.7.0: you gave it to a title (not only an .nfo file has it).</param>
+    public record TagSummary(int Id, string Name, int MovieCount, int ShowCount, bool Yours = false)
     {
         public int Total => MovieCount + ShowCount;   // the sidebar badge
     }
@@ -4992,14 +5181,79 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                         UNION SELECT movie_id FROM movie_nfo_tags WHERE tag_id = t.id)) AS mc,
                    (SELECT COUNT(*) FROM tv_shows s WHERE s.id IN
                        (SELECT show_id FROM tv_show_tags WHERE tag_id = t.id
-                        UNION SELECT show_id FROM tv_show_nfo_tags WHERE tag_id = t.id)) AS sc
+                        UNION SELECT show_id FROM tv_show_nfo_tags WHERE tag_id = t.id)) AS sc,
+                   EXISTS (SELECT 1 FROM movie_tags WHERE tag_id = t.id)
+                     OR EXISTS (SELECT 1 FROM tv_show_tags WHERE tag_id = t.id) AS yours
               FROM tags t
              ORDER BY t.name COLLATE NOCASE";
         var list = new List<TagSummary>();
         using var r = cmd.ExecuteReader();
         while (r.Read())
-            list.Add(new TagSummary(r.GetInt32(0), r.GetString(1), r.GetInt32(2), r.GetInt32(3)));
+            list.Add(new TagSummary(r.GetInt32(0), r.GetString(1), r.GetInt32(2), r.GetInt32(3), r.GetInt32(4) == 1));
         return list;
+    }
+
+    /// <summary>
+    /// v4.7.0 (Tags page): gives your tag a new name on every movie and show that
+    /// has it, joining a tag of that name if there is one. A title's .nfo tag of
+    /// the old name stays: it comes from the file. Returns the tag's new id.
+    /// </summary>
+    public int RenameOwnTag(int tagId, string newName)
+    {
+        var (movies, shows) = OwnTagTitles(tagId);
+        int newId = EnsureTag(newName);
+        if (newId == tagId)   // the same name in other capitals
+        {
+            SetTagName(tagId, newName.Trim());
+            return tagId;
+        }
+        foreach (var m in movies) { AddMovieTag(m, newId); RemoveMovieTag(m, tagId); }
+        foreach (var s in shows) { AddShowTag(s, newId); RemoveShowTag(s, tagId); }
+        DeleteTagIfUnused(tagId);
+        return newId;
+    }
+
+    /// <summary>v4.7.0 (Tags page): takes your tag off every movie and show; the .nfo files' tags stay.</summary>
+    public void DeleteOwnTag(int tagId)
+    {
+        var (movies, shows) = OwnTagTitles(tagId);
+        foreach (var m in movies) RemoveMovieTag(m, tagId);
+        foreach (var s in shows) RemoveShowTag(s, tagId);
+        DeleteTagIfUnused(tagId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    private (List<int> Movies, List<int> Shows) OwnTagTitles(int tagId)
+    {
+        var movies = new List<int>();
+        var shows = new List<int>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT movie_id, 0 FROM movie_tags WHERE tag_id=@t UNION ALL SELECT show_id, 1 FROM tv_show_tags WHERE tag_id=@t";
+        cmd.Parameters.AddWithValue("@t", tagId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) (r.GetInt32(1) == 0 ? movies : shows).Add(r.GetInt32(0));
+        return (movies, shows);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    private void SetTagName(int tagId, string name)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tags SET name=@n WHERE id=@t";
+        cmd.Parameters.AddWithValue("@n", name);
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    private void DeleteTagIfUnused(int tagId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"DELETE FROM tags WHERE id=@t
+            AND NOT EXISTS (SELECT 1 FROM movie_tags WHERE tag_id=@t) AND NOT EXISTS (SELECT 1 FROM tv_show_tags WHERE tag_id=@t)
+            AND NOT EXISTS (SELECT 1 FROM movie_nfo_tags WHERE tag_id=@t) AND NOT EXISTS (SELECT 1 FROM tv_show_nfo_tags WHERE tag_id=@t)";
+        cmd.Parameters.AddWithValue("@t", tagId);
+        cmd.ExecuteNonQuery();
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -5137,40 +5391,6 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = @"SELECT COUNT(*) FROM movies
                             WHERE last_played_at > 0 AND is_watched = 0 AND is_missing = 0 AND archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
-    }
-
-    /// <summary>
-    /// Picks a random unwatched movie id, preferring online drives.
-    /// Returns null if the library is empty or fully watched.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public int? GetRandomUnwatchedId(Dictionary<string, string> connected)
-    {
-        if (connected.Count == 0)
-        {
-            using var any = _conn.CreateCommand();
-            any.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL ORDER BY RANDOM() LIMIT 1";
-            var v = any.ExecuteScalar();
-            return v == null || v == DBNull.Value ? null : Convert.ToInt32(v);
-        }
-
-        // Restrict to drives that are currently online so the user can actually play it.
-        var serials = string.Join(",", connected.Keys.Select(s => $"'{s.Replace("'", "''")}'"));
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $@"SELECT id FROM movies
-                              WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL
-                                AND volume_serial IN ({serials})
-                              ORDER BY RANDOM() LIMIT 1";
-        var val = cmd.ExecuteScalar();
-        if (val == null || val == DBNull.Value)
-        {
-            // Fall back to any unwatched (drive offline) so the user still gets a pick.
-            using var fb = _conn.CreateCommand();
-            fb.CommandText = "SELECT id FROM movies WHERE is_watched=0 AND is_missing=0 AND archived_at IS NULL ORDER BY RANDOM() LIMIT 1";
-            val = fb.ExecuteScalar();
-            if (val == null || val == DBNull.Value) return null;
-        }
-        return Convert.ToInt32(val);
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]

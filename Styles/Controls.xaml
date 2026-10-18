@@ -322,6 +322,49 @@
         </Setter>
     </Style>
 
+    <!-- v4.7.0 (#25): the same round icons for a list row or an episode card, on
+         the theme's surface instead of over a picture. Icons are muted when off. -->
+    <Style x:Key="RowIconToggleStyle" TargetType="Button">
+        <Setter Property="Width"           Value="30"/>
+        <Setter Property="Height"          Value="30"/>
+        <Setter Property="Padding"         Value="0"/>
+        <Setter Property="CornerRadius"    Value="15"/>
+        <Setter Property="Background"      Value="{ThemeResource ChipBrush}"/>
+        <Setter Property="Foreground"      Value="{ThemeResource MutedBrush}"/>
+        <Setter Property="BorderBrush"     Value="{ThemeResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="Root" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.BorderBrush" Value="#A78BFA"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.BorderBrush" Value="#A78BFA"/>
+                                        <Setter Target="Presenter.Opacity" Value="0.7"/>
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter x:Name="Presenter" Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- v4.2.0 (#15): a card surface that follows the theme, for cards that light
          up on hover. The hover code sets a local Background and clears it on exit,
          so this value comes back. (A fixed rest colour set on exit stayed in the

@@ -25,6 +25,9 @@ public sealed partial class MovieRowControl : UserControl
     }
 
     public event EventHandler? SidebarRefreshRequested;
+    // v4.7.0 (#25): handled by the page as a card's are, so a row and a card behave alike
+    public event EventHandler<MovieListItem>? WatchedToggleRequested;
+    public event EventHandler<MovieListItem>? WatchlistToggleRequested;
 
     [DllImport("user32.dll")] private static extern short GetKeyState(int nVirtKey);
     private const int VK_CONTROL = 0x11, VK_SHIFT = 0x10;
@@ -130,20 +133,12 @@ public sealed partial class MovieRowControl : UserControl
     private void OnMoviePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (Movie == null) return;
-        if (e.PropertyName == nameof(MovieListItem.IsWatched))
-        {
-            WatchedBtn.Content = Movie.IsWatched ? "✓" : "○";
-            WatchedBtn.Foreground = Movie.IsWatched
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
-        }
+        if (e.PropertyName is nameof(MovieListItem.IsWatched) or nameof(MovieListItem.IsWatchlist))
+            ApplyToggleIcons(Movie);
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
         {
             RowFav.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
-            FavBtn.Content = Movie.IsFavorite ? "♥" : "♡";
-            FavBtn.Foreground = Movie.IsFavorite
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+            ApplyToggleIcons(Movie);
         }
         else if (e.PropertyName == nameof(MovieListItem.IsSelected))
         {
@@ -191,17 +186,36 @@ public sealed partial class MovieRowControl : UserControl
             RowStatusText.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x6B, 0x72, 0x80));
         }
 
-        WatchedBtn.Content = m.IsWatched ? "✓" : "○";
-        WatchedBtn.Foreground = m.IsWatched
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
-        FavBtn.Content = m.IsFavorite ? "♥" : "♡";
-        FavBtn.Foreground = m.IsFavorite
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+        PlayBtn.Visibility = m.IsOnline && !m.IsMissing ? Visibility.Visible : Visibility.Collapsed;
+        ApplyToggleIcons(m);
 
         ApplySelectionVisual();
         LoadThumbAsync(m.LocalPoster);
+    }
+
+    // v4.7.0 (#25): as the poster card's icons: coloured when on, muted when off
+    // (the style's theme colour). Per row, not static: a brush belongs to its thread.
+    private readonly SolidColorBrush _favOnBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E));
+    private readonly SolidColorBrush _watchedOnBrush = new(Windows.UI.Color.FromArgb(0xCC, 0x22, 0xC5, 0x5E));
+    private readonly SolidColorBrush _watchlistOnBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA));
+    private readonly SolidColorBrush _whiteBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+
+    private void ApplyToggleIcons(MovieListItem m)
+    {
+        FavIcon.Glyph = m.IsFavorite ? "" : "";           // HeartFill / Heart
+        if (m.IsFavorite) FavIcon.Foreground = _favOnBrush; else FavIcon.ClearValue(IconElement.ForegroundProperty);
+        if (m.IsWatched)
+        {
+            WatchedIcon.Foreground = _whiteBrush;
+            WatchedBtn.Background = _watchedOnBrush;                   // the green of the ✓ badge
+        }
+        else
+        {
+            WatchedIcon.ClearValue(IconElement.ForegroundProperty);
+            WatchedBtn.ClearValue(Control.BackgroundProperty);
+        }
+        WatchlistIcon.Glyph = m.IsWatchlist ? "" : "";    // PinFill / Pin
+        if (m.IsWatchlist) WatchlistIcon.Foreground = _watchlistOnBrush; else WatchlistIcon.ClearValue(IconElement.ForegroundProperty);
     }
 
     // See MovieCardControl.LoadPosterAsync — guards against recycled rows
@@ -225,7 +239,7 @@ public sealed partial class MovieRowControl : UserControl
             if (myToken != _thumbLoadToken) return;
             if (bytes == null) return;
 
-            var bmp = new BitmapImage { DecodePixelWidth = 44 };
+            var bmp = new BitmapImage { DecodePixelWidth = 112 };
             using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
             if (myToken != _thumbLoadToken) return;
@@ -362,15 +376,15 @@ public sealed partial class MovieRowControl : UserControl
     private void OnPointerExited(object sender, PointerRoutedEventArgs e)
         => RowBorder.ClearValue(Border.BackgroundProperty);
 
+    // The page flips IsWatched / IsWatchlist; the icons follow PropertyChanged.
     private void OnToggleWatched(object sender, RoutedEventArgs e)
     {
-        if (Movie == null) return;
-        AppState.Instance.Db.ToggleWatched(Movie.Id);
-        Movie.IsWatched = !Movie.IsWatched;
-        WatchedBtn.Content = Movie.IsWatched ? "✓" : "○";
-        WatchedBtn.Foreground = Movie.IsWatched
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x22, 0xC5, 0x5E))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+        if (Movie != null) WatchedToggleRequested?.Invoke(this, Movie);
+    }
+
+    private void OnToggleWatchlist(object sender, RoutedEventArgs e)
+    {
+        if (Movie != null) WatchlistToggleRequested?.Invoke(this, Movie);
     }
 
     private void OnToggleFav(object sender, RoutedEventArgs e)
@@ -378,11 +392,10 @@ public sealed partial class MovieRowControl : UserControl
         if (Movie == null) return;
         AppState.Instance.Db.ToggleFavorite(Movie.Id);
         Movie.IsFavorite = !Movie.IsFavorite;
-        FavBtn.Content = Movie.IsFavorite ? "♥" : "♡";
-        FavBtn.Foreground = Movie.IsFavorite
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x90, 0x90, 0xA0));
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    private void OnPlay(object sender, RoutedEventArgs e) => _ = PlayMovieOrPromptOfflineAsync();
 
     // v4.5.0: the movies of the grid or list this row is in, so the movie
     // window can step through them with the arrow keys.

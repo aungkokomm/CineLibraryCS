@@ -30,19 +30,6 @@
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
                         VerticalAlignment="Center" Margin="8,0,0,0">
-                <!-- v2.5.1 — reopen-sidebar toggle lives here so it never
-                     overlaps the page title when the sidebar is collapsed. -->
-                <Button x:Name="SidebarReopenBtn" Click="OnToggleSidebar"
-                        Visibility="Collapsed"
-                        Background="Transparent" BorderThickness="0"
-                        Foreground="{ThemeResource MutedBrush}"
-                        Padding="6,4" CornerRadius="6"
-                        VerticalAlignment="Center"
-                        AutomationProperties.Name="Show sidebar"
-                        ToolTipService.ToolTip="Show sidebar">
-                    <FontIcon Glyph="&#xE89F;" FontSize="14"
-                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                </Button>
                 <Image Source="ms-appx:///Assets/icon.ico"
                        Width="16" Height="16" VerticalAlignment="Center"/>
                 <TextBlock Text="CineLibrary" FontSize="12" FontWeight="SemiBold"
@@ -174,8 +161,14 @@
                     </StackPanel>
                 </Button>
 
+                <!-- v4.7.0: slim mode, the items as icons (see BuildRail) -->
+                <ScrollViewer x:Name="RailScroller" Grid.Row="1" Visibility="Collapsed"
+                              VerticalScrollBarVisibility="Hidden">
+                    <StackPanel x:Name="RailPanel" Spacing="2" Padding="0,4" HorizontalAlignment="Center"/>
+                </ScrollViewer>
+
                 <!-- Nav -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="NavScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="NavPanel" Padding="8,0">
 
                         <!-- LIBRARY group (v1.9.3) -->
@@ -295,7 +288,7 @@
                         </Button>
 
                         <!-- DISCOVER group (v1.9.3) -->
-                        <TextBlock Text="DISCOVER" Style="{StaticResource SidebarGroupLabelStyle}"/>
+                        <TextBlock x:Name="DiscoverLabel" Text="DISCOVER" Style="{StaticResource SidebarGroupLabelStyle}"/>
 
                         <!-- Continue Watching (v1.8) -->
                         <Button x:Name="BtnContinueWatching" Style="{StaticResource NavItemStyle}"
@@ -349,16 +342,6 @@
                             </Grid>
                         </Button>
 
-                        <!-- Random Pick (v1.7) -->
-                        <Button x:Name="BtnRandomPick" Style="{StaticResource NavItemStyle}" Click="OnNavRandomPick">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavDiscoverIconBrush}" Glyph="&#xE8B1;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Surprise me" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
                         <!-- On This Day (v2.9) — hidden when nothing today.
                              Click opens a dialog with the matches: movies you
                              watched on this date in past years, and films
@@ -370,94 +353,6 @@
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="On This Day" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- BROWSE group (v2.1) — banner-style category pages -->
-                        <TextBlock Text="BROWSE" Style="{StaticResource SidebarGroupLabelStyle}"/>
-
-                        <Button x:Name="BtnBrowseGenre" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavBrowseGenre">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE8EC;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="By Genre" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="BtnBrowseDecade" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavBrowseDecade">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE787;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="By Decade" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="BtnBrowseRating" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavBrowseRating">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE735;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="By Rating" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="BtnCollections" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavCollections">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE8B7;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Collections" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- TOOLS group (v1.9.3) -->
-                        <TextBlock Text="TOOLS" Style="{StaticResource SidebarGroupLabelStyle}"/>
-
-                        <!-- Statistics (v1.4.1) -->
-                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE9D9;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Statistics" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- Dupes (v3.4.4) — find movies held more than once -->
-                        <Button x:Name="BtnDupes" Style="{StaticResource NavItemStyle}" Click="OnNavDupes">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE8C8;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Dupes" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
-
-                        <!-- v2.9 — Backup / restore personal state.
-                             Opens a small dialog with Export / Import. -->
-                        <Button x:Name="BtnBackup" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavBackup">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE74E;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Backup" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- v3.9.0 — Export (was a button on All movies): the whole
-                             library, or what All movies shows, as CSV or HTML. -->
-                        <Button x:Name="BtnExport" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavExport">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xEDE1;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Export" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
 
@@ -495,9 +390,106 @@
                             <StackPanel x:Name="UserListsItemsPanel"/>
                         </StackPanel>
 
+                        <!-- BROWSE group (v2.1) — banner-style category pages -->
+                        <TextBlock x:Name="BrowseLabel" Text="BROWSE" Style="{StaticResource SidebarGroupLabelStyle}"/>
+
+                        <Button x:Name="BtnBrowseGenre" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseGenre">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE8EC;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Genre" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnBrowseDecade" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseDecade">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE787;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Decade" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnBrowseRating" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseRating">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE735;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="By Rating" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnCollections" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavCollections">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE8B7;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Collections" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <!-- v4.7.0: every tag on its own page (the sidebar keeps the pinned ones) -->
+                        <Button x:Name="BtnBrowseTags" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBrowseTags">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Foreground="{ThemeResource NavBrowseIconBrush}" Glyph="&#xE8EC;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Tags" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="TagsCountBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
+                        <!-- TOOLS group (v1.9.3) -->
+                        <TextBlock x:Name="ToolsLabel" Text="TOOLS" Style="{StaticResource SidebarGroupLabelStyle}"/>
+
+                        <!-- Statistics (v1.4.1) -->
+                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE9D9;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Statistics" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Dupes (v3.4.4) — find movies held more than once -->
+                        <Button x:Name="BtnDupes" Style="{StaticResource NavItemStyle}" Click="OnNavDupes">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE8C8;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Dupes" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+
+                        <!-- v4.7.0: Backup (restore personal state, v2.9) and Export (CSV /
+                             HTML, v3.9.0) in one item: a menu with both. -->
+                        <Button x:Name="BtnBackupExport" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavBackupExport">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE74E;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Backup &amp; Export" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- v2.9 — Tags section. Collapsible like My Lists.
                              Populated from DB by RefreshSidebar; hidden when
-                             no tags exist yet. -->
+                             no tags exist yet. v4.7.0: only the pinned tags
+                             (Tags page, right-click); a hint when none are. -->
                         <StackPanel x:Name="TagsHeader" Visibility="Collapsed" Margin="0,8,0,0">
                             <Button Tag="Tags" Click="OnSidebarSectionToggle"
                                     Style="{StaticResource SidebarSectionHeaderStyle}"
@@ -507,13 +499,14 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="🏷  TAGS" CharacterSpacing="150"/>
+                                    <TextBlock Text="PINNED TAGS" CharacterSpacing="150"/>
                                     <TextBlock x:Name="TagsChevron" Grid.Column="1"
                                                Text="⌃" FontSize="11" Margin="6,0,0,0"/>
                                 </Grid>
                             </Button>
                             <!-- v4.6.3: a repeater, so only the tags on screen are
                                  built (a library can have hundreds from its .nfo files). -->
+                            <StackPanel x:Name="TagsBody">
                             <ItemsRepeater x:Name="TagsRepeater" ElementPrepared="OnTagPrepared">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Orientation="Vertical"/>
@@ -540,6 +533,12 @@
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
+                            <Button x:Name="PinTagsHint" Style="{StaticResource NavItemStyle}" Click="OnNavBrowseTags"
+                                    Visibility="Collapsed">
+                                <TextBlock Text="Pin tags from the Tags page" FontSize="12"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                            </Button>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Libraries section (collapsible, custom header) -->
@@ -648,7 +647,7 @@
                                 <FontIcon Glyph="&#xE713;" FontSize="15"
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                             </Button>
-                            <Button Grid.Column="4" Click="OnHelpClick"
+                            <Button x:Name="HelpBtn" Grid.Column="4" Click="OnHelpClick"
                                     Background="Transparent" BorderThickness="0"
                                     Foreground="{ThemeResource MutedBrush}"
                                     Padding="6" Margin="2,0,0,0" CornerRadius="6"

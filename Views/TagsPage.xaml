@@ -1,0 +1,77 @@
+<Page
+    x:Class="CineLibraryCS.Views.TagsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CineLibraryCS.Controls"
+    Background="{ThemeResource BgBrush}">
+
+    <!-- v4.7.0 (BROWSE → Tags): every tag in one place, instead of a sidebar
+         list that grew to hundreds with the tags .nfo files bring. Search,
+         sort, your tags apart from the .nfo files', and right-click to pin a
+         tag to the sidebar or rename / delete one of yours. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <controls:HeaderBar Grid.Row="0" Margin="24,8,24,10" HorizontalSpacing="16" VerticalSpacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBlock Text="Tags" FontSize="24" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="CountText" FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                           VerticalAlignment="Center" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button x:Name="ShowAll" Content="All" Tag="all"
+                        Style="{StaticResource PillButtonActiveStyle}" Click="OnShowClick"/>
+                <Button x:Name="ShowYours" Content="Your tags" Tag="yours"
+                        Style="{StaticResource PillButtonStyle}" Click="OnShowClick"/>
+                <Button x:Name="ShowNfo" Content="From .nfo files" Tag="nfo"
+                        Style="{StaticResource PillButtonStyle}" Click="OnShowClick"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBox x:Name="SearchBox" PlaceholderText="Search tags" Width="220" Height="36"
+                         CornerRadius="8" TextChanged="OnSearchChanged"
+                         Background="{ThemeResource InputBgBrush}"
+                         BorderBrush="{ThemeResource InputBorderBrush}"
+                         AutomationProperties.Name="Search tags"/>
+                <ComboBox x:Name="SortCombo" SelectedIndex="0" SelectionChanged="OnSortChanged"
+                          Width="140" Height="36" CornerRadius="8"
+                          Background="{ThemeResource InputBgBrush}"
+                          Foreground="{ThemeResource TextBrush}"
+                          BorderBrush="{ThemeResource InputBorderBrush}"
+                          AutomationProperties.Name="Sort tags">
+                    <ComboBoxItem Content="Most used"/>
+                    <ComboBoxItem Content="A to Z"/>
+                </ComboBox>
+            </StackPanel>
+        </controls:HeaderBar>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="24,4,24,24" Spacing="10">
+                <StackPanel x:Name="YoursSection" Spacing="10">
+                    <TextBlock Text="YOUR TAGS" FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                               Opacity="0.75" Foreground="{ThemeResource MutedBrush}"/>
+                    <controls:WrapPanel x:Name="YoursPanel" HorizontalSpacing="8" VerticalSpacing="8"/>
+                </StackPanel>
+
+                <StackPanel x:Name="NfoSection" Spacing="10" Margin="0,14,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="FROM .NFO FILES" FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                                   Opacity="0.75" Foreground="{ThemeResource MutedBrush}"/>
+                        <TextBlock Text="Change these in CineLibrary Essentials" FontSize="12"
+                                   Foreground="{ThemeResource MutedBrush}" Opacity="0.75"/>
+                    </StackPanel>
+                    <controls:WrapPanel x:Name="NfoPanel" HorizontalSpacing="8" VerticalSpacing="8"/>
+                </StackPanel>
+
+                <TextBlock x:Name="EmptyText" Visibility="Collapsed" Margin="0,40,0,0"
+                           HorizontalAlignment="Center" FontSize="14"
+                           Foreground="{ThemeResource MutedBrush}"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

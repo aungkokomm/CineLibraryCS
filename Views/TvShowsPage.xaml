@@ -151,8 +151,8 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <!-- Poster -->
-                                        <Border Grid.Column="0" Width="150" Height="225" CornerRadius="10"
+                                        <!-- Poster (v4.7.0 #25: a little bigger, still under the movie window's) -->
+                                        <Border Grid.Column="0" Width="180" Height="270" CornerRadius="10"
                                                 VerticalAlignment="Top"
                                                 BorderBrush="#33FFFFFF" BorderThickness="1"
                                                 Background="{ThemeResource PlaceholderBgBrush}">

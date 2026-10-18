@@ -22,6 +22,7 @@ public sealed partial class TvEpisodeCard : UserControl
     // Static so the host page wires once, regardless of recycling.
     public static event Action<TvEpisodeItem>? AnyPlay;
     public static event Action<TvEpisodeItem>? AnyWatchedToggle;
+    public static event Action<TvEpisodeItem>? AnyFavoriteToggle;   // v4.7.0 (#25)
     public static event Action<TvEpisodeItem>? AnyDetails;
 
     public TvEpisodeCard()
@@ -79,7 +80,7 @@ public sealed partial class TvEpisodeCard : UserControl
         // Cards are reused while scrolling, so every branch sets everything.
         CardRoot.Opacity = ep.NotInLibrary ? 0.55 : 1;
         NotInLibraryBadge.Visibility = ep.NotInLibrary ? Visibility.Visible : Visibility.Collapsed;
-        WatchedToggleBtn.Visibility = ep.NotInLibrary ? Visibility.Collapsed : Visibility.Visible;
+        ToggleButtons.Visibility = ep.NotInLibrary ? Visibility.Collapsed : Visibility.Visible;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this,
             ep.NotInLibrary ? $"{ep.Code} {ep.Title}, not in your library" : $"{ep.Code} {ep.Title}");
         if (ep.NotInLibrary)
@@ -104,16 +105,33 @@ public sealed partial class TvEpisodeCard : UserControl
             ? $"Aired {d.ToString("d MMM yyyy", System.Globalization.CultureInfo.CurrentCulture)}"
             : "";
 
+    // v4.7.0 (#25): the toggles are coloured when on, muted (the style's theme
+    // colour) when off. Per card, not static: a brush belongs to its thread.
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _favOnBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _watchedOnBrush = new(Windows.UI.Color.FromArgb(0xCC, 0x22, 0xC5, 0x5E));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush _whiteBrush = new(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+
     private void ApplyWatchedVisual(bool watched)
     {
         WatchedBadge.Visibility = watched ? Visibility.Visible : Visibility.Collapsed;
         WatchedDim.Visibility = watched ? Visibility.Visible : Visibility.Collapsed;
-        WatchedToggleBtn.Content = watched ? "✓ Watched" : "○ Mark watched";
+        if (watched)
+        {
+            WatchedIcon.Foreground = _whiteBrush;
+            WatchedBtn.Background = _watchedOnBrush;
+        }
+        else
+        {
+            WatchedIcon.ClearValue(IconElement.ForegroundProperty);
+            WatchedBtn.ClearValue(Control.BackgroundProperty);
+        }
     }
 
     private void ApplyFavoriteVisual(bool fav)
     {
         FavBadge.Visibility = fav ? Visibility.Visible : Visibility.Collapsed;
+        FavIcon.Glyph = fav ? "" : "";   // HeartFill / Heart
+        if (fav) FavIcon.Foreground = _favOnBrush; else FavIcon.ClearValue(IconElement.ForegroundProperty);
     }
 
     private void OnPlay(object sender, RoutedEventArgs e)
@@ -124,6 +142,11 @@ public sealed partial class TvEpisodeCard : UserControl
     private void OnToggleWatched(object sender, RoutedEventArgs e)
     {
         if (Episode != null) AnyWatchedToggle?.Invoke(Episode);
+    }
+
+    private void OnToggleFavorite(object sender, RoutedEventArgs e)
+    {
+        if (Episode != null) AnyFavoriteToggle?.Invoke(Episode);
     }
 
     private int _token;

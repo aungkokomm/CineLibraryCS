@@ -133,24 +133,13 @@ public sealed partial class LibraryPage : Page
 
         // v2.8.2 — tap a show card in the "TV shows in this list" row to
         // open that show on the TV page.
-        ShowsInListRepeater.Tapped += (s, e) =>
-        {
-            var d = e.OriginalSource as DependencyObject;
-            while (d != null && d is not TvShowCard)
-                d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
-            if (d is TvShowCard card && card.Show != null && App.MainWindow is MainWindow mw)
-                mw.OpenTvShow(card.Show.Id);
-        };
+        ShowsInListRepeater.Tapped += (s, e) => OpenTappedShow(e.OriginalSource);
 
         // v2.9 — same tap behaviour for the "TV shows matching" search row.
-        ShowsInSearchRepeater.Tapped += (s, e) =>
-        {
-            var d = e.OriginalSource as DependencyObject;
-            while (d != null && d is not TvShowCard)
-                d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
-            if (d is TvShowCard card && card.Show != null && App.MainWindow is MainWindow mw)
-                mw.OpenTvShow(card.Show.Id);
-        };
+        ShowsInSearchRepeater.Tapped += (s, e) => OpenTappedShow(e.OriginalSource);
+        // v4.7.0 (#25): and for the rows that stand in for them in list view
+        ShowsInListRows.Tapped += (s, e) => OpenTappedShow(e.OriginalSource);
+        ShowsInSearchRows.Tapped += (s, e) => OpenTappedShow(e.OriginalSource);
 
         // Wire up sidebar refresh from movie cards (watchlist / favorite / watched toggles
         // made inside the detail dialog need to bubble back up so the sidebar counts refresh)
@@ -632,14 +621,22 @@ public sealed partial class LibraryPage : Page
         if (args.Element is MovieRowControl row)
         {
             row.SidebarRefreshRequested -= OnRowSidebarRefresh;
+            row.WatchedToggleRequested  -= OnCardWatchedToggle;
+            row.WatchlistToggleRequested -= OnCardWatchlistToggle;
             row.SidebarRefreshRequested += OnRowSidebarRefresh;
+            row.WatchedToggleRequested  += OnCardWatchedToggle;   // v4.7.0 (#25): as a card's
+            row.WatchlistToggleRequested += OnCardWatchlistToggle;
         }
     }
 
     private void OnListRepeaterElementClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
     {
         if (args.Element is MovieRowControl row)
+        {
             row.SidebarRefreshRequested -= OnRowSidebarRefresh;
+            row.WatchedToggleRequested  -= OnCardWatchedToggle;
+            row.WatchlistToggleRequested -= OnCardWatchlistToggle;
+        }
     }
 
     private void AddAccelerator(VirtualKey key, VirtualKeyModifiers mods,
@@ -857,6 +854,24 @@ public sealed partial class LibraryPage : Page
             GridBorder.Visibility = Visibility.Visible;
             ListBorder.Visibility = Visibility.Collapsed;
         }
+        ApplyShowsLayout(_vm.ViewMode == ViewMode.List);
+    }
+
+    /// <summary>v4.7.0 (#25): the shows on a page with movies come as rows in list view, cards otherwise.</summary>
+    private void ApplyShowsLayout(bool list)
+    {
+        ShowsInListCards.Visibility = ShowsInSearchCards.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
+        ShowsInListRows.Visibility = ShowsInSearchRows.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static void OpenTappedShow(object originalSource)
+    {
+        var d = originalSource as DependencyObject;
+        while (d != null && d is not TvShowCard && d is not TvShowRowControl)
+            d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
+        var show = d is TvShowCard card ? card.Show : (d as TvShowRowControl)?.Show;
+        if (show != null && App.MainWindow is MainWindow mw)
+            mw.OpenTvShow(show.Id);
     }
 
     // Sort combo — match the item whose Tag corresponds to current SortKey+SortDir.
@@ -963,7 +978,7 @@ public sealed partial class LibraryPage : Page
         if (q.Length < 2)
         {
             ShowsInSearchSection.Visibility = Visibility.Collapsed;
-            ShowsInSearchRepeater.ItemsSource = null;
+            ShowsInSearchRepeater.ItemsSource = ShowsInSearchRows.ItemsSource = null;
             _lastShowsSearchTerm = null;
             return;
         }
@@ -974,13 +989,13 @@ public sealed partial class LibraryPage : Page
         if (shows.Count == 0)
         {
             ShowsInSearchSection.Visibility = Visibility.Collapsed;
-            ShowsInSearchRepeater.ItemsSource = null;
+            ShowsInSearchRepeater.ItemsSource = ShowsInSearchRows.ItemsSource = null;
             return;
         }
         ShowsInSearchHeader.Text = shows.Count == 1
             ? "TV SHOW MATCHING"
             : $"TV SHOWS MATCHING ({shows.Count})";
-        ShowsInSearchRepeater.ItemsSource = shows;
+        ShowsInSearchRepeater.ItemsSource = ShowsInSearchRows.ItemsSource = shows;
         ShowsInSearchSection.Visibility = Visibility.Visible;
     }
 
@@ -1033,7 +1048,7 @@ public sealed partial class LibraryPage : Page
                   : page is { } p ? db.GetTvShowsForPage(p, AppState.Instance.Connected)
                   : new List<TvShowListItem>();
         ShowsInListHeader.Text = _vm.UserListId != null ? "TV SHOWS IN THIS LIST" : "TV SHOWS";
-        ShowsInListRepeater.ItemsSource = shows.Count > 0 ? shows : null;
+        ShowsInListRepeater.ItemsSource = ShowsInListRows.ItemsSource = shows.Count > 0 ? shows : null;
         ShowsInListSection.Visibility = shows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         _rowShowCount = shows.Count;
         UpdateCountText();
@@ -1224,6 +1239,7 @@ public sealed partial class LibraryPage : Page
         ListViewToggle.IsChecked  = false;
         GridBorder.Visibility = Visibility.Visible;
         ListBorder.Visibility = Visibility.Collapsed;
+        ApplyShowsLayout(false);
         _vm.ViewMode = ViewMode.Grid;
     }
 
@@ -1234,6 +1250,7 @@ public sealed partial class LibraryPage : Page
         GridViewToggle.IsChecked = false;
         GridBorder.Visibility = Visibility.Collapsed;
         ListBorder.Visibility = Visibility.Visible;
+        ApplyShowsLayout(true);
         _vm.ViewMode = ViewMode.List;
     }
 

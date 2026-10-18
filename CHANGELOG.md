@@ -6,6 +6,53 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.7.0] - 2026-10-19
+
+### Added
+- **Tags page** (Browse → Tags). Every tag with its count, instead of a
+  sidebar list that ran to hundreds with the tags `.nfo` files bring.
+  Search, sort by most used or A to Z, and show all, your tags, or the
+  ones from `.nfo` files. Right-click a tag to pin it to the sidebar
+  (PINNED TAGS), or one of your own to rename or delete it everywhere.
+- **Slim sidebar.** Collapsing the sidebar (Ctrl+B or the button at the
+  bottom) now leaves a strip of icons with their names as tooltips,
+  instead of hiding it completely.
+- **Hide what you don't use.** Right-click a sidebar item → Hide from
+  sidebar; Settings → Sidebar shows it again.
+- **User rating.** The rating you give a movie or show in CineLibrary
+  Essentials' editor (Kodi's `<userrating>`) shows beside IMDb and TMDb
+  in the movie window and on the show page, as "User rating 7/10". Not
+  shown when it's not set or 0.
+- **TV shows as rows in list view.** On pages with both movies and shows
+  (Favorites, To Watch, lists, search), list view now shows the shows as
+  rows too, with their episodes watched, instead of a row of cards above
+  the movie rows.
+
+### Changed
+- The sidebar is shorter: Backup and Export are one item (Backup & Export),
+  Surprise me left (the 🔀 button on the library toolbar does the same),
+  and My Lists moved up under Discover.
+- The sidebar's Libraries, My Lists and Pinned Tags stay folded (or open)
+  the way you left them, after a restart too.
+- The edition chip (Director's Cut, Extended...) comes after the age
+  rating, so the runtime and age rating sit together.
+- **List view rows**: a bigger poster, and ▶ Play, Watchlist, Watched and
+  Favorite buttons as on the poster cards.
+- **Episode cards** have Favorite and Watched buttons.
+- The poster on a show's page is a little bigger.
+
+### Fixed
+- **"NONE" chip in the movie window.** tinyMediaManager writes
+  `<edition>NONE</edition>` for a movie with no special edition; that's no
+  edition now, and movies already in your library are corrected at start-up.
+- **On This Day** cards were cut off (corner buttons missing) when the
+  library's card Size was L or XL; they follow the Size setting now.
+- Fixed text overlapping on a show page (Country over "Located on", and a
+  show's tags over "+ Add tag").
+- Genre names sit in the middle of their chips on a show's page.
+- A TV show moved to another drive or folder no longer stays behind twice:
+  **Review** on the Drives page lists missing shows now, as it does movies.
+
 ## [4.6.3] - 2026-10-17
 
 ### Fixed

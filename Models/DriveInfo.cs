@@ -33,7 +33,7 @@ public class DriveInfo
     public Microsoft.UI.Xaml.Visibility FoldersVisibility =>
         Folders.Count > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
     public string MissingInfoText =>
-        $"{MissingCount} indexed movie(s) weren't found in the last scan — they may have been moved or deleted. Review them to keep watched ones as records or remove the rest.";
+        $"{MissingCount} indexed title(s) weren't found in the last scan: they may have been moved or deleted. Review them to keep watched movies as records or remove the rest.";
 }
 
 public class DriveRoot
