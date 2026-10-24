@@ -253,9 +253,9 @@
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
                               Padding="24,0,24,0">
-                    <ItemsRepeater x:Name="ShowsInSearchRepeater">
+                    <ItemsRepeater x:Name="ShowsInSearchRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
-                            <StackLayout Orientation="Horizontal" Spacing="14"/>
+                            <StackLayout Orientation="Horizontal" Spacing="24"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:TvShowListItem">
@@ -289,9 +289,9 @@
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
                               Padding="24,0,24,0">
-                    <ItemsRepeater x:Name="ShowsInListRepeater">
+                    <ItemsRepeater x:Name="ShowsInListRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
-                            <StackLayout Orientation="Horizontal" Spacing="14"/>
+                            <StackLayout Orientation="Horizontal" Spacing="24"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:TvShowListItem">
@@ -341,12 +341,13 @@
 
                 <!-- Grid View -->
                 <Border x:Name="GridBorder" Padding="24,0,24,24">
-                    <ItemsRepeater x:Name="GridRepeater">
+                    <ItemsRepeater x:Name="GridRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
+                            <!-- Sizes and gaps: CardCell.FitGrid (v4.8.0) -->
                             <UniformGridLayout x:Name="GridLayout"
-                                               MinItemWidth="150" MinItemHeight="280"
-                                               MinColumnSpacing="12" MinRowSpacing="12"
-                                               ItemsStretch="Fill"/>
+                                               MinItemWidth="150" MinItemHeight="269"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:MovieListItem">
@@ -432,6 +433,20 @@
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"
                         CornerRadius="8" Padding="10,6" FontSize="12"/>
+                <!-- v4.8.0: Fetch missing info from TMDB for every selected movie -->
+                <Button x:Name="SelFetchBtn" Click="OnSelFetchMissing"
+                        Background="{ThemeResource CardBrush}"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        CornerRadius="8" Padding="10,6" FontSize="12"
+                        AutomationProperties.Name="Fetch missing info from TMDB"
+                        ToolTipService.ToolTip="Look each one up on TMDb and fill in only what it's missing">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE896;" FontSize="12"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock Text="Fetch missing info" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
                 <Button x:Name="SelArchiveBtn" Click="OnSelArchive"
                         Background="{ThemeResource CardBrush}"
                         Foreground="{ThemeResource TextBrush}"

@@ -7,11 +7,54 @@ namespace CineLibraryCS.Controls;
 /// <summary>
 /// v4.4.0: holds one poster card in a grid cell, sized the way movie and show
 /// cards size themselves since 4.1.0. It asks for the S / M / L / XL size, then
-/// fills the cell the grid gives it, up to the width of a 2:3 poster at that
-/// height, kept to the left so the grid lines up with the page title.
+/// fills the cell the grid gives it (v4.8.0: all of it; see <see cref="FitGrid"/>).
 /// </summary>
 public sealed class CardCell : Panel
 {
+    /// <summary>
+    /// v4.8.0: a grid of poster cards, a 2:3 poster with its caption under it.
+    /// Cells widen to fill the row and grow taller in step, so the poster keeps
+    /// its shape at any width. S has closer gaps, so as many fit in a row as before.
+    /// </summary>
+    public static void FitGrid(UniformGridLayout layout, (double Width, double Height) size, string density)
+    {
+        layout.MinItemWidth = size.Width;
+        layout.MinItemHeight = size.Height;
+        layout.MinColumnSpacing = GapFor(density);
+        layout.MinRowSpacing = density == "S" ? 20 : 28;
+        layout.ItemsStretch = UniformGridLayoutItemsStretch.Uniform;
+    }
+
+    /// <summary>v4.8.0: the space between cards side by side, in a grid or a row.</summary>
+    public static double GapFor(string density) => density == "S" ? 16 : 24;
+
+    /// <summary>
+    /// v4.8.0: an arrow key on a card. Focus goes to the nearest card that way in
+    /// the same grid or row; up or down past its edge, to whatever is there (the
+    /// toolbar above, the movies under a row of shows). False when nothing is.
+    /// </summary>
+    public static bool MoveFocus(UIElement card, Windows.System.VirtualKey key)
+    {
+        var direction = key switch
+        {
+            Windows.System.VirtualKey.Left  => Microsoft.UI.Xaml.Input.FocusNavigationDirection.Left,
+            Windows.System.VirtualKey.Right => Microsoft.UI.Xaml.Input.FocusNavigationDirection.Right,
+            Windows.System.VirtualKey.Up    => Microsoft.UI.Xaml.Input.FocusNavigationDirection.Up,
+            Windows.System.VirtualKey.Down  => Microsoft.UI.Xaml.Input.FocusNavigationDirection.Down,
+            _ => (Microsoft.UI.Xaml.Input.FocusNavigationDirection?)null,
+        };
+        if (direction is not { } dir || card.XamlRoot is not { } xamlRoot) return false;
+        DependencyObject? grid = card;
+        while (grid != null && grid is not ItemsRepeater)
+            grid = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(grid);
+        if (grid != null && Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(dir,
+                new Microsoft.UI.Xaml.Input.FindNextElementOptions { SearchRoot = grid }))
+            return true;
+        return dir is Microsoft.UI.Xaml.Input.FocusNavigationDirection.Up or Microsoft.UI.Xaml.Input.FocusNavigationDirection.Down
+            && Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(dir,
+                new Microsoft.UI.Xaml.Input.FindNextElementOptions { SearchRoot = xamlRoot.Content });
+    }
+
     public double CardWidth { get; set; } = 170;
     public double CardHeight { get; set; } = 300;
 
@@ -35,6 +78,5 @@ public sealed class CardCell : Panel
     }
 
     private double DrawnWidth(double cellWidth)
-        => double.IsInfinity(cellWidth) ? CardWidth
-         : Math.Max(CardWidth, Math.Min(cellWidth, Math.Max(CardWidth, CardHeight * 2 / 3)));
+        => double.IsInfinity(cellWidth) ? CardWidth : cellWidth;
 }

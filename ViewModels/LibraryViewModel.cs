@@ -37,6 +37,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private bool _isRecentlyWatched = false;
     [ObservableProperty] private bool _isRecentlyAdded = false;
     [ObservableProperty] private bool _hasNoteOnly = false;
+    [ObservableProperty] private bool _fewCastOnly = false;   // v4.8.0: Missing cast
     [ObservableProperty] private int? _userListId = null;
     [ObservableProperty] private int? _tagId = null;
     [ObservableProperty] private string? _tagName = null;
@@ -94,7 +95,7 @@ public partial class LibraryViewModel : ObservableObject
         ));
 
         Movies.Clear();
-        foreach (var m in movies) Movies.Add(m);
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : opts.SortKey; Movies.Add(m); }
         FilterTotal = total;
         HasMore = movies.Count == PageSize && Movies.Count < total;
         TotalCount = Movies.Count;
@@ -107,7 +108,7 @@ public partial class LibraryViewModel : ObservableObject
         IsLoading = true;
         var opts = BuildOpts(Movies.Count);
         var movies = await Task.Run(() => _state.Db.GetMovies(opts, _state.Connected));
-        foreach (var m in movies) Movies.Add(m);
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : opts.SortKey; Movies.Add(m); }
         HasMore = movies.Count == PageSize && Movies.Count < FilterTotal;
         TotalCount = Movies.Count;
         IsLoading = false;
@@ -156,6 +157,7 @@ public partial class LibraryViewModel : ObservableObject
         RecentlyWatchedOnly: IsRecentlyWatched,
         RecentlyAddedOnly: IsRecentlyAdded,
         HasNoteOnly: HasNoteOnly,
+        FewCastOnly: FewCastOnly,
         UserListId: UserListId,
         TagId: TagId,
         DecadeStart: FilterDecadeStart,
@@ -412,6 +414,7 @@ public partial class LibraryViewModel : ObservableObject
         IsRecentlyWatched = false;
         IsRecentlyAdded = false;
         HasNoteOnly = false;
+        FewCastOnly = false;
         UserListId = null;
         TagId = null;
         TagName = null;
@@ -426,6 +429,16 @@ public partial class LibraryViewModel : ObservableObject
         IsWatchlistOnly = true;
         PageTitle = "📋 To Watch";
         RefreshWatchlistCount();
+        _ = LoadAsync();
+    }
+
+    /// <summary>v4.8.0: movies with one actor or none (sidebar → Missing cast),
+    /// to select and fetch the cast for.</summary>
+    public void ShowFewCast()
+    {
+        ResetAllFilters();
+        FewCastOnly = true;
+        PageTitle = "Missing cast";
         _ = LoadAsync();
     }
 

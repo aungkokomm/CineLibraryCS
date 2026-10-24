@@ -1895,6 +1895,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         bool RecentlyAddedOnly = false,   // v2.9.0 fix — true = restrict to top N most-recently-added
         int RecentlyAddedTopN = 50,
         bool HasNoteOnly = false,       // v2.8.2 — only movies carrying a note
+        bool FewCastOnly = false,       // v4.8.0: only movies with one actor or none (Missing cast)
         int? UserListId = null,
         int? TagId = null,              // v2.9 — filter movies by tag id
         int? DecadeStart = null,        // e.g. 1980 → year in [1980..1989]
@@ -1987,6 +1988,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
         if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
+        if (opts.FewCastOnly) where.Add(FewCastSql);
         if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
         if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
         if (opts.RecentlyAddedOnly)
@@ -2055,6 +2057,29 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
     }
 
+    // v4.8.0: a movie's length on cards, list rows and the Runtime sort: the
+    // .nfo's runtime, else the video file's own length (as Kodi does). The
+    // movie window keeps the two apart (Runtime and Duration).
+    private const string RuntimeOrFileSql =
+        "COALESCE(NULLIF(m.runtime, 0), NULLIF(CAST(ROUND(m.duration_seconds / 60.0) AS INTEGER), 0))";
+
+    // v4.8.0: what a card shows besides the basics (its corner tags), at the end
+    // of every movie list query and read by name, so the queries' own extra
+    // columns keep their places.
+    private const string CardExtrasSql =
+        "m.date_added AS card_added, m.video_width AS card_w, m.video_height AS card_h, m.hdr_type AS card_hdr";
+
+    private static MovieListItem WithCardExtras(Microsoft.Data.Sqlite.SqliteDataReader r, MovieListItem m)
+    {
+        long? Long(string c) => r.IsDBNull(r.GetOrdinal(c)) ? null : r.GetInt64(r.GetOrdinal(c));
+        int? Int(string c) => r.IsDBNull(r.GetOrdinal(c)) ? null : r.GetInt32(r.GetOrdinal(c));
+        m.DateAdded = Long("card_added");
+        m.VideoWidth = Int("card_w");
+        m.VideoHeight = Int("card_h");
+        m.HdrType = r.IsDBNull(r.GetOrdinal("card_hdr")) ? null : r.GetString(r.GetOrdinal("card_hdr"));
+        return m;
+    }
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public List<MovieListItem> GetMovies(ListOptions opts, Dictionary<string, string> connected)
     {
@@ -2063,14 +2088,16 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         {
             "year" => "m.year",
             "rating" => "m.rating",
-            "runtime" => "m.runtime",
+            "runtime" => RuntimeOrFileSql,
             "date_added" => "m.date_added",
             "last_played" => "m.last_played_at",
             "archived" => "m.archived_at",   // v3.3 — Watched & Gone "recently gone"
             _ => "m.sort_title"
         };
         var sortDir = opts.SortDir == "desc" ? "DESC" : "ASC";
-        var nullsLast = sortDir == "ASC" ? "NULLS LAST" : "NULLS FIRST";
+        // v4.8.0: movies without the value go last both ways (Rating ↓ listed the
+        // unrated ones first, Last Watched ↓ the never-watched ones)
+        var nullsLast = "NULLS LAST";
 
         // Search relevance ordering.
         //  • FTS path: rank by bm25 with title weighted highest, plot lowest,
@@ -2100,12 +2127,13 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $@"
-            SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+            SELECT m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
                    m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                    (SELECT GROUP_CONCAT(g.name, ', ')
                     FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id
                     WHERE mg.movie_id=m.id) as genres_csv,
-                   m.is_watchlist
+                   m.is_watchlist,
+                   {CardExtrasSql}
             FROM movies m
             LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             {searchJoin}
@@ -2126,7 +2154,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         while (r.Read())
         {
             var serial = r.GetString(9);
-            list.Add(new MovieListItem
+            list.Add(WithCardExtras(r, new MovieListItem
             {
                 Id = r.GetInt32(0),
                 Title = r.GetString(1),
@@ -2142,7 +2170,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
                 IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
                 IsOnline = connected.ContainsKey(serial),
-            });
+            }));
         }
         return list;
     }
@@ -2612,6 +2640,17 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var r = cmd.ExecuteReader();
         while (r.Read()) ids.Add(r.GetInt32(0));
         return ids;
+    }
+
+    /// <summary>v4.8.0: a movie's drive and its folder on it, or null.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (string Serial, string? FolderRel)? GetMovieFolder(int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT volume_serial, folder_rel_path FROM movies WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1)) : null;
     }
 
     /// <summary>
@@ -3731,6 +3770,356 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return s;
     }
 
+    // ── v4.8.0 Statistics page ───────────────────────────────────────────────
+
+    /// <summary>
+    /// v4.8.0: everything the Statistics page shows. The breakdowns count the
+    /// library's movies that aren't missing, as the Browse pages do, so a click
+    /// on one shows the movies it counted.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public Models.DashboardStats GetDashboardStats(IReadOnlyDictionary<string, string> connected)
+    {
+        const string Here = "m.archived_at IS NULL AND m.is_missing = 0";
+        var s = new Models.DashboardStats();
+
+        List<(string Key, int Count)> Groups(string sql)
+        {
+            var list = new List<(string, int)>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = sql;
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add((r.IsDBNull(0) ? "" : Convert.ToString(r.GetValue(0)) ?? "", (int)r.GetInt64(1)));
+            return list;
+        }
+        // Folds raw values into named groups, biggest first, "Other" and "Unknown" last
+        static List<Models.StatCount> Fold(IEnumerable<(string Key, int Count)> raw, Func<string, string?> name, int top)
+        {
+            var sums = new Dictionary<string, int>();
+            foreach (var (key, count) in raw)
+            {
+                var n = name(key.Trim()) ?? "Unknown";
+                sums[n] = sums.GetValueOrDefault(n) + count;
+            }
+            var named = sums.Where(p => p.Key is not ("Other" or "Unknown")).OrderByDescending(p => p.Value).ToList();
+            var other = named.Skip(top).Sum(p => p.Value) + sums.GetValueOrDefault("Other");
+            var list = named.Take(top).Select(p => new Models.StatCount(p.Key, p.Value)).ToList();
+            if (other > 0) list.Add(new Models.StatCount("Other", other));
+            if (sums.GetValueOrDefault("Unknown") > 0) list.Add(new Models.StatCount("Unknown", sums["Unknown"]));
+            return list;
+        }
+
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT COUNT(*), COALESCE(SUM(is_missing), 0), COALESCE(SUM(is_watched), 0),
+                       COALESCE(SUM(CASE WHEN is_watchlist = 1 AND is_missing = 0 THEN 1 ELSE 0 END), 0),
+                       COALESCE(SUM({RuntimeOrFileSql}), 0),
+                       (SELECT COUNT(*) FROM movies WHERE archived_at IS NOT NULL),
+                       (SELECT COUNT(*) FROM tv_shows WHERE is_missing = 0),
+                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0),
+                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0 AND e.is_watched = 1)
+                  FROM movies m WHERE m.archived_at IS NULL";
+            using var r = cmd.ExecuteReader();
+            r.Read();
+            s.Movies = (int)r.GetInt64(0);
+            s.Missing = (int)r.GetInt64(1);
+            s.Watched = (int)r.GetInt64(2);
+            s.Watchlist = (int)r.GetInt64(3);
+            s.RuntimeMinutes = r.GetInt64(4);
+            s.Archived = (int)r.GetInt64(5);
+            s.Shows = (int)r.GetInt64(6);
+            s.Episodes = (int)r.GetInt64(7);
+            s.EpisodesWatched = (int)r.GetInt64(8);
+        }
+
+        // Each drive: its movies and shows, and the space their files take
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT d.volume_serial, COALESCE(NULLIF(d.label, ''), d.volume_serial),
+                       (SELECT COUNT(*) FROM movies m WHERE m.volume_serial = d.volume_serial AND m.archived_at IS NULL),
+                       (SELECT COUNT(*) FROM tv_shows t WHERE t.volume_serial = d.volume_serial),
+                       (SELECT COALESCE(SUM(m.file_size_bytes), 0) FROM movies m WHERE m.volume_serial = d.volume_serial AND m.archived_at IS NULL)
+                     + (SELECT COALESCE(SUM(e.file_size_bytes), 0) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id
+                         WHERE t.volume_serial = d.volume_serial)
+                  FROM drives d WHERE d.volume_serial != '__archive__'";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                s.Drives.Add(new Models.DriveUse(r.GetString(0), r.GetString(1), (int)r.GetInt64(2), (int)r.GetInt64(3), r.GetInt64(4)));
+            s.Drives = s.Drives.Where(d => d.Movies + d.Shows > 0).OrderByDescending(d => d.Bytes).ToList();
+        }
+
+        // Picture quality by width first, like the duplicates page, so a 2.35:1
+        // 1080p film doesn't read as 720p
+        static string QualitySql(string t) => $@"CASE WHEN {t}.video_width >= 3000 THEN '4K' WHEN {t}.video_width >= 1700 THEN '1080p'
+                        WHEN {t}.video_width >= 1100 THEN '720p' WHEN {t}.video_width > 0 THEN 'SD'
+                        WHEN {t}.video_height >= 1500 THEN '4K' WHEN {t}.video_height >= 1000 THEN '1080p'
+                        WHEN {t}.video_height >= 700 THEN '720p' WHEN {t}.video_height > 0 THEN 'SD' ELSE '' END";
+        static List<Models.StatCount> QualityList(List<(string Key, int Count)> raw)
+        {
+            var counts = raw.ToDictionary(g => g.Key, g => g.Count);
+            return new[] { ("4K", "4K"), ("1080p", "1080p"), ("720p", "720p"), ("SD", "SD"), ("", "Unknown") }
+                .Select(q => new Models.StatCount(q.Item2, counts.GetValueOrDefault(q.Item1))).ToList();
+        }
+        s.Quality = QualityList(Groups($"SELECT {QualitySql("m")}, COUNT(*) FROM movies m WHERE {Here} GROUP BY 1"));
+
+        s.VideoFormats = Fold(Groups($"SELECT LOWER(m.video_codec), COUNT(*) FROM movies m WHERE {Here} GROUP BY 1"), c => c switch
+        {
+            "" => null,
+            "h264" or "avc" or "avc1" or "x264" or "h.264" => "H.264 (AVC)",
+            "hevc" or "h265" or "x265" or "hvc1" or "hev1" or "h.265" => "H.265 (HEVC)",
+            "av1" or "av01" => "AV1",
+            "vp9" or "vp09" => "VP9",
+            "xvid" or "divx" or "dx50" or "div3" or "mpeg4" or "mp4v" => "MPEG-4 (Xvid, DivX)",
+            "mpeg2" or "mpeg2video" or "mpeg-2" => "MPEG-2",
+            "vc1" or "vc-1" or "wmv3" => "VC-1",
+            _ => "Other",
+        }, 5);
+        s.Channels = Fold(Groups($"SELECT m.audio_channels, COUNT(*) FROM movies m WHERE {Here} GROUP BY 1"), c => c switch
+        {
+            "" => null,
+            "1" => "Mono",
+            "2" => "Stereo",
+            "6" => "5.1 surround",
+            "8" => "7.1 surround",
+            _ => "Other",
+        }, 4);
+        s.AudioFormats = Fold(Groups($"SELECT LOWER(m.audio_codec), COUNT(*) FROM movies m WHERE {Here} GROUP BY 1"), c =>
+            c == "" ? null
+            : c.StartsWith("aac") || c is "he-aac" or "mp4a" ? "AAC"
+            : c is "ac3" or "ac-3" ? "Dolby Digital"
+            : c is "eac3" or "e-ac-3" or "ec-3" ? "Dolby Digital Plus"
+            : c.StartsWith("truehd") ? "Dolby TrueHD"
+            : c.StartsWith("dts") || c == "dca" ? "DTS"
+            : c is "mp3" or "mp2" or "mpeg audio" ? "MP3"
+            : c == "flac" ? "FLAC"
+            : c == "opus" ? "Opus"
+            : c.StartsWith("pcm") ? "PCM"
+            : "Other", 5);
+
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT (m.year / 10) * 10, COUNT(*), AVG(NULLIF(m.rating, 0))
+                  FROM movies m WHERE {Here} AND m.year >= 1900
+                 GROUP BY 1 ORDER BY 1";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                s.Decades.Add(new Models.DecadeCount(r.GetInt32(0), (int)r.GetInt64(1), r.IsDBNull(2) ? null : r.GetDouble(2)));
+        }
+
+        // The Browse page's rating bands, lowest first, with its keys
+        var bands = Groups($@"
+            SELECT CASE WHEN m.rating >= 9 THEN '9' WHEN m.rating >= 8 THEN '8' WHEN m.rating >= 7 THEN '7'
+                        WHEN m.rating >= 6 THEN '6' WHEN m.rating >= 5 THEN '5' ELSE '0' END, COUNT(*)
+              FROM movies m WHERE {Here} AND m.rating >= 0 AND m.rating < 10.1 GROUP BY 1").ToDictionary(g => g.Key, g => g.Count);
+        foreach (var (key, label) in new[] { ("0", "Under 5"), ("5", "5–6"), ("6", "6–7"), ("7", "7–8"), ("8", "8–9"), ("9", "9+") })
+            s.RatingBands.Add(new Models.StatCount(label, bands.GetValueOrDefault(key), key));
+
+        var lengths = Groups($@"
+            SELECT CASE WHEN rt < 90 THEN 'a' WHEN rt < 120 THEN 'b' WHEN rt < 150 THEN 'c' ELSE 'd' END, COUNT(*)
+              FROM (SELECT {RuntimeOrFileSql} AS rt FROM movies m WHERE {Here}) WHERE rt > 0 GROUP BY 1").ToDictionary(g => g.Key, g => g.Count);
+        foreach (var (key, label) in new[] { ("a", "Under 90 min"), ("b", "90 to 120 min"), ("c", "120 to 150 min"), ("d", "Over 150 min") })
+            s.Lengths.Add(new Models.StatCount(label, lengths.GetValueOrDefault(key)));
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $"SELECT AVG(rt) FROM (SELECT {RuntimeOrFileSql} AS rt FROM movies m WHERE {Here}) WHERE rt > 0";
+            var o = cmd.ExecuteScalar();
+            s.AverageLength = o is double avg ? (int)Math.Round(avg) : 0;
+        }
+
+        s.Genres = Groups($@"
+            SELECT g.name, COUNT(DISTINCT m.id) FROM genres g
+              JOIN movie_genres mg ON mg.genre_id = g.id JOIN movies m ON m.id = mg.movie_id
+             WHERE {Here} GROUP BY g.id ORDER BY 2 DESC LIMIT 8")
+            .Select(g => new Models.StatCount(g.Key, g.Count)).ToList();
+
+        // Countries: a film made in several is counted under each
+        var countries = new Dictionary<string, int>();
+        foreach (var (raw, count) in Groups($"SELECT COALESCE(NULLIF(m.countries, ''), m.country), COUNT(*) FROM movies m WHERE {Here} GROUP BY 1"))
+            foreach (var part in raw.Split(new[] { '\n', '\r', '/', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct())
+            {
+                var name = part switch
+                {
+                    "USA" or "US" or "United States" or "United States of America" => "United States",
+                    "UK" or "Great Britain" => "United Kingdom",
+                    _ => part,
+                };
+                countries[name] = countries.GetValueOrDefault(name) + count;
+            }
+        s.Countries = countries.OrderByDescending(p => p.Value).Take(8).Select(p => new Models.StatCount(p.Key, p.Value)).ToList();
+
+        // Certifications as written, with "Rated R for language" read as R and
+        // the spellings of "not rated" together
+        var certs = Groups($"SELECT m.mpaa, COUNT(*) FROM movies m WHERE {Here} AND TRIM(COALESCE(m.mpaa, '')) != '' GROUP BY 1");
+        s.Certified = certs.Sum(c => c.Count);
+        s.Certifications = Fold(certs, c =>
+        {
+            if (c.StartsWith("US:", StringComparison.OrdinalIgnoreCase)) c = c[3..].Trim();
+            if (c.StartsWith("Rated ", StringComparison.OrdinalIgnoreCase)) c = c[6..].Split(' ')[0];
+            return c.ToUpperInvariant() is "NR" or "NOT RATED" or "UNRATED" ? "Not rated" : c;
+        }, 6);
+
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT (SELECT COUNT(DISTINCT ms.set_id) FROM movie_sets ms JOIN movies m ON m.id = ms.movie_id WHERE {Here}),
+                       (SELECT COUNT(DISTINCT ms.movie_id) FROM movie_sets ms JOIN movies m ON m.id = ms.movie_id WHERE {Here})";
+            using var r = cmd.ExecuteReader();
+            r.Read();
+            s.CollectionCount = (int)r.GetInt64(0);
+            s.MoviesInCollections = (int)r.GetInt64(1);
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT st.id, st.name, COUNT(DISTINCT m.id) FROM sets st
+                  JOIN movie_sets ms ON ms.set_id = st.id JOIN movies m ON m.id = ms.movie_id
+                 WHERE {Here} GROUP BY st.id ORDER BY 3 DESC, st.name LIMIT 6";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                s.Collections.Add(new Models.StatCount(r.GetString(1), (int)r.GetInt64(2), r.GetInt64(0).ToString()));
+        }
+
+        // v4.8.0 (#25): the TV shows, for their own section (missing shows left out, as the sidebar does)
+        const string ShowsHere = "s.is_missing = 0";
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT COALESCE(SUM(COALESCE(NULLIF(e.runtime, 0), CAST(ROUND(e.duration_seconds / 60.0) AS INTEGER))), 0),
+                       COALESCE(SUM(e.file_size_bytes), 0)
+                  FROM tv_episodes e JOIN tv_shows s ON s.id = e.show_id WHERE {ShowsHere}";
+            using var r = cmd.ExecuteReader();
+            r.Read();
+            s.TvRuntimeMinutes = r.GetInt64(0);
+            s.TvBytes = r.GetInt64(1);
+        }
+        var shows = new List<(int Id, string Title, int Episodes, int Watched)>();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT s.id, s.title,
+                       (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id = s.id),
+                       (SELECT COUNT(*) FROM tv_episodes e WHERE e.show_id = s.id AND e.is_watched = 1)
+                  FROM tv_shows s WHERE {ShowsHere}";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) shows.Add((r.GetInt32(0), r.GetString(1), (int)r.GetInt64(2), (int)r.GetInt64(3)));
+        }
+        // a show without episodes on disk has nothing to watch yet, so it isn't counted
+        var withEpisodes = shows.Where(x => x.Episodes > 0).ToList();
+        s.TvProgress = new List<Models.StatCount>
+        {
+            new("Finished", withEpisodes.Count(x => x.Watched == x.Episodes)),
+            new("In progress", withEpisodes.Count(x => x.Watched > 0 && x.Watched < x.Episodes)),
+            new("Not started", withEpisodes.Count(x => x.Watched == 0)),
+        };
+        s.TvBiggest = shows.OrderByDescending(x => x.Episodes).ThenBy(x => x.Title).Take(6)
+            .Select(x => new Models.ShowCount(x.Id, x.Title, x.Episodes, x.Watched)).ToList();
+        s.TvStatus = Fold(Groups($"SELECT s.status, COUNT(*) FROM tv_shows s WHERE {ShowsHere} GROUP BY 1"),
+            st => st == "" ? null : st, 5);
+        s.TvGenres = Groups($@"
+            SELECT g.name, COUNT(DISTINCT s.id) FROM genres g
+              JOIN tv_show_genres sg ON sg.genre_id = g.id JOIN tv_shows s ON s.id = sg.show_id
+             WHERE {ShowsHere} GROUP BY g.id ORDER BY 2 DESC, g.name LIMIT 8")
+            .Select(g => new Models.StatCount(g.Key, g.Count)).ToList();
+        // studios and networks as the .nfo lists them, each one counted
+        var studios = new Dictionary<string, int>();
+        foreach (var (raw, count) in Groups($"SELECT COALESCE(NULLIF(s.studios, ''), s.studio), COUNT(*) FROM tv_shows s WHERE {ShowsHere} GROUP BY 1"))
+            foreach (var name in raw.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct())
+                studios[name] = studios.GetValueOrDefault(name) + count;
+        s.TvStudios = studios.OrderByDescending(p => p.Value).ThenBy(p => p.Key).Take(6)
+            .Select(p => new Models.StatCount(p.Key, p.Value)).ToList();
+        s.TvQuality = QualityList(Groups($"SELECT {QualitySql("e")}, COUNT(*) FROM tv_episodes e JOIN tv_shows s ON s.id = e.show_id WHERE {ShowsHere} GROUP BY 1"));
+
+        // Watched per month from the watch log, for the last 12 months it covers.
+        // A movie played and marked watched in the same month counts once.
+        var perMonth = new Dictionary<(string Month, string Kind), int>();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"
+                SELECT strftime('%Y-%m', watched_at, 'unixepoch', 'localtime'), item_kind, COUNT(DISTINCT item_id)
+                  FROM watch_events
+                 WHERE action IN ('played', 'watched', 'marked_watched') AND watched_at > 0
+                 GROUP BY 1, 2";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) perMonth[(r.GetString(0), r.GetString(1))] = (int)r.GetInt64(2);
+        }
+        if (perMonth.Count > 0)
+        {
+            var thisMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var first = perMonth.Keys.Select(k => DateTime.ParseExact(k.Month, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture)).Min();
+            if (first < thisMonth.AddMonths(-11)) first = thisMonth.AddMonths(-11);
+            for (var m = first; m <= thisMonth; m = m.AddMonths(1))
+            {
+                var key = m.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+                s.Months.Add(new Models.MonthCount(m, perMonth.GetValueOrDefault((key, "movie")), perMonth.GetValueOrDefault((key, "episode"))));
+            }
+        }
+
+        // The people you have the most films of, with how many of those you've watched
+        List<Models.PersonCount> People(string sql)
+        {
+            var list = new List<Models.PersonCount>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = sql;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                list.Add(new Models.PersonCount(r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), (int)r.GetInt64(2), (int)r.GetInt64(3)));
+            return list;
+        }
+        // counted on movie_actors alone, then the top ones get their names (the quicker way round)
+        s.Actors = People($@"
+            SELECT a.name, a.thumb, t.n, t.w
+              FROM (SELECT ma.actor_id AS id, COUNT(DISTINCT m.id) AS n,
+                           COUNT(DISTINCT CASE WHEN m.is_watched = 1 THEN m.id END) AS w
+                      FROM movie_actors ma JOIN movies m ON m.id = ma.movie_id
+                     WHERE {Here} GROUP BY ma.actor_id) t
+              JOIN actors a ON a.id = t.id
+             ORDER BY t.n DESC, a.name LIMIT 8");
+        // a director's photo, when they also act in something here
+        s.Directors = People($@"
+            SELECT t.name, (SELECT a.thumb FROM actors a WHERE a.name = t.name AND a.thumb IS NOT NULL LIMIT 1), t.n, t.w
+              FROM (SELECT d.name, COUNT(DISTINCT m.id) AS n, COUNT(DISTINCT CASE WHEN m.is_watched = 1 THEN m.id END) AS w
+                      FROM directors d JOIN movie_directors md ON md.director_id = d.id JOIN movies m ON m.id = md.movie_id
+                     WHERE {Here} GROUP BY d.id ORDER BY n DESC, d.name LIMIT 8) t
+             ORDER BY t.n DESC, t.name");
+
+        // Cards: the latest watched, and the best-rated not watched yet (with
+        // enough votes to mean something), each film once
+        const string CardColumns = $@"m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
+                   m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
+                   (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg JOIN genres g ON g.id = mg.genre_id WHERE mg.movie_id = m.id) AS genres_csv,
+                   m.is_watchlist";
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT {CardColumns}, MAX(e.watched_at) AS seen, {CardExtrasSql}
+                  FROM watch_events e JOIN movies m ON m.id = e.item_id
+                  LEFT JOIN drives d ON d.volume_serial = m.volume_serial
+                 WHERE e.item_kind = 'movie' AND e.action IN ('played', 'watched', 'marked_watched') AND {Here}
+                 GROUP BY m.id ORDER BY seen DESC LIMIT 12";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) s.RecentlyWatched.Add(ReadMovieRow(r, connected));
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = $@"
+                SELECT {CardColumns}, {CardExtrasSql}
+                  FROM movies m LEFT JOIN drives d ON d.volume_serial = m.volume_serial
+                 WHERE {Here} AND m.is_watched = 0 AND m.rating > 0 AND COALESCE(m.votes, 0) >= 25000
+                 ORDER BY m.rating DESC, m.votes DESC LIMIT 40";
+            using var r = cmd.ExecuteReader();
+            var seen = new HashSet<string>();
+            while (r.Read() && s.WorthWatching.Count < 12)
+            {
+                var movie = ReadMovieRow(r, connected);
+                if (seen.Add($"{movie.Title.Trim().ToLowerInvariant()}|{movie.Year}")) s.WorthWatching.Add(movie);
+            }
+        }
+        return s;
+    }
+
     // ── Preferences ──────────────────────────────────────────────────────────
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -3916,6 +4305,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
+    // v4.8.0: one actor or none, the movies a Fetch missing info can give a cast
+    private const string FewCastSql = "(SELECT COUNT(*) FROM movie_actors fa WHERE fa.movie_id = m.id) <= 1";
+
+    /// <summary>v4.8.0: the sidebar's Missing cast count.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetFewCastCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM movies m WHERE m.archived_at IS NULL AND {FewCastSql}";
+        return (int)(long)cmd.ExecuteScalar()!;
+    }
+
     /// <summary>v2.8.2 — count of movies carrying a note (for the Notes pill badge).</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public int GetNotesCount()
@@ -3929,7 +4330,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     /// <summary>One entry in a browse-by-X grid: a category label, how
     /// many movies it has, and a representative fanart for the banner.</summary>
-    public record BrowseEntry(string Key, string Label, int Count, string? SampleFanart, string? SamplePoster);
+    public record BrowseEntry(string Key, string Label, int Count, string? SampleFanart, string? SamplePoster, int Shows = 0);
 
     public enum BrowseFacet { Genre, Decade, Rating, Studio }
 
@@ -3951,9 +4352,17 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var list = new List<BrowseEntry>();
         using var cmd = _conn.CreateCommand();
         // For each genre: count + a representative fanart from a high-rated member.
+        // v4.8.0 (#25): its TV shows too, and the genres only shows have (TMDb's TV
+        // genres, like Sci-Fi & Fantasy), with a show's picture when no movie has one.
         cmd.CommandText = @"
+            SELECT name, c, sc, COALESCE(fanart, show_fanart), COALESCE(poster, show_poster) FROM (
             SELECT g.name,
-                   COUNT(DISTINCT m.id) c,
+                   (SELECT COUNT(DISTINCT m.id) FROM movie_genres mg
+                     JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0 AND m.archived_at IS NULL
+                    WHERE mg.genre_id=g.id) AS c,
+                   (SELECT COUNT(DISTINCT s.id) FROM tv_show_genres sg
+                     JOIN tv_shows s ON s.id=sg.show_id AND s.is_missing=0
+                    WHERE sg.genre_id=g.id) AS sc,
                    (SELECT m2.local_fanart FROM movies m2
                     JOIN movie_genres mg2 ON mg2.movie_id=m2.id
                     WHERE mg2.genre_id=g.id AND m2.local_fanart IS NOT NULL AND m2.is_missing=0 AND m2.archived_at IS NULL
@@ -3961,13 +4370,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    (SELECT m3.local_poster FROM movies m3
                     JOIN movie_genres mg3 ON mg3.movie_id=m3.id
                     WHERE mg3.genre_id=g.id AND m3.local_poster IS NOT NULL AND m3.is_missing=0 AND m3.archived_at IS NULL
-                    ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster
-            FROM genres g
-            JOIN movie_genres mg ON mg.genre_id=g.id
-            JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0 AND m.archived_at IS NULL
-            GROUP BY g.id
-            HAVING c > 0
-            ORDER BY c DESC, g.name ASC";
+                    ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster,
+                   (SELECT s2.local_fanart FROM tv_shows s2
+                    JOIN tv_show_genres sg2 ON sg2.show_id=s2.id
+                    WHERE sg2.genre_id=g.id AND s2.local_fanart IS NOT NULL AND s2.is_missing=0
+                    ORDER BY COALESCE(s2.rating,0) DESC LIMIT 1) AS show_fanart,
+                   (SELECT s3.local_poster FROM tv_shows s3
+                    JOIN tv_show_genres sg3 ON sg3.show_id=s3.id
+                    WHERE sg3.genre_id=g.id AND s3.local_poster IS NOT NULL AND s3.is_missing=0
+                    ORDER BY COALESCE(s3.rating,0) DESC LIMIT 1) AS show_poster
+            FROM genres g)
+            WHERE c + sc > 0
+            ORDER BY c + sc DESC, name ASC";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -3975,8 +4389,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Key: r.GetString(0),
                 Label: r.GetString(0),
                 Count: r.GetInt32(1),
-                SampleFanart: r.IsDBNull(2) ? null : r.GetString(2),
-                SamplePoster: r.IsDBNull(3) ? null : r.GetString(3)));
+                SampleFanart: r.IsDBNull(3) ? null : r.GetString(3),
+                SamplePoster: r.IsDBNull(4) ? null : r.GetString(4),
+                Shows: r.GetInt32(2)));
         }
         return list;
     }
@@ -4377,6 +4792,14 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         // v4.1.0: Continue Watching also gets the next episode, the first unwatched
         // by season then episode, as ▶ Play next on the show page picks it.
+        // v4.8.0 (#25): Recently Added newest first, at most as many as its movies
+        var order = page switch
+        {
+            TvShowPage.ContinueWatching => "(SELECT MAX(last_played_at) FROM tv_episodes e WHERE e.show_id=s.id) DESC, ",
+            TvShowPage.RecentlyAdded => "s.date_added DESC, ",
+            _ => "",
+        };
+        var limit = page == TvShowPage.RecentlyAdded ? " LIMIT 50" : "";
         cmd.CommandText = $@"
             SELECT {ShowListItemColumns}{(page == TvShowPage.ContinueWatching
                 ? @", (SELECT printf('S%02dE%02d', e.season, e.episode) FROM tv_episodes e
@@ -4385,9 +4808,23 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
               FROM tv_shows s
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
              WHERE s.is_missing = 0 AND {TvShowPageWhere(page)}
-             ORDER BY {(page == TvShowPage.ContinueWatching
-                 ? "(SELECT MAX(last_played_at) FROM tv_episodes e WHERE e.show_id=s.id) DESC, "
-                 : "")}s.sort_title, s.title";
+             ORDER BY {order}s.sort_title, s.title{limit}";
+        return ReadShowListItems(cmd, connected);
+    }
+
+    /// <summary>v4.8.0 (#25): a genre's TV shows, for the genre's page (By Genre).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> GetTvShowsInGenre(string genre, IReadOnlyDictionary<string, string> connected)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT {ShowListItemColumns}
+              FROM tv_shows s
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             WHERE s.is_missing = 0
+               AND EXISTS (SELECT 1 FROM tv_show_genres sg JOIN genres g ON g.id=sg.genre_id WHERE sg.show_id=s.id AND g.name=@genre)
+             ORDER BY s.sort_title, s.title";
+        cmd.Parameters.AddWithValue("@genre", genre);
         return ReadShowListItems(cmd, connected);
     }
 
@@ -4429,7 +4866,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 hasNext && !r.IsDBNull(4) ? r.GetString(4) : null);
     }
 
-    public enum TvShowPage { Favorites, Watchlist, ContinueWatching, Notes }
+    public enum TvShowPage { Favorites, Watchlist, ContinueWatching, Notes, RecentlyAdded }
 
     // In progress = some episodes watched and some not, as on All TV Shows.
     private static string TvShowPageWhere(TvShowPage page) => page switch
@@ -4437,6 +4874,11 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         TvShowPage.Favorites => "s.is_favorite = 1",
         TvShowPage.Watchlist => "s.is_watchlist = 1",
         TvShowPage.Notes => "s.note IS NOT NULL AND TRIM(s.note) != ''",   // v4.3.0
+        // v4.8.0 (#25): the shows added since the oldest of Recently Added's 50 movies
+        // (all of them when there are no movies), so the page covers one stretch of time
+        TvShowPage.RecentlyAdded => @"s.date_added >= COALESCE((SELECT MIN(date_added) FROM (
+               SELECT date_added FROM movies WHERE is_missing=0 AND archived_at IS NULL
+                ORDER BY date_added DESC, id DESC LIMIT 50)), 0)",
         _ => @"EXISTS (SELECT 1 FROM tv_episodes e WHERE e.show_id=s.id AND e.is_watched=1)
                AND EXISTS (SELECT 1 FROM tv_episodes e WHERE e.show_id=s.id AND e.is_watched=0)",
     };
@@ -4617,7 +5059,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
             SELECT id, season, episode, title, plot, aired, runtime, rating,
-                   local_thumb, video_file_rel_path, is_watched, is_favorite, note
+                   local_thumb, video_file_rel_path, is_watched, is_favorite, note,
+                   video_width, video_height
               FROM tv_episodes WHERE show_id=@id AND season=@se ORDER BY episode";
         cmd.Parameters.AddWithValue("@id", showId);
         cmd.Parameters.AddWithValue("@se", season);
@@ -4640,6 +5083,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 IsWatched = r.GetInt32(10) == 1,
                 IsFavorite = !r.IsDBNull(11) && r.GetInt32(11) == 1,
                 Note = r.IsDBNull(12) ? null : r.GetString(12),
+                VideoWidth = r.IsDBNull(13) ? null : r.GetInt32(13),
+                VideoHeight = r.IsDBNull(14) ? null : r.GetInt32(14),
                 VolumeSerial = serial,
                 IsOnline = online,
             });
@@ -4912,12 +5357,13 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         Dictionary<string, string> connected, int limit = 12)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
-            SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+        cmd.CommandText = $@"
+            SELECT m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
                    m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                    (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
                      JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
-                   m.is_watchlist
+                   m.is_watchlist,
+                   {CardExtrasSql}
               FROM movies m
               LEFT JOIN drives d ON d.volume_serial=m.volume_serial
              WHERE m.is_missing = 0 AND m.archived_at IS NULL AND m.last_played_at > 0
@@ -4929,7 +5375,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         while (r.Read())
         {
             var serial = r.GetString(9);
-            list.Add(new MovieListItem
+            list.Add(WithCardExtras(r, new MovieListItem
             {
                 Id = r.GetInt32(0),
                 Title = r.GetString(1),
@@ -4945,7 +5391,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
                 IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
                 IsOnline = connected.ContainsKey(serial),
-            });
+            }));
         }
         return list;
     }
@@ -4975,14 +5421,15 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         // just the most recent last_played_at on each movie.
         using (var cmd = _conn.CreateCommand())
         {
-            cmd.CommandText = @"
-                SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+            cmd.CommandText = $@"
+                SELECT m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
                        m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                        (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
                          JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
                        m.is_watchlist,
                        MAX(e.watched_at) AS most_recent_match,
-                       CAST(strftime('%Y', e.watched_at, 'unixepoch', 'localtime') AS INTEGER) AS match_year
+                       CAST(strftime('%Y', e.watched_at, 'unixepoch', 'localtime') AS INTEGER) AS match_year,
+                       {CardExtrasSql}
                   FROM watch_events e
                   JOIN movies m ON m.id = e.item_id
                   LEFT JOIN drives d ON d.volume_serial = m.volume_serial
@@ -5014,14 +5461,15 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (releasedBudget > 0)
         {
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = @"
-                SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+            cmd.CommandText = $@"
+                SELECT m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
                        m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                        (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
                          JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
                        m.is_watchlist,
                        NULL AS most_recent_match,
-                       CAST(substr(m.premiered, 1, 4) AS INTEGER) AS prem_year
+                       CAST(substr(m.premiered, 1, 4) AS INTEGER) AS prem_year,
+                       {CardExtrasSql}
                   FROM movies m
                   LEFT JOIN drives d ON d.volume_serial = m.volume_serial
                  WHERE m.is_missing = 0
@@ -5091,7 +5539,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         IReadOnlyDictionary<string, string> connected)
     {
         var serial = r.GetString(9);
-        return new MovieListItem
+        return WithCardExtras(r, new MovieListItem
         {
             Id = r.GetInt32(0),
             Title = r.GetString(1),
@@ -5107,7 +5555,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
             IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
             IsOnline = connected.ContainsKey(serial),
-        };
+        });
     }
 
     /// <summary>
@@ -5416,12 +5864,13 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         Dictionary<string, string> connected, int limit = 12)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
-            SELECT m.id, m.title, m.year, m.rating, m.runtime, m.local_poster,
+        cmd.CommandText = $@"
+            SELECT m.id, m.title, m.year, m.rating, {RuntimeOrFileSql} AS runtime, m.local_poster,
                    m.is_missing, m.is_favorite, m.is_watched, m.volume_serial, d.label,
                    (SELECT GROUP_CONCAT(g.name, ', ') FROM movie_genres mg
                      JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id) AS genres_csv,
-                   m.is_watchlist
+                   m.is_watchlist,
+                   {CardExtrasSql}
               FROM movies m
               LEFT JOIN drives d ON d.volume_serial=m.volume_serial
              WHERE m.is_missing = 0
@@ -5433,7 +5882,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         while (r.Read())
         {
             var serial = r.GetString(9);
-            list.Add(new MovieListItem
+            list.Add(WithCardExtras(r, new MovieListItem
             {
                 Id = r.GetInt32(0),
                 Title = r.GetString(1),
@@ -5449,7 +5898,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 GenresCsv = r.IsDBNull(11) ? null : r.GetString(11),
                 IsWatchlist = !r.IsDBNull(12) && r.GetInt32(12) == 1,
                 IsOnline = connected.ContainsKey(serial),
-            });
+            }));
         }
         return list;
     }

@@ -229,7 +229,7 @@ public static class MovieStateSidecar
         {
             cc.CommandText = @"SELECT a.name, ma.role FROM movie_actors ma
                                 JOIN actors a ON a.id=ma.actor_id
-                               WHERE ma.movie_id=@id ORDER BY ma.sort_order LIMIT 30";
+                               WHERE ma.movie_id=@id ORDER BY ma.sort_order LIMIT 50";   // v4.8.0: TMDb's 50 (was 30)
             cc.Parameters.AddWithValue("@id", movieId);
             using var r = cc.ExecuteReader();
             while (r.Read())

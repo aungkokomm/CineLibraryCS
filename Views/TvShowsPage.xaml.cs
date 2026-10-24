@@ -363,9 +363,7 @@ public sealed partial class TvShowsPage : Page
 
     private void ApplyTvDensity(string tag)
     {
-        var (w, h) = TvShowCard.SetDensity(tag);
-        ShowsGridLayout.MinItemWidth = w;
-        ShowsGridLayout.MinItemHeight = h;
+        Controls.CardCell.FitGrid(ShowsGridLayout, TvShowCard.SetDensity(tag), tag);
         TvDensityS.IsChecked  = tag == "S";
         TvDensityM.IsChecked  = tag is not ("S" or "L" or "XL");
         TvDensityL.IsChecked  = tag == "L";
@@ -475,8 +473,24 @@ public sealed partial class TvShowsPage : Page
                                ?? regular.FirstOrDefault() ?? tabs.FirstOrDefault())?.Season;
         }
 
-        if (tabs.Count > 0)
-            SeasonSectionsHost.Children.Add(BuildSeasonTabs(tabs));
+        // The selected season: its episodes and (v4.6.0) the aired ones of it you
+        // don't have, greyed, in episode order
+        var selected = tabs.FirstOrDefault(s => s.Season == _selectedSeason);
+        var seasonEps = selected == null ? new List<TvEpisodeItem>() : episodes[selected.Season];
+        var missing = selected == null ? new List<TvEpisodeItem>() : gaps
+            .Where(g => g.Season == selected.Season && g.Episode > 0)
+            .Select(g => new TvEpisodeItem
+            {
+                ShowId = _currentShow.Id,
+                Season = g.Season,
+                Episode = g.Episode,
+                Title = string.IsNullOrWhiteSpace(g.Title) ? $"Episode {g.Episode}" : g.Title,
+                Aired = g.AirDate,
+                NotInLibrary = true,
+            }).ToList();
+
+        if (selected != null)
+            SeasonSectionsHost.Children.Add(BuildSeasonBar(tabs, selected, seasonEps, missing.Count));
 
         // v4.6.0: whole seasons that have aired but aren't in any folder of the show
         var wholeSeasons = gaps.Where(g => g.Episode == 0).ToList();
@@ -491,77 +505,52 @@ public sealed partial class TvShowsPage : Page
                 Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
             });
 
-        foreach (var season in tabs.Where(s => s.Season == _selectedSeason))
+        if (selected != null)
         {
-            var eps = episodes[season.Season];
-            // v4.6.0: aired episodes of this season you don't have, greyed, in episode order
-            var missing = gaps.Where(g => g.Season == season.Season && g.Episode > 0)
-                .Select(g => new TvEpisodeItem
-                {
-                    ShowId = _currentShow.Id,
-                    Season = g.Season,
-                    Episode = g.Episode,
-                    Title = string.IsNullOrWhiteSpace(g.Title) ? $"Episode {g.Episode}" : g.Title,
-                    Aired = g.AirDate,
-                    NotInLibrary = true,
-                }).ToList();
-            var cards = missing.Count == 0 ? eps : eps.Concat(missing).OrderBy(e => e.Episode).ToList();
-
-            // Episode cards in a HORIZONTAL row (Netflix/Disney+ style).
-            // Critical for performance: a vertical UniformGridLayout nested
-            // in a vertical StackPanel inside a ScrollViewer can't virtualize
-            // (it's measured with infinite height), so every card realizes
-            // and re-measures on each scroll tick → the UI freezes on big
-            // shows. A horizontal row has a bounded height and virtualizes
-            // along its scrolling axis, so only the visible cards exist.
-            var rowScroller = new ScrollViewer
+            // v4.8.0: one row per episode, down the page; it was a sideways row of
+            // cards paged with the arrow buttons. The repeater sits in the page's own
+            // scroller and draws only the rows in view.
+            SeasonSectionsHost.Children.Add(new ItemsRepeater
             {
-                Margin = new Thickness(24, 0, 24, 4),
-                Height = 244,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollMode = ScrollMode.Disabled,
-                HorizontalScrollMode = ScrollMode.Enabled,
-            };
-            var repeater = new ItemsRepeater
-            {
-                Layout = new StackLayout
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 14,
-                },
+                Margin = new Thickness(24, 0, 24, 0),
+                Layout = new StackLayout { Orientation = Orientation.Vertical, Spacing = 10 },
                 ItemTemplate = (DataTemplate)Resources["EpisodeCardTemplate"],
-                ItemsSource = cards,
-            };
-            rowScroller.Content = repeater;
-
-            // Section header — label + episode/watched counts + actions.
-            SeasonSectionsHost.Children.Add(BuildSeasonHeader(season, eps, rowScroller, missing.Count));
-            SeasonSectionsHost.Children.Add(rowScroller);
+                ItemsSource = missing.Count == 0 ? seasonEps : seasonEps.Concat(missing).OrderBy(e => e.Episode).ToList(),
+            });
         }
 
         // Header progress + Play-next label depend on the full episode set.
         RefreshHeaderProgress();
     }
 
-    /// <summary>One pill per season ("Season 1" … "Specials"); the selected one is filled.</summary>
+    /// <summary>One pill per season ("Season 1  10" … "Specials  3"); the selected one is filled.</summary>
     private FrameworkElement BuildSeasonTabs(List<TvSeason> seasons)
     {
         var tabs = new Controls.WrapPanel
         {
             HorizontalSpacing = 8,
             VerticalSpacing = 8,
-            Margin = new Thickness(24, 0, 24, 0),
+            VerticalAlignment = VerticalAlignment.Center,
         };
+        var text = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
         foreach (var season in seasons)
         {
             var number = season.Season;
+            // v4.8.0: bigger, with the season's episode count, and readable when not picked
+            var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            label.Children.Add(new TextBlock { Text = season.SeasonLabel, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            label.Children.Add(new TextBlock { Text = season.EpisodeCount.ToString(), Opacity = 0.75 });
             var tab = new Button
             {
-                Content = season.SeasonLabel,
+                Content = label,
                 Style = (Style)Application.Current.Resources[
                     number == _selectedSeason ? "PillButtonActiveStyle" : "PillButtonStyle"],
+                FontSize = 14,
+                Padding = new Thickness(14, 7, 14, 7),
+                CornerRadius = new CornerRadius(8),
             };
+            if (number != _selectedSeason) tab.Foreground = text;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(tab, $"{season.SeasonLabel}, {EpisodesText(season.EpisodeCount)}");
             tab.Click += (_, _) =>
             {
                 if (_selectedSeason == number) return;
@@ -574,44 +563,51 @@ public sealed partial class TvShowsPage : Page
     }
 
     /// <summary>
-    /// Richer season bar: a "Season N" title, a "watched / total · runtime"
-    /// sub-line, and Play-season + Mark-all-watched actions on the right,
-    /// plus ‹ › buttons that page the episode row a screenful at a time.
+    /// v4.8.0: the season bar: the season pills, and on the right the picked
+    /// season's "watched of total · missing · runtime" with Play season and
+    /// Mark all watched.
     /// </summary>
-    private FrameworkElement BuildSeasonHeader(TvSeason season, List<TvEpisodeItem> eps, ScrollViewer row, int missing = 0)
+    private FrameworkElement BuildSeasonBar(List<TvSeason> seasons, TvSeason season, List<TvEpisodeItem> eps, int missing)
     {
-        var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
         var text = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
 
-        var grid = new Grid { Margin = new Thickness(24, 4, 24, 8) };
+        var grid = new Grid { Margin = new Thickness(24, 0, 24, 0), ColumnSpacing = 16 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var tabs = BuildSeasonTabs(seasons);
+        grid.Children.Add(tabs);
 
-        // Left: title + sub-line
-        var left = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        left.Children.Add(new TextBlock
-        {
-            Text = season.Season == 0 ? "Specials" : $"Season {season.Season}",
-            FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = text,
-        });
-        var totalMins = eps.Where(e => e.Runtime.HasValue).Sum(e => e.Runtime!.Value);
-        var subBits = new List<string> { $"{season.EpisodeCount} episodes", $"{season.WatchedCount} watched" };
-        if (missing > 0) subBits.Insert(1, $"{missing} missing");   // v4.6.0
-        if (totalMins > 0) subBits.Add(totalMins >= 60 ? $"{totalMins / 60}h {totalMins % 60}m" : $"{totalMins}m");
-        left.Children.Add(new TextBlock
-        {
-            Text = string.Join("  ·  ", subBits),
-            FontSize = 12,
-            Foreground = muted,
-        });
-        grid.Children.Add(left);
-
-        // Right: actions
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(actions, 1);
+        // A narrow window puts the season's line and buttons under the pills, so
+        // the pills keep their room.
+        grid.SizeChanged += (_, e) =>
+        {
+            actions.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            bool stacked = e.NewSize.Width < actions.DesiredSize.Width + 16 + 320;
+            Grid.SetRow(actions, stacked ? 1 : 0);
+            Grid.SetColumn(actions, stacked ? 0 : 1);
+            Grid.SetColumnSpan(tabs, stacked ? 2 : 1);
+            actions.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+            actions.Margin = new Thickness(0, stacked ? 12 : 0, 0, 0);
+        };
         bool anyUnwatched = eps.Any(e => !e.IsWatched);
+
+        var totalMins = eps.Where(e => e.Runtime.HasValue).Sum(e => e.Runtime!.Value);
+        var subBits = new List<string> { $"{season.WatchedCount} of {season.EpisodeCount} watched" };
+        if (missing > 0) subBits.Add($"{missing} missing");   // v4.6.0
+        if (totalMins > 0) subBits.Add(totalMins >= 60 ? $"{totalMins / 60}h {totalMins % 60}m" : $"{totalMins}m");
+        actions.Children.Add(new TextBlock
+        {
+            Text = string.Join("  ·  ", subBits),
+            FontSize = 13,
+            Foreground = text,
+            Opacity = 0.7,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
 
         var playSeason = new Button
         {
@@ -621,8 +617,8 @@ public sealed partial class TvShowsPage : Page
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 6, 12, 6),
-            FontSize = 12,
+            Padding = new Thickness(14, 7, 14, 7),
+            FontSize = 13,
         };
         playSeason.Click += (_, _) =>
         {
@@ -639,8 +635,8 @@ public sealed partial class TvShowsPage : Page
             BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 6, 12, 6),
-            FontSize = 12,
+            Padding = new Thickness(14, 7, 14, 7),
+            FontSize = 13,
         };
         markAll.Click += (_, _) =>
         {
@@ -658,46 +654,6 @@ public sealed partial class TvShowsPage : Page
             BuildSeasonSections();
         };
         actions.Children.Add(markAll);
-
-        // Page the episode row: one step moves by the whole cards that fit.
-        Button PageButton(string glyph, string name, int direction)
-        {
-            var b = new Button
-            {
-                Content = new FontIcon { Glyph = glyph, FontSize = 12 },
-                Background = CineLibraryCS.Services.ThemeBrushes.Get("CardBrush"),
-                Foreground = text,
-                BorderBrush = CineLibraryCS.Services.ThemeBrushes.Get("BorderBrush"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10, 8, 10, 8),
-            };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(b, name);
-            ToolTipService.SetToolTip(b, name);
-            b.Click += (_, _) =>
-            {
-                const double step = 270 + 14;   // TvEpisodeCard width + row spacing
-                var cards = Math.Max(1, Math.Floor((row.ViewportWidth + 14) / step));
-                var target = Math.Clamp(row.HorizontalOffset + direction * cards * step, 0, row.ScrollableWidth);
-                row.ChangeView(target, null, null);
-            };
-            return b;
-        }
-        var prev = PageButton(((char)0xE76B).ToString(), "Previous episodes", -1);
-        var next = PageButton(((char)0xE76C).ToString(), "Next episodes", 1);
-        void SyncPager()
-        {
-            var visible = row.ScrollableWidth > 0.5 ? Visibility.Visible : Visibility.Collapsed;
-            prev.Visibility = next.Visibility = visible;
-            prev.IsEnabled = row.HorizontalOffset > 0.5;
-            next.IsEnabled = row.HorizontalOffset < row.ScrollableWidth - 0.5;
-        }
-        row.ViewChanged += (_, _) => SyncPager();
-        row.SizeChanged += (_, _) => SyncPager();
-        if (row.Content is FrameworkElement episodesRow)
-            episodesRow.SizeChanged += (_, _) => SyncPager();   // the row grows as cards realize
-        actions.Children.Add(prev);
-        actions.Children.Add(next);
 
         grid.Children.Add(actions);
         return grid;
@@ -726,7 +682,8 @@ public sealed partial class TvShowsPage : Page
             ? Visibility.Visible : Visibility.Collapsed;
         ShowTagline.Text = _detail.Tagline ?? "";
         ShowTagline.Visibility = string.IsNullOrWhiteSpace(_detail.Tagline) ? Visibility.Collapsed : Visibility.Visible;
-        ShowRuntime.Text = _detail.Runtime is > 0 ? $"{_detail.Runtime}-min episodes" : "";
+        // v4.8.0 (#25): "55-min", the show's typical length (each episode has its own)
+        ShowRuntime.Text = _detail.Runtime is > 0 ? $"{_detail.Runtime}-min" : "";
         ShowRuntime.Visibility = _detail.Runtime is > 0 ? Visibility.Visible : Visibility.Collapsed;
         PopulateShowRatings(_detail);
         PopulateShowFacts(_detail);
@@ -788,7 +745,8 @@ public sealed partial class TvShowsPage : Page
 
     // ── v4.6.0: ratings, created by / studios / country, reload from .nfo ──
 
-    /// <summary>Each rating source with its votes, as in the movie window: only with more than one.</summary>
+    /// <summary>Each rating source with its votes, as in the movie window: only with more than one.
+    /// v4.8.0 (#25): one under another below the poster, the votes beside the figure.</summary>
     private void PopulateShowRatings(TvShowDetail d)
     {
         ShowRatingsPanel.Children.Clear();
@@ -805,7 +763,8 @@ public sealed partial class TvShowsPage : Page
                 FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 CharacterSpacing = 150, Foreground = label,
             });
-            stack.Children.Add(new TextBlock
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            line.Children.Add(new TextBlock
             {
                 Text = value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
                 FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
@@ -818,7 +777,12 @@ public sealed partial class TvShowsPage : Page
                 }),
             });
             if (votes is > 0)
-                stack.Children.Add(new TextBlock { Text = MovieDetailDialog.FormatVotes(votes.Value), FontSize = 10, Foreground = label });
+                line.Children.Add(new TextBlock
+                {
+                    Text = MovieDetailDialog.FormatVotes(votes.Value), FontSize = 11, Foreground = label,
+                    VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 3),
+                });
+            stack.Children.Add(line);
             ShowRatingsPanel.Children.Add(stack);
         }
         if (d.UserRating is double user)
@@ -931,9 +895,9 @@ public sealed partial class TvShowsPage : Page
             // Poster / fanart → portable cache, only if currently missing.
             string? posterRel = null, fanartRel = null;
             if (string.IsNullOrWhiteSpace(show.LocalPoster) && !string.IsNullOrEmpty(t.PosterPath))
-                posterRel = await MovieDetailDialog.DownloadArtAsync(client, t.PosterPath!, "manual_posters", t.TmdbId);
+                posterRel = await Services.MovieFetch.DownloadArtAsync(client, t.PosterPath!, "manual_posters", t.TmdbId);
             if (string.IsNullOrWhiteSpace(show.LocalFanart) && !string.IsNullOrEmpty(t.BackdropPath))
-                fanartRel = await MovieDetailDialog.DownloadArtAsync(client, t.BackdropPath!, "manual_fanart", t.TmdbId);
+                fanartRel = await Services.MovieFetch.DownloadArtAsync(client, t.BackdropPath!, "manual_fanart", t.TmdbId);
 
             var studio = t.Networks.Count > 0 ? t.Networks[0].Name
                        : t.ProductionCompanies.Count > 0 ? t.ProductionCompanies[0].Name : null;
@@ -964,7 +928,7 @@ public sealed partial class TvShowsPage : Page
                     if (string.IsNullOrWhiteSpace(c.Name)) continue;
                     string? thumbRel = null;
                     if (!string.IsNullOrEmpty(c.ProfilePath))
-                        thumbRel = await MovieDetailDialog.DownloadArtRawAsync(client, c.ProfilePath!, "manual_actors", "w185");
+                        thumbRel = await Services.MovieFetch.DownloadArtRawAsync(client, c.ProfilePath!, "manual_actors", "w185");
                     actors.Add((c.Name, string.IsNullOrWhiteSpace(c.Character) ? null : c.Character, c.Order, thumbRel));
                 }
                 db.AddManualShowActors(show.Id, actors);

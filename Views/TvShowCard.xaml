@@ -1,29 +1,38 @@
 <UserControl
     x:Class="CineLibraryCS.Views.TvShowCard"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="True" UseSystemFocusVisuals="False" AllowFocusOnInteraction="False">
 
     <!-- No ToolTip: recycled cards orphan tooltips on scroll (see MovieCardControl). -->
     <!-- v4.1.0: no fixed width; the card asks for its size in MeasureOverride and
-         fills the width it is given, so the All TV shows grid lines up with the title. -->
-    <Grid x:Name="CardRoot" Height="300" RenderTransformOrigin="0.5,0.5">
+         fills the width it is given, so the All TV shows grid lines up with the title.
+         v4.8.0: no fixed height either; the grid keeps the card's shape. -->
+    <Grid x:Name="CardRoot" RenderTransformOrigin="0.5,0.5">
         <Grid.RenderTransform>
             <TranslateTransform x:Name="CardLift" Y="0"/>
         </Grid.RenderTransform>
-        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="12">
+        <!-- v4.8.0: the poster on its own, the title and progress under it -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Border x:Name="CardBorder" Background="{ThemeResource CardBrush}" CornerRadius="10">
             <Border.Shadow><ThemeShadow/></Border.Shadow>
             <Grid>
                 <!-- Poster -->
                 <Image x:Name="PosterImage" Stretch="UniformToFill"/>
-                <Grid x:Name="PosterPlaceholder">
-                    <Grid.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Offset="0" Color="{ThemeResource PlaceholderTopColor}"/>
-                            <GradientStop Offset="1" Color="{ThemeResource PlaceholderBottomColor}"/>
-                        </LinearGradientBrush>
-                    </Grid.Background>
-                    <TextBlock Text="📺" FontSize="44" Opacity="0.85"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <!-- v4.8.0: a stand-in poster when there's none, as on movie cards -->
+                <Grid x:Name="PosterPlaceholder" Visibility="Collapsed">
+                    <StackPanel x:Name="PlaceholderText" VerticalAlignment="Center" Margin="12,0" Spacing="6">
+                        <FontIcon Glyph="&#xE7F4;" FontSize="20" Foreground="White" Opacity="0.45"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock x:Name="PlaceholderTitle" FontWeight="Bold" Foreground="White"
+                                   TextWrapping="WrapWholeWords" MaxLines="4" TextTrimming="CharacterEllipsis"
+                                   TextAlignment="Center" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="PlaceholderYear" FontSize="12" Foreground="#B3FFFFFF"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
                 </Grid>
 
                 <!-- Favorite heart (v4.5.0 #23: a heart, not a star, right under
@@ -42,51 +51,19 @@
                     <TextBlock x:Name="StatusText" FontSize="9" FontWeight="Bold" Foreground="White"/>
                 </Border>
 
-                <!-- Info strip (hidden under the hover panel, v4.1.0) -->
-                <Border x:Name="InfoStrip" VerticalAlignment="Bottom" CornerRadius="0,0,12,12" Padding="10,8">
-                    <Border.Background>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                            <GradientStop Offset="0" Color="#00000000"/>
-                            <GradientStop Offset="0.35" Color="#99000000"/>
-                            <GradientStop Offset="1" Color="#F2000000"/>
-                        </LinearGradientBrush>
-                    </Border.Background>
-                    <StackPanel VerticalAlignment="Bottom" Spacing="5">
-                        <!-- v3.8.0: green tick once every episode is watched, as on movie cards -->
-                        <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="10"
-                                Width="22" Height="22" HorizontalAlignment="Left"
-                                Visibility="Collapsed">
-                            <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock x:Name="TitleText" FontSize="13" FontWeight="Bold"
-                                   Foreground="White" TextTrimming="CharacterEllipsis"
-                                   MaxLines="2" TextWrapping="WrapWholeWords"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="MetaText" Grid.Column="0" FontSize="11" Foreground="#D8D8D8"/>
-                            <TextBlock x:Name="ProgressText" Grid.Column="1" FontSize="11"
-                                       FontWeight="SemiBold" Foreground="#A78BFA"/>
-                        </Grid>
-                        <!-- Watched progress bar (v4.1.0: star columns follow the card's width) -->
-                        <Grid Height="4" CornerRadius="2" Background="#40FFFFFF">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="ProgressDoneColumn" Width="0*"/>
-                                <ColumnDefinition x:Name="ProgressLeftColumn" Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border x:Name="ProgressFill" CornerRadius="2"
-                                    Background="{StaticResource BrandPurpleBrush}"/>
-                        </Grid>
-                    </StackPanel>
+                <!-- v3.8.0: green tick once every episode is watched, as on movie cards -->
+                <Border x:Name="WatchedBadge" Background="#CC22C55E" CornerRadius="10"
+                        Width="22" Height="22" Margin="8"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                        Visibility="Collapsed">
+                    <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
 
                 <!-- v4.1.0: hover panel, like the movie cards': what the show is,
                      ▶ the next episode, and Favorite / Watchlist without opening
                      the show. Filled in when the pointer comes in. -->
-                <Border x:Name="HoverOverlay" CornerRadius="12" Background="#CC000000"
+                <Border x:Name="HoverOverlay" CornerRadius="10" Background="#CC000000"
                         Visibility="Collapsed">
                     <Grid>
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -123,5 +100,48 @@
                 </Border>
             </Grid>
         </Border>
+
+        <!-- v4.8.0: title, year or next episode, and progress under the poster, on
+             the page (CaptionHeight in the code is this block's height) -->
+        <StackPanel Grid.Row="1" Margin="2,8,2,0" Spacing="3">
+            <TextBlock x:Name="TitleText" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextBrush}" TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap"
+                       PointerEntered="OnTitlePointerEntered" PointerExited="OnTitlePointerExited"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="MetaText" Grid.Column="0" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="ProgressText" Grid.Column="1" FontSize="12"
+                           FontWeight="SemiBold" Foreground="#A78BFA"/>
+            </Grid>
+            <!-- Watched progress bar (v4.1.0: star columns follow the card's width) -->
+            <Grid Height="3" CornerRadius="2" Background="{ThemeResource BorderBrush}" Margin="0,2,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="ProgressDoneColumn" Width="0*"/>
+                    <ColumnDefinition x:Name="ProgressLeftColumn" Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border x:Name="ProgressFill" CornerRadius="2"
+                        Background="{StaticResource BrandPurpleBrush}"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- v4.8.0: the whole title while the pointer is on one cut short, as on movie cards -->
+        <Border x:Name="FullTitle" VerticalAlignment="Bottom" Margin="-4,0" Padding="5,3"
+                CornerRadius="6" BorderThickness="1" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource ToolTipBackground}" BorderBrush="{ThemeResource ToolTipBorderBrush}">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="FullTitleShift"/>
+            </Border.RenderTransform>
+            <TextBlock x:Name="FullTitleText" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{ThemeResource ToolTipForeground}" TextWrapping="WrapWholeWords"/>
+        </Border>
+
+        <!-- v4.8.0: the card the keyboard is on, as on movie cards -->
+        <Border x:Name="FocusRing" Margin="-4" CornerRadius="13" BorderThickness="3"
+                BorderBrush="{ThemeResource TextBrush}"
+                IsHitTestVisible="False" Visibility="Collapsed"/>
     </Grid>
 </UserControl>

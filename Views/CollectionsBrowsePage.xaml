@@ -84,81 +84,83 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <Grid>
-                <ItemsRepeater x:Name="GridRepeater" Margin="24,0,24,24">
+                <ItemsRepeater x:Name="GridRepeater" Margin="24,0,24,24" TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled">
                     <ItemsRepeater.Layout>
                         <!-- Card sizes follow the S / M / L / XL picker, the
-                             same sizes as All movies (M = 150×280). -->
-                        <UniformGridLayout x:Name="CollGridLayout" MinItemWidth="150" MinItemHeight="280"
-                                           MinColumnSpacing="12" MinRowSpacing="12"
-                                           ItemsStretch="Fill"/>
+                             same sizes as All TV shows. Sizes and gaps: CardCell.FitGrid -->
+                        <UniformGridLayout x:Name="CollGridLayout" MinItemWidth="170" MinItemHeight="309"
+                                           MinColumnSpacing="24" MinRowSpacing="28"
+                                           ItemsStretch="Uniform"/>
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
-                        <!-- v3.8.0: built like a movie card. The poster fills the
-                             card, the name and count sit on a dark strip at the
-                             bottom, and a green tick marks a fully watched set. -->
+                        <!-- v3.8.0: built like a movie card, and a green tick marks a
+                             fully watched set. v4.8.0: the cover on its own, the name,
+                             count and progress under it, as on show cards. -->
                         <DataTemplate x:DataType="local:CollectionTileVm">
                             <!-- v4.4.0 (#18): the cell sizes the card like movie and show cards -->
                             <controls:CardCell CardWidth="{x:Bind CardWidth}" CardHeight="{x:Bind CardHeight}">
                             <Button Background="Transparent" BorderThickness="0"
                                     Padding="0" CornerRadius="10"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                    VerticalAlignment="Top"
+                                    VerticalAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     Click="OnTileClick"
                                     Tag="{x:Bind Id}"
                                     AutomationProperties.Name="{x:Bind Name}">
-                                <Border Height="{x:Bind CardHeight}"
-                                        CornerRadius="10"
-                                        Background="{ThemeResource PlaceholderBgBrush}"
-                                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1">
-                                    <Grid>
-                                        <TextBlock Text="🎬" FontSize="42" Opacity="0.6"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        <Image Stretch="UniformToFill"
-                                               Source="{x:Bind CoverImage, Mode=OneWay}"/>
-                                        <Border VerticalAlignment="Bottom" CornerRadius="0,0,10,10" Padding="8,6">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                                    <GradientStop Offset="0" Color="#00000000"/>
-                                                    <GradientStop Offset="0.3" Color="#B3000000"/>
-                                                    <GradientStop Offset="1" Color="#FF000000"/>
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <StackPanel VerticalAlignment="Bottom" Spacing="2">
-                                                <Border Background="#CC22C55E" CornerRadius="10"
-                                                        Width="22" Height="22" Margin="0,0,0,4"
-                                                        HorizontalAlignment="Left"
-                                                        Visibility="{x:Bind WatchedVisibility}">
-                                                    <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
-                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <TextBlock Text="{x:Bind Name}"
-                                                           FontSize="12" FontWeight="Bold"
-                                                           Foreground="White"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="WrapWholeWords"
-                                                           MaxLines="2"/>
-                                                <!-- v4.4.0 (#18): how many you've watched, as on show cards -->
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{x:Bind CountText}"
-                                                               FontSize="11" Foreground="#D8D8D8"/>
-                                                    <TextBlock Grid.Column="1" Text="{x:Bind ProgressText}"
-                                                               FontSize="11" FontWeight="SemiBold" Foreground="#A78BFA"/>
-                                                </Grid>
-                                                <Grid Height="4" CornerRadius="2" Background="#40FFFFFF" Margin="0,4,0,2">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="{x:Bind DoneWidth}"/>
-                                                        <ColumnDefinition Width="{x:Bind LeftWidth}"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border CornerRadius="2" Background="#A78BFA"/>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-                                </Border>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Border CornerRadius="10" Background="{ThemeResource PlaceholderBgBrush}">
+                                        <Grid>
+                                            <!-- v4.8.0: a stand-in cover when no film in it has a poster -->
+                                            <Grid Background="{x:Bind PlaceholderBrush}" Visibility="{x:Bind PlaceholderVisibility}">
+                                                <StackPanel VerticalAlignment="Center" Margin="12,0" Spacing="6">
+                                                    <FontIcon Glyph="&#xE8B2;" FontSize="20" Foreground="White" Opacity="0.45"
+                                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                    <TextBlock Text="{x:Bind Name}" FontSize="{x:Bind PlaceholderFontSize}"
+                                                               FontWeight="Bold" Foreground="White"
+                                                               TextWrapping="WrapWholeWords" MaxLines="4" TextTrimming="CharacterEllipsis"
+                                                               TextAlignment="Center" HorizontalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <Image Stretch="UniformToFill"
+                                                   Source="{x:Bind CoverImage, Mode=OneWay}"/>
+                                            <Border Background="#CC22C55E" CornerRadius="10"
+                                                    Width="22" Height="22" Margin="8"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                                    Visibility="{x:Bind WatchedVisibility}">
+                                                <TextBlock Text="✓" FontSize="12" FontWeight="Bold" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <!-- the same block as the show card's caption (TvShowCard.CaptionHeight) -->
+                                    <StackPanel Grid.Row="1" Margin="2,8,2,0" Spacing="3">
+                                        <TextBlock Text="{x:Bind Name}"
+                                                   FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextBrush}"
+                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                        <!-- v4.4.0 (#18): how many you've watched, as on show cards -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{x:Bind CountText}" FontSize="12"
+                                                       Foreground="{ThemeResource MutedBrush}"/>
+                                            <TextBlock Grid.Column="1" Text="{x:Bind ProgressText}"
+                                                       FontSize="12" FontWeight="SemiBold" Foreground="#A78BFA"/>
+                                        </Grid>
+                                        <Grid Height="3" CornerRadius="2" Background="{ThemeResource BorderBrush}" Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="{x:Bind DoneWidth}"/>
+                                                <ColumnDefinition Width="{x:Bind LeftWidth}"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border CornerRadius="2" Background="#A78BFA"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
                             </Button>
                             </controls:CardCell>
                         </DataTemplate>

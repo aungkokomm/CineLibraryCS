@@ -139,13 +139,42 @@ public class AppState
         return ok;
     }
 
+    /// <summary>
+    /// v4.8.0: what was fetched, into the movie's .nfo where it's empty (NfoFill),
+    /// saved like an IMDb rating and under the same lock. False when it couldn't
+    /// be written (tried again later); an .nfo that isn't XML is left as it is.
+    /// </summary>
+    private bool FillMovieNfo(string folderAbs, MovieStateSidecar.Meta meta)
+    {
+        var nfo = ScannerService.FindNfo(folderAbs);
+        if (nfo == null) return true;
+        var actorsDir = Path.Combine(folderAbs, ".actors");
+        string? Thumb(string name)   // the photo CopyFetchedArt names, when it's there
+        {
+            var file = name.Replace(' ', '_') + ".jpg";
+            return file.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && File.Exists(Path.Combine(actorsDir, file))
+                ? ".actors/" + file : null;
+        }
+        lock (ImdbUpdate.Gate)
+        {
+            System.Xml.Linq.XDocument doc;
+            try { doc = System.Xml.Linq.XDocument.Load(nfo); }
+            catch (System.Xml.XmlException) { return true; }
+            catch { return false; }
+            if (doc.Root == null || !NfoFill.Apply(doc.Root, meta, Thumb)) return true;
+            try { NfoRatings.Save(doc, nfo); }
+            catch { return false; }
+        }
+        return true;
+    }
+
     public enum DriveSave { Saved, Waiting, Off }
 
     /// <summary>
     /// v4.6.0: copies what Fetch missing info got into the folders of the titles
     /// fetched since it last reached them: the poster, fanart and cast photos
     /// (only files that aren't there yet), and for a movie its details into the
-    /// state file. The .nfo is never changed. A title whose drive isn't connected
+    /// state file and (v4.8.0) into its .nfo where that's empty. A title whose drive isn't connected
     /// waits for the next pass (when the drive is plugged in, or at start-up).
     /// Off with Settings → Save fetched info to your drives, unless
     /// <paramref name="evenIfOff"/> (Sync to drive). Call off the UI thread.
@@ -173,7 +202,13 @@ public class AppState
                 var (folderAbs, state) = composed.Value;
                 if (!CopyFetchedArtToFolder(id, folderAbs)) continue;
                 state.Meta = MovieStateSidecar.ComposeMeta(Db, id);
+                if (!FillMovieNfo(folderAbs, state.Meta)) continue;   // v4.8.0
                 MovieStateSidecar.TryWrite(folderAbs, state);
+                // v4.8.0: the folder is read again, so the library shows just what the
+                // .nfo says, its own cast too rather than the fetched one; the state
+                // file, written first, keeps what the .nfo can't hold
+                if (Db.GetMovieFolder(id) is { } where)
+                    ReloadFolderAsync(where.Serial, where.FolderRel).GetAwaiter().GetResult();
                 Db.MarkSyncedToDrive(false, id);
                 m++;
             }

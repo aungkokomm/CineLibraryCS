@@ -6,6 +6,31 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.8.0] - 2026-10-24
+
+### Changed
+- New poster cards: the whole poster shows, with the title, year and rating under it and more space between cards. Posters keep their shape at every size and window width. All movies, All TV shows, Collections, On This Day, Watched & Gone and the show rows on other pages. Cards also get a NEW tag for the last two weeks' additions (on Recently Added, when each movie came in), a 4K / HDR / DV tag and a stand-in poster with the title when there's none; each can be turned off in Settings. Pointing at a title that's cut short shows all of it.
+- Fetch missing info from TMDB now also writes what it finds into the movie's .nfo, the way Kodi keeps it, so Kodi and MediaElch see it too. Only empty tags are filled: nothing that has a value is changed or taken out, and a cast of 15 or fewer gets the rest of TMDb's. An `<actor>` holding a whole cast is split into one per person, and genres in a `<genres>` wrapper move to where Kodi reads them.
+- Fetch missing info for many movies at once: select them and press Fetch missing info in the selection bar. Each one is matched by its TMDb or IMDb id, or by title and year when TMDb has exactly one such film; the rest are listed for you to pick in the movie window.
+- Missing cast in the sidebar's Tools: the movies with one actor or none, to select and fetch together. Ctrl+A now selects every movie in the view, not only the ones loaded so far.
+- Fetch missing info takes up to 50 cast members from TMDb (was 15), as CineLibrary Essentials does.
+- The cards work with the keyboard: Tab into them, the arrow keys move between them, Enter opens one and Space plays it.
+- Movie details now open in place of the main window, with a Library button to go back (Esc and the mouse's back button work too).
+- TV show page: the ratings sit under the poster, tags have a line of their own, and Created by, Studios and Country come after the tags, so the buttons show without scrolling.
+- Recently Added lists TV shows too: the shows added since the oldest movie on it, newest first.
+- By Genre counts TV shows, has the genres only shows have (like Sci-Fi & Fantasy), and a genre's page lists its shows above its movies.
+- Settings and Keyboard shortcuts are easier to read from across the room: bigger, brighter text, and in the dark theme the app's own dark background.
+- A new Statistics page: a summary of the library, then picture quality, space per drive, video and sound formats, release decades, ratings, length, genres, countries, certifications, collections, a TV shows section (how far you are, status, genres, studios and networks, the biggest shows, episode quality), what you watched each month, the actors and directors you have the most of, and the best-rated movies you haven't watched. A decade, rating, genre, collection, drive, person or show opens it.
+- TV show page: the episodes are a list down the page, one row each with a bigger picture, the date, length and quality, the plot, and Favorite and Watched buttons that are always there. The season buttons show how many episodes each has, with the season's watched count, Play season and Mark all watched beside them.
+- "User rating" is now "User", and a show's runtime reads "55-min".
+
+### Fixed
+- Directors and studios in the movie details are separated by commas.
+- Right-clicking the search box shows Cut, Copy, Paste and Select all; it opened the window's own menu.
+- Movies whose .nfo has no runtime now show their length on cards and in list view, read from the video file.
+- Sorting by Rating, Runtime or Last Watched with the highest or newest first no longer lists the movies without one first.
+- A movie folder with two .nfo files (like "X.mkv.nfo" and "X.nfo") is read from the one named like the video file, then movie.nfo, as Kodi does. The other one could hold an older, shorter cast.
+
 ## [4.7.1] - 2026-10-19
 
 ### Fixed

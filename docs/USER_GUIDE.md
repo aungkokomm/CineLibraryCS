@@ -214,7 +214,8 @@ The sidebar is grouped into sections:
 - **BROWSE**: banner-style pages: *By Genre*, *By Decade*, *By Rating*,
   *Collections*, and the **Tags** page. Each entry shows count and a
   representative cover; click to filter your library to that slice.
-- **TOOLS**: Statistics, Dupes, and Backup & Export.
+- **TOOLS**: Statistics, Dupes, Missing cast (4.8.0: the movies with one
+  actor or none, shown while there are any) and Backup & Export.
 - **PINNED TAGS**: the tags you pinned on the Tags page.
 - **LIBRARIES**: one entry per drive root, with a live online/offline
   dot and a count.
@@ -409,20 +410,23 @@ Click a show to open its page:
   that scrolls sideways.
 - **▶ Play next** — jumps straight to the first unwatched episode
   (by season, then episode). Reads "✓ All watched" once you're done.
-- **Season tabs**: one tab per season, with Specials last. The page
-  shows one season at a time, so season 10 is one click away. It opens
-  on the first season you haven't finished.
-- **Episode row**: the season's episodes sit in a horizontal row of
-  cards (scroll sideways, like Netflix), or use the **‹ ›** buttons
-  next to Mark all watched to move a page at a time. Each card shows
-  the episode thumbnail, `SxxExx`, title, runtime/rating, an
-  **○ / ✓ Mark-watched** toggle, and **▶ Play** on hover.
+- **Season buttons**: one per season, with Specials last, each with its
+  number of episodes ("Season 1  10"). The page shows one season at a
+  time, so season 10 is one click away. It opens on the first season you
+  haven't finished. Beside them: how much of the season you've watched
+  and its total length, **▶ Play season** and **Mark all watched**.
+- **Episodes**: a list down the page, one row per episode: its number,
+  the picture, the title, the air date, length, quality and rating, and
+  up to three lines of the plot. **♡** and **✓** on the right mark it a
+  favorite or watched, and **▶ Play** shows on the picture when you point
+  at it. In a small window the picture gets smaller and the two buttons
+  sit one above the other.
 - **Missing episodes**: when the show has a TMDb id and you're online,
   CineLibrary asks TMDb which episodes have aired. Each one you don't
-  have appears greyed in its season's row, marked **Not in your library**
+  have appears greyed in its season's list, marked **Not in your library**
   with its air date, and the season's line says how many are missing
-  ("8 episodes · 2 missing"). Seasons you have none of are listed under
-  the season tabs, like "Not in your library: Season 4 (10 episodes)".
+  ("3 of 8 watched · 2 missing"). Seasons you have none of are listed under
+  the season buttons, like "Not in your library: Season 4 (10 episodes)".
   Specials and episodes that haven't aired yet never count, a file that
   holds two episodes (`S01E01E02`) counts as both, and a show kept in one
   folder per season counts every folder. Offline, the page simply shows
@@ -431,17 +435,17 @@ Click a show to open its page:
 
 ### Watching episodes
 
-- **Double-click** an episode card (or its **▶ Play**) to open it in
+- **Double-click** an episode (or its **▶ Play**) to open it in
   your default video player. Playing also marks it watched.
-- **Single-click** an episode card to open its **details** — full plot,
+- **Single-click** an episode to open its **details** — full plot,
   air date, rating, runtime, plus tech info pulled from the `.nfo`
   (resolution, HDR, video/audio codec, audio languages, subtitles,
   container, file size). The dialog has Play and Mark-watched buttons.
   It's dark like the show page's header in both themes, with the show's
   name above the episode's, and a note box for the episode.
-- The **○ / ✓** toggle on each card flips watched state without
+- The **✓** button on each episode flips watched state without
   playing. The show's progress roll-up updates instantly.
-- Each **season header** has **▶ Play season** (first unwatched in that
+- Beside the season buttons: **▶ Play season** (first unwatched in that
   season) and **Mark all watched / unwatched**.
 
 ### Adding shows to lists
@@ -453,9 +457,10 @@ its movies in the grid below. (See *My Lists*.)
 
 ### TV in Statistics
 
-The Statistics page gains a **📺 TV Shows** section once you have shows:
-total shows, total episodes, combined episode runtime, average show
-rating, and an episodes-watched progress bar.
+The Statistics page has a **TV shows** section once you have shows (see
+*Statistics*), counts your shows and episodes in its summary, and its
+**Watched so far** card has an episodes ring next to the movies one.
+Episodes count in **Watched per month** too.
 
 ### Favorite / Watchlist for shows
 
@@ -467,6 +472,10 @@ Favorite and watchlisted shows appear in a **TV shows** row at the top
 of **Favorites** and **To Watch**, above the movies; shows you're partway
 through appear the same way on **Continue Watching**, where each card
 says which episode is next ("Next: S01E04", the one ▶ Play next starts).
+**Recently Added** has the row too, with the shows added since the oldest
+movie on it, newest first, and so does a genre's page from **By Genre**,
+which counts each genre's shows and has the genres only shows have
+(like Sci-Fi & Fantasy).
 Click a show to open it. The **To Watch** and **Continue Watching** counts in the
 sidebar include these shows. The cards in this row take the page's
 **Size** (S, M, L or XL), like the movies under them.
@@ -665,8 +674,8 @@ Open it from the sidebar to see your records as a poster wall. You can:
 
 Records are **completely isolated**: they never appear in All Movies,
 search, Browse, Collections, Statistics, drive counts, lists, tags, or any
-Discovery row. Statistics shows a small tally — *"Plus N movies kept in
-Watched & Gone."*
+Discovery row. The Statistics page's Movies tile notes how many are kept
+there ("22 in Watched & Gone").
 
 ### When files go missing
 
@@ -731,12 +740,33 @@ wherever it has a value, and a fetched value stays only where it's blank.
 A show's fetched pictures go onto the drive like a movie's (below); its
 other fetched details live in CineLibrary's own library data.
 
+**Several movies at once (4.8.0).** Select the movies (Ctrl+click,
+Shift+click or Ctrl+A) and press **Fetch missing info** in the selection
+bar. CineLibrary fetches them one after another, in a progress window you
+can stop. With no picker to ask, it takes only a sure match: the movie's
+TMDb id, else its IMDb id, else a TMDb search that finds exactly one film
+of the same title and year. The others are listed at the end, so you can
+open each one and pick the match. To give every movie with one actor or
+none its cast, open **Tools → Missing cast**, press **Ctrl+A** and then
+**Fetch missing info**. Fetch takes up to 50 cast members from TMDb, as
+CineLibrary Essentials does.
+
 **Saved onto the drive by itself.** Right after a fetch, CineLibrary copies
 the fetched poster, fanart and cast photos into the movie's or show's
 folder (`poster.jpg`, `fanart.jpg`, `.actors\First_Last.jpg`), and a
 movie's fetched details into its CineLibrary state file there. The message
 next to the button says "saved to the movie's folder". Only files that
-aren't there yet are added, and **your `.nfo` is never changed**. If the
+aren't there yet are added.
+
+**Into the movie's `.nfo` too (4.8.0).** The movie's `.nfo` gets what it
+was missing, the way Kodi writes it, so Kodi, MediaElch and the next scan
+see it as well: an empty plot, genres, director, writers, studio, cast and
+so on are filled in. A tag that has a value is never changed and nothing is
+taken out. A cast of 15 or fewer gets the people TMDb has that it doesn't
+(a longer cast is the `.nfo`'s own and stays as it is). An `<actor>` that holds a whole cast (some tools write it that
+way, and Kodi then reads only the first name) is split into one `<actor>`
+per person, and genres inside a `<genres>` wrapper move to where Kodi
+reads them. Ratings are left to **Update IMDb ratings**. If the
 title's drive isn't connected, the message says so, and everything goes
 onto the drive the next time you plug it in (or start CineLibrary with it
 connected). A drive that's read-only or full is simply tried again later.
@@ -873,7 +903,8 @@ at a time. CineLibrary's multi-select fixes that.
   show a purple outline + a corner ✓.
 - **Shift+click** → range-select from your last clicked card to this
   one.
-- **Ctrl+A** → select every card currently visible.
+- **Ctrl+A** → select every movie in the view, the ones further down that
+  haven't loaded yet too (4.8.0).
 - **Esc** → clear the selection.
 - **Plain click** while a selection is active just clears it (so you
   don't accidentally open a detail dialog when trying to escape
@@ -885,10 +916,13 @@ at a time. CineLibrary's multi-select fixes that.
 As soon as one or more cards are selected, a purple pill bar appears
 at the bottom of the library:
 
-> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ♥ Favorite · 🗑 Remove from list · ✕
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ♥ Favorite · Fetch missing info · 🗑 Remove from list · ✕
 
 - **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
   Picking one adds *every* selected movie to that list.
+- **Fetch missing info** (4.8.0) looks every selected movie up on TMDb
+  and fills in only what's missing (see
+  [Filling in missing details](#filling-in-missing-details-tmdb)).
 - **✓ Watched / 📌 Watchlist / ♥ Favorite** are smart toggles — if
   *any* selected movie doesn't yet have the flag, the action sets it
   on all of them; if every selected movie already has it, the action
@@ -999,7 +1033,9 @@ copy), the **DB wins where it already has a value**. Lists are
 
 ### What this doesn't touch
 
-Your **`.nfo` files and video files are never modified** — ever. The
+Your **video files are never modified**. An `.nfo` changes only when you
+ask: **Update IMDb ratings** writes the rating, and **Fetch missing info**
+fills the tags it was missing. The
 sidecar `cinelibrary-state.json` is written automatically; poster /
 fanart / `.actors\` images are only written by the on-demand **Sync to
 drive** action above, and only when they're missing from the folder.
@@ -1056,14 +1092,31 @@ Nothing is ever removed by an import.
 
 ## Statistics
 
-The **Statistics** page (sidebar) is a single-page view of your
-collection at a glance:
+The **Statistics** page (sidebar) is your collection at a glance:
 
-- Total runtime (in days/hours), average rating, watch progress
-- Top directors, top actors, top genres — by count
-- Decade breakdown — see at a glance whether your library leans
-  classic or modern
-- Watchlist size
+- **Summary**: movies, TV shows and episodes, the space they take, their
+  running time, and how much you've watched.
+- **Quality and storage**: picture quality (4K, 1080p, 720p, SD), each
+  drive with its space and movie count, video formats, and sound
+  (stereo, 5.1, 7.1, and the audio formats).
+- **What's in it**: release decades with the average rating of each,
+  ratings, length, genres, countries, certifications and your biggest
+  collections.
+- **TV shows**: how many you've finished, are partway through or haven't
+  started, their status (Ended, Returning Series, Canceled), genres,
+  studios and networks, the shows with the most episodes, and the
+  episodes' picture quality.
+- **Your watching**: what you watched each month (from CineLibrary's
+  watch log, so it starts when the log began), how much of your movies
+  and episodes you've watched, and the movies you watched last.
+- **People**: the actors and directors you have the most movies of, and
+  how many of those you've watched.
+- **Worth watching next**: the best-rated movies you haven't watched.
+
+Click a decade, a rating, a genre, a collection, a drive or a person to
+see those movies; a poster opens the movie. In the TV section, a genre
+opens its page with its shows, **In progress** opens Continue Watching,
+and a show opens the show.
 
 Numbers update as you toggle watched/favorite or add new drives. Use
 this page to spot gaps ("hey, I have nothing from the 70s") or as
@@ -1167,7 +1220,8 @@ copies the fetched poster, fanart and cast photos into the movie's or
 show's folder, and a movie's details into its CineLibrary state file
 there, now or the next time that drive is connected (see
 [Filling in missing details](#filling-in-missing-details-tmdb)). Only
-missing files are added and your `.nfo` is never changed. Turn it off and
+missing files are added, and a movie's `.nfo` only gets the tags it was
+missing. Turn it off and
 CineLibrary never writes them to your drives by itself; turning it back
 on catches up.
 

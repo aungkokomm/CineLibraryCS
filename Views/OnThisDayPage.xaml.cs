@@ -32,10 +32,8 @@ public sealed partial class OnThisDayPage : Page
         // Cards come in the library's Size (S to XL): slots of that size, or a
         // bigger card overflows its slot and loses its corner buttons (#25)
         foreach (var layout in new[] { WatchedRepeater.Layout, ReleasedRepeater.Layout }.OfType<UniformGridLayout>())
-        {
-            layout.MinItemWidth = MovieCardControl.GlobalCardWidth;
-            layout.MinItemHeight = MovieCardControl.GlobalCardHeight;
-        }
+            Controls.CardCell.FitGrid(layout, (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight),
+                                      MovieCardControl.GlobalDensity);
 
         var connected = AppState.Instance.Connected;
         var matches = AppState.Instance.Db.GetOnThisDayItems(connected, limit: 48);

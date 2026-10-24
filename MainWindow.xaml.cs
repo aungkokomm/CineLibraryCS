@@ -55,6 +55,10 @@ public sealed partial class MainWindow : Window
         // Extend content into titlebar for Mica effect + use our custom drag region
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        // v4.8.0: the search in the title bar takes every click, the right-click too
+        AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarPassthrough();
+        TitleSearchHost.SizeChanged += (_, _) => UpdateTitleBarPassthrough();
+        TitleSearchHost.Loaded += (_, _) => TitleSearchHost.XamlRoot.Changed += (_, _) => UpdateTitleBarPassthrough();   // a monitor with other scaling
 
         // Apply Mica material (user-toggleable in Settings) and keep it in sync.
         ApplyMica();
@@ -200,12 +204,14 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
-        var muted = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush");
+        // v4.8.0 (#25): the notes in the text colour, a little dimmed, and a size up:
+        // the grey was hard to read from across the room
+        var dim = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
 
         TextBlock Header(string t) => new()
         {
-            Text = t, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CharacterSpacing = 120, Opacity = 0.7, Foreground = muted,
+            Text = t, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 120, Opacity = 0.75, Foreground = dim,
             Margin = new Thickness(0, 12, 0, 4),
         };
 
@@ -255,7 +261,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "How much of the Windows Mica material — your wallpaper, softly tinted — shows behind the sidebar. Off is a flat, solid look, and the lightest on the GPU. (The scrolling poster area always stays solid for speed.)",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // Card borders
@@ -271,7 +277,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "A thin outline around each movie card. Helps the cards stand out, especially in light theme.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // Card shadows
@@ -287,7 +293,53 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "A subtle shadow that lifts each movie card. Off by default for the smoothest scrolling.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+        });
+
+        // v4.8.0: the new card extras, each one can go
+        var newTagToggle = new ToggleSwitch
+        {
+            Header = "NEW tag",
+            IsOn = UiSettings.NewTag,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        newTagToggle.Toggled += (_, _) => UiSettings.SetNewTag(newTagToggle.IsOn);
+        panel.Children.Add(newTagToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "A NEW tag on movies added in the last two weeks. Recently Added always says when each movie came in.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+        });
+
+        var qualityToggle = new ToggleSwitch
+        {
+            Header = "4K and HDR tags",
+            IsOn = UiSettings.QualityTags,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        qualityToggle.Toggled += (_, _) => UiSettings.SetQualityTags(qualityToggle.IsOn);
+        panel.Children.Add(qualityToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "4K, HDR or DV (Dolby Vision) on the poster, read from the video file.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+        });
+
+        var standInToggle = new ToggleSwitch
+        {
+            Header = "Stand-in posters",
+            IsOn = UiSettings.StandInPosters,
+            OffContent = "Off", OnContent = "On",
+            Margin = new Thickness(0, 10, 0, 0),
+        };
+        standInToggle.Toggled += (_, _) => UiSettings.SetStandInPosters(standInToggle.IsOn);
+        panel.Children.Add(standInToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "When a movie, show or collection has no poster, its title on a coloured card instead of a blank one.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // Reduce motion
@@ -303,7 +355,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "Turns off the zoom/lift animation when you hover a card. Easier on the eyes and on low-end GPUs.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // ── Playback (v3.6.0) ──
@@ -358,7 +410,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "Play opens videos in this program, for example VLC, MPC-HC, PotPlayer or mpv. With none chosen, Play uses whatever Windows opens video files with.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // ── Drives (v4.6.0) ──
@@ -373,8 +425,8 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(saveToggle);
         panel.Children.Add(new TextBlock
         {
-            Text = "After Fetch missing info from TMDB, CineLibrary copies the poster, fanart and cast photos into the movie's or show's folder, and a movie's details into its CineLibrary state file there. Only missing files are added, and your .nfo is never changed. A drive that isn't connected gets them the next time you plug it in.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            Text = "After Fetch missing info from TMDB, CineLibrary copies the poster, fanart and cast photos into the movie's or show's folder, and a movie's details into its CineLibrary state file there and into its .nfo. Only missing files are added, and the .nfo only gets the tags it was missing: nothing that has a value is changed. A drive that isn't connected gets them the next time you plug it in.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // ── TV shows (v4.6.0) ──
@@ -390,12 +442,12 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "When you open a show, CineLibrary asks TMDb which aired episodes aren't in your library and shows them greyed. It's the only thing CineLibrary goes online for by itself: turn it off to stay fully offline unless you click Fetch missing info. Applies the next time you open a show.",
-            FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap,
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // ── Sidebar (v4.7.0) ──
         panel.Children.Add(Header("SIDEBAR"));
-        var hiddenText = new TextBlock { FontSize = 12, Opacity = 0.7, Foreground = muted, TextWrapping = TextWrapping.Wrap };
+        var hiddenText = new TextBlock { FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap };
         var showAgain = new Button { Content = "Show hidden items again" };
         void ShowHidden()
         {
@@ -426,6 +478,7 @@ public sealed partial class MainWindow : Window
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
         };
+        UseAppDarkLook(dialog);
         try { await dialog.ShowAsync(); } catch { }
     }
 
@@ -644,6 +697,15 @@ public sealed partial class MainWindow : Window
                 BtnOnThisDay.Visibility = AppState.Instance.Db.HasOnThisDayMatches()
                     ? Visibility.Visible : Visibility.Collapsed;
             } catch { BtnOnThisDay.Visibility = Visibility.Collapsed; }
+
+            // v4.8.0: Missing cast, only while some movie has one actor or none
+            try
+            {
+                var few = AppState.Instance.Db.GetFewCastCount();
+                FewCastBadge.Text = few.ToString();
+                BtnFewCast.Visibility = few > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
+            catch { BtnFewCast.Visibility = Visibility.Collapsed; }
 
             // v2.9 — Tags section (hidden when no tags exist)
             RefreshTags();
@@ -1509,6 +1571,9 @@ public sealed partial class MainWindow : Window
 
     /// <summary>Open the TV page directly on a specific show (e.g. from a
     /// list's "TV shows in this list" row).</summary>
+    // v4.8.0 (#25): the Statistics page's "In progress" shows
+    public void NavigateContinueWatching() => OnNavContinueWatching(BtnContinueWatching, new RoutedEventArgs());
+
     public void OpenTvShow(int showId)
     {
         NavigateTo("tvshows");
@@ -1653,6 +1718,12 @@ public sealed partial class MainWindow : Window
     {
         NavigateTo("library", new LibraryNavParam(CollectionId: id, Label: name));
         SetLibraryBackToCollections();
+    }
+
+    // v4.8.0: a drive on the Statistics page
+    public void NavigateLibraryByDrive(string serial, string? label)
+    {
+        NavigateTo("library", new LibraryNavParam(DriveSerial: serial, Label: label));
     }
 
     private void OnNavBrowseGenre(object sender, RoutedEventArgs e)
@@ -1947,6 +2018,17 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnStatistics);
     }
 
+    // v4.8.0: movies with one actor or none, to select and Fetch missing info for
+    private void OnNavFewCast(object sender, RoutedEventArgs e)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.ShowFewCast();
+        _libraryPage?.UpdatePageTitle("Missing cast");
+        if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
+        ClearLibraryBack();
+        SetActiveNav(sender as Button ?? BtnFewCast);
+    }
+
     private void OnNavDupes(object sender, RoutedEventArgs e)
     {
         NavigateTo("dupes");
@@ -1982,14 +2064,14 @@ public sealed partial class MainWindow : Window
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            kb.Child = new TextBlock { Text = keys, FontSize = 12, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };
+            kb.Child = new TextBlock { Text = keys, FontSize = 13, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas") };
             kb.SetValue(Grid.ColumnProperty, 0);
             row.Children.Add(kb);
 
             var desc = new TextBlock
             {
                 Text = what,
-                FontSize = 13,
+                FontSize = 14,
                 Margin = new Thickness(12, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
@@ -2005,12 +2087,12 @@ public sealed partial class MainWindow : Window
             panel.Children.Add(new TextBlock
             {
                 Text = text,
-                FontSize = 11,
+                FontSize = 12,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 CharacterSpacing = 120,
-                Opacity = 0.7,
+                Opacity = 0.75,
                 Margin = new Thickness(0, 10, 0, 2),
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),   // v4.8.0 (#25): was the dim grey
             });
         }
 
@@ -2038,11 +2120,11 @@ public sealed partial class MainWindow : Window
         {
             Text = "Card shortcuts (F, W, Delete) act on the current selection — "
                  + "click one or more cards first. They pause while you're typing in the search box.",
-            FontSize = 12,
+            FontSize = 13,
             Opacity = 0.75,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 14, 0, 0),
-            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
+            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
         };
 
         var dialog = new ContentDialog
@@ -2059,7 +2141,21 @@ public sealed partial class MainWindow : Window
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
         };
+        UseAppDarkLook(dialog);
         await dialog.ShowAsync();
+    }
+
+    /// <summary>
+    /// v4.8.0 (#25): in the dark theme a dialog in the app's own near-black, as the
+    /// episode window has it, in place of Windows' grey, so it matches the pages.
+    /// </summary>
+    private void UseAppDarkLook(ContentDialog dialog)
+    {
+        if ((Content as FrameworkElement)?.ActualTheme != ElementTheme.Dark) return;
+        dialog.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x0A, 0x0A, 0x12));   // the button bar
+        dialog.BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        dialog.BorderThickness = new Thickness(1);
+        dialog.Resources["ContentDialogTopOverlay"] = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x0E, 0x0E, 0x16));   // the card
     }
 
     // ── About ─────────────────────────────────────────────────────────────
@@ -2289,11 +2385,11 @@ public sealed partial class MainWindow : Window
         BtnTvShows, BtnFavorites, BtnWatchlist, BtnNotes, BtnWatchedGone,
         BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay,
         BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags,
-        BtnStatistics, BtnDupes, BtnBackupExport,
+        BtnStatistics, BtnDupes, BtnFewCast, BtnBackupExport,
     };
 
     // Shown only when there's something in them (RefreshSidebarImmediate decides)
-    private Button[] ConditionalNav => new[] { BtnWatchedGone, BtnContinueWatching, BtnRecentlyWatched, BtnOnThisDay };
+    private Button[] ConditionalNav => new[] { BtnWatchedGone, BtnContinueWatching, BtnRecentlyWatched, BtnOnThisDay, BtnFewCast };
 
     private void SetUpSidebarHiding()
     {
@@ -2325,8 +2421,24 @@ public sealed partial class MainWindow : Window
         // A group label goes when nothing under it shows
         DiscoverLabel.Visibility = AnyVisible(BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay);
         BrowseLabel.Visibility = AnyVisible(BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags);
-        ToolsLabel.Visibility = AnyVisible(BtnStatistics, BtnDupes, BtnBackupExport);
+        ToolsLabel.Visibility = AnyVisible(BtnStatistics, BtnDupes, BtnFewCast, BtnBackupExport);
         if (_sidebarCollapsed) BuildRail();
+    }
+
+    /// <summary>
+    /// v4.8.0: the title bar's search (scope and box) as a passthrough region. The
+    /// whole title bar is the drag area, so a right-click on the box went to the
+    /// window's system menu instead of the box's Cut / Copy / Paste menu.
+    /// </summary>
+    private void UpdateTitleBarPassthrough()
+    {
+        if (TitleSearchHost.XamlRoot is not { } root || TitleSearchHost.ActualWidth <= 0) return;
+        var scale = root.RasterizationScale;
+        var at = TitleSearchHost.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+        var rect = new RectInt32((int)Math.Round(at.X * scale), (int)Math.Round(at.Y * scale),
+            (int)Math.Round(TitleSearchHost.ActualWidth * scale), (int)Math.Round(TitleSearchHost.ActualHeight * scale));
+        Microsoft.UI.Input.InputNonClientPointerSource.GetForWindowId(AppWindow.Id)
+            .SetRegionRects(Microsoft.UI.Input.NonClientRegionKind.Passthrough, new[] { rect });
     }
 
     private static Visibility AnyVisible(params Button[] items)

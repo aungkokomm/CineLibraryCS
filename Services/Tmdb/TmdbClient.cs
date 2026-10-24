@@ -156,7 +156,7 @@ public sealed class TmdbClient : IDisposable
         if (root.TryGetProperty("aggregate_credits", out var credits) &&
             credits.TryGetProperty("cast", out var cast) && cast.ValueKind == JsonValueKind.Array)
         {
-            foreach (var m in cast.EnumerateArray().Take(15))
+            foreach (var m in cast.EnumerateArray().Take(50))   // v4.8.0: 50, as CineLibrary Essentials (was 15)
             {
                 var character = "";
                 if (m.TryGetProperty("roles", out var roles) && roles.ValueKind == JsonValueKind.Array)
@@ -231,6 +231,23 @@ public sealed class TmdbClient : IDisposable
             ? id.GetString() : null;
     }
 
+    /// <summary>
+    /// v4.8.0: the TMDb id of the movie with this IMDb id (TMDb's find), for the
+    /// bulk fetch of movies whose .nfo has only an IMDb id. Null when TMDb has none.
+    /// </summary>
+    public async Task<int?> FindMovieByImdbAsync(string imdbId)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync($"{BaseUrl}/find/{Uri.EscapeDataString(imdbId)}?api_key={_apiKey}&external_source=imdb_id");
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+        if (doc.RootElement.TryGetProperty("movie_results", out var found) && found.ValueKind == JsonValueKind.Array)
+            foreach (var m in found.EnumerateArray())
+                if (Int(m, "id") is > 0 and var id) return id;
+        return null;
+    }
+
     private static int Int(JsonElement e, string name)
         => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : 0;
 
@@ -265,7 +282,7 @@ public sealed class TmdbClient : IDisposable
         if (!credits.TryGetProperty("cast", out var arr) || arr.ValueKind != JsonValueKind.Array)
             return list;
 
-        foreach (var m in arr.EnumerateArray().Take(15))
+        foreach (var m in arr.EnumerateArray().Take(50))   // v4.8.0: 50, as CineLibrary Essentials (was 15)
         {
             list.Add(new TmdbCastMember
             {

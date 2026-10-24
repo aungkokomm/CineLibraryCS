@@ -157,7 +157,7 @@ public sealed partial class MovieRowControl : UserControl
     private void Populate(MovieListItem m)
     {
         RowTitle.Text = m.Title;
-        RowMeta.Text = $"{m.Year?.ToString() ?? "—"}{(m.Runtime.HasValue ? $" · {m.Runtime}m" : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
+        RowMeta.Text = $"{m.Year?.ToString() ?? "—"}{(m.Runtime is int r ? " · " + MovieCardControl.RuntimeText(r) : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
         RowFav.Visibility = m.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RowRating.Text = m.RatingText;
 

@@ -108,11 +108,12 @@
                 <!-- LEVEL 1: Shows grid. v4.1.0: the Continue Watching row that sat
                      above it is gone; the Continue Watching page lists those shows. -->
                 <StackPanel x:Name="ShowsLevelHost" Spacing="0">
-                    <ItemsRepeater x:Name="ShowsRepeater" Margin="24,0,24,24">
+                    <ItemsRepeater x:Name="ShowsRepeater" Margin="24,0,24,24" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
-                            <UniformGridLayout x:Name="ShowsGridLayout" MinItemWidth="170" MinItemHeight="300"
-                                               MinColumnSpacing="14" MinRowSpacing="14"
-                                               ItemsStretch="Fill"/>
+                            <!-- Sizes and gaps: CardCell.FitGrid (v4.8.0) -->
+                            <UniformGridLayout x:Name="ShowsGridLayout" MinItemWidth="170" MinItemHeight="309"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:TvShowListItem">
@@ -151,17 +152,22 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <!-- Poster (v4.7.0 #25: a little bigger, still under the movie window's) -->
-                                        <Border Grid.Column="0" Width="180" Height="270" CornerRadius="10"
-                                                VerticalAlignment="Top"
-                                                BorderBrush="#33FFFFFF" BorderThickness="1"
-                                                Background="{ThemeResource PlaceholderBgBrush}">
-                                            <Grid>
-                                                <TextBlock Text="📺" FontSize="40" Opacity="0.6"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                <Image x:Name="ShowPoster" Stretch="UniformToFill"/>
-                                            </Grid>
-                                        </Border>
+                                        <StackPanel Grid.Column="0" Width="180" Spacing="20" VerticalAlignment="Top">
+                                            <!-- Poster (v4.7.0 #25: a little bigger, still under the movie window's) -->
+                                            <Border Height="270" CornerRadius="10"
+                                                    BorderBrush="#33FFFFFF" BorderThickness="1"
+                                                    Background="{ThemeResource PlaceholderBgBrush}">
+                                                <Grid>
+                                                    <TextBlock Text="📺" FontSize="40" Opacity="0.6"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <Image x:Name="ShowPoster" Stretch="UniformToFill"/>
+                                                </Grid>
+                                            </Border>
+                                            <!-- v4.6.0: each rating source with its votes, when there's more than one.
+                                                 v4.8.0 (#25): under the poster, out of the info lines -->
+                                            <StackPanel x:Name="ShowRatingsPanel" Spacing="14" Margin="4,0,0,0"
+                                                        Visibility="Collapsed"/>
+                                        </StackPanel>
                                         <!-- Meta -->
                                         <StackPanel x:Name="ShowMeta" Grid.Column="1" Spacing="14" VerticalAlignment="Top"
                                                     Margin="0,122,0,0">
@@ -182,9 +188,6 @@
                                                 <TextBlock x:Name="ShowRuntime" FontSize="13" Foreground="#D8D8D8"/>
                                                 <TextBlock x:Name="ShowProgress" FontSize="13" Foreground="#D8D8D8"/>
                                             </controls:WrapPanel>
-                                            <!-- v4.6.0: each rating source with its votes, when there's more than one -->
-                                            <StackPanel x:Name="ShowRatingsPanel" Orientation="Horizontal" Spacing="18"
-                                                        Visibility="Collapsed"/>
                                             <!-- v4.4.1 (#20): genres right under the info line, above the plot and note -->
                                             <StackPanel x:Name="ShowGenres" Orientation="Horizontal" Spacing="6"/>
                                             <TextBlock x:Name="ShowPlot" FontSize="14" LineHeight="22" Foreground="#E0E0E0"
@@ -207,10 +210,6 @@
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </Grid>
-                                            <!-- v4.6.0: created by, studios, country -->
-                                            <controls:WrapPanel x:Name="ShowFacts" HorizontalSpacing="32" VerticalSpacing="10"
-                                                                MaxWidth="760" HorizontalAlignment="Left"
-                                                                Visibility="Collapsed"/>
                                             <!-- v4.0.1: drive location, as in the movie window -->
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="Located on:" FontSize="12" Foreground="#A0A0A0"
@@ -247,85 +246,82 @@
 
                                             <!-- v3.10.0: TMDB fill-in, as in the movie details window.
                                                  Fills only what the show is missing. -->
-                                            <!-- v4.4.1 (#20): tags sit after these buttons and wrap in their own space,
-                                                 so adding many never pushes this row away from the buttons above -->
-                                            <Grid ColumnSpacing="10">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
-                                                    <!-- v4.3.0 (#17) -->
-                                                    <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
-                                                            Background="#22FFFFFF" Foreground="White"
-                                                            BorderThickness="0" CornerRadius="8" Padding="12,7">
-                                                        <TextBlock x:Name="ShowNoteBtnText" Text="📝 Add note"/>
-                                                    </Button>
-                                                    <Button x:Name="FetchShowTmdbBtn" Click="OnFetchShowMissing"
-                                                            Background="#22FFFFFF" Foreground="White"
-                                                            BorderThickness="0" CornerRadius="8" Padding="12,7"
-                                                            ToolTipService.ToolTip="Look this show up on TMDb and fill in only the details it's missing">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <FontIcon Glyph="&#xE896;" FontSize="14"
-                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                                                            <TextBlock Text="Fetch missing info from TMDB"/>
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <!-- v4.6.0 -->
-                                                    <Button x:Name="ReloadShowNfoBtn" Click="OnReloadShowNfo"
-                                                            Background="#22FFFFFF" Foreground="White"
-                                                            BorderThickness="0" CornerRadius="8" Padding="12,7"
-                                                            ToolTipService.ToolTip="Read this show's .nfo files, pictures and episodes from the drive again, for example after you edit it in CineLibrary Essentials">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <FontIcon Glyph="&#xE72C;" FontSize="14"
-                                                                      FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                                                            <TextBlock Text="Reload from .nfo"/>
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <ProgressRing x:Name="ShowTmdbBusy" IsActive="False" Width="18" Height="18"
-                                                                  VerticalAlignment="Center"/>
-                                                    <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
-                                                               Foreground="#B8B8C4" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                                <!-- v2.9 show tags: chips with ✕ to remove, "+ Add tag" suggests existing ones -->
-                                                <controls:WrapPanel x:Name="ShowTagsRow" Grid.Column="1" HorizontalSpacing="6"
-                                                                    VerticalSpacing="6" VerticalAlignment="Top" Margin="4,5,0,0">
-                                                    <TextBlock Text="🏷" FontSize="13"
-                                                               Foreground="#D8D8D8"
-                                                               VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0.8"/>
-                                                    <ItemsControl x:Name="ShowTagChipsRepeater" VerticalAlignment="Top">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                    </ItemsControl>
-                                                    <!-- v4.6.0: tags from the tvshow.nfo -->
-                                                    <ItemsControl x:Name="ShowNfoTagChipsRepeater" VerticalAlignment="Top">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                    </ItemsControl>
-                                                    <Button x:Name="AddShowTagBtn" Click="OnAddShowTagClick"
-                                                            Background="#22FFFFFF"
-                                                            BorderBrush="#33FFFFFF"
-                                                            BorderThickness="1" CornerRadius="12"
-                                                            Padding="10,3"
-                                                            VerticalAlignment="Center">
-                                                        <TextBlock Text="+ Add tag" FontSize="11"
-                                                                   Foreground="#D8D8D8"/>
-                                                    </Button>
-                                                    <AutoSuggestBox x:Name="AddShowTagBox" Visibility="Collapsed"
-                                                                    PlaceholderText="Tag name (Enter to add)"
-                                                                    Width="180"
-                                                                    QuerySubmitted="OnAddShowTagSubmitted"
-                                                                    TextChanged="OnAddShowTagTextChanged"
-                                                                    LostFocus="OnAddShowTagBlur"
-                                                                    VerticalAlignment="Center"/>
-                                                </controls:WrapPanel>
-                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                                                <!-- v4.3.0 (#17) -->
+                                                <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
+                                                        Background="#22FFFFFF" Foreground="White"
+                                                        BorderThickness="0" CornerRadius="8" Padding="12,7">
+                                                    <TextBlock x:Name="ShowNoteBtnText" Text="📝 Add note"/>
+                                                </Button>
+                                                <Button x:Name="FetchShowTmdbBtn" Click="OnFetchShowMissing"
+                                                        Background="#22FFFFFF" Foreground="White"
+                                                        BorderThickness="0" CornerRadius="8" Padding="12,7"
+                                                        ToolTipService.ToolTip="Look this show up on TMDb and fill in only the details it's missing">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon Glyph="&#xE896;" FontSize="14"
+                                                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                        <TextBlock Text="Fetch missing info from TMDB"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <!-- v4.6.0 -->
+                                                <Button x:Name="ReloadShowNfoBtn" Click="OnReloadShowNfo"
+                                                        Background="#22FFFFFF" Foreground="White"
+                                                        BorderThickness="0" CornerRadius="8" Padding="12,7"
+                                                        ToolTipService.ToolTip="Read this show's .nfo files, pictures and episodes from the drive again, for example after you edit it in CineLibrary Essentials">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <FontIcon Glyph="&#xE72C;" FontSize="14"
+                                                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                                        <TextBlock Text="Reload from .nfo"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <ProgressRing x:Name="ShowTmdbBusy" IsActive="False" Width="18" Height="18"
+                                                              VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
+                                                           Foreground="#B8B8C4" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <!-- v2.9 show tags: chips with ✕ to remove, "+ Add tag" suggests existing ones.
+                                                 v4.8.0 (#25): on a line of their own under these buttons, as in the movie window -->
+                                            <controls:WrapPanel x:Name="ShowTagsRow" HorizontalSpacing="6"
+                                                                VerticalSpacing="6" VerticalAlignment="Top">
+                                                <TextBlock Text="🏷" FontSize="13"
+                                                           Foreground="#D8D8D8"
+                                                           VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0.8"/>
+                                                <ItemsControl x:Name="ShowTagChipsRepeater" VerticalAlignment="Top">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                                <!-- v4.6.0: tags from the tvshow.nfo -->
+                                                <ItemsControl x:Name="ShowNfoTagChipsRepeater" VerticalAlignment="Top">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <controls:WrapPanel HorizontalSpacing="6" VerticalSpacing="6"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                                <Button x:Name="AddShowTagBtn" Click="OnAddShowTagClick"
+                                                        Background="#22FFFFFF"
+                                                        BorderBrush="#33FFFFFF"
+                                                        BorderThickness="1" CornerRadius="12"
+                                                        Padding="10,3"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="+ Add tag" FontSize="11"
+                                                               Foreground="#D8D8D8"/>
+                                                </Button>
+                                                <AutoSuggestBox x:Name="AddShowTagBox" Visibility="Collapsed"
+                                                                PlaceholderText="Tag name (Enter to add)"
+                                                                Width="180"
+                                                                QuerySubmitted="OnAddShowTagSubmitted"
+                                                                TextChanged="OnAddShowTagTextChanged"
+                                                                LostFocus="OnAddShowTagBlur"
+                                                                VerticalAlignment="Center"/>
+                                            </controls:WrapPanel>
+                                            <!-- v4.6.0: created by, studios, country. v4.8.0 (#25): under the tags -->
+                                            <controls:WrapPanel x:Name="ShowFacts" HorizontalSpacing="32" VerticalSpacing="10"
+                                                                MaxWidth="760" HorizontalAlignment="Left"
+                                                                Visibility="Collapsed"/>
 
                                             <!-- Cast: v3.10.0 portrait cards like the movie details
                                                  window, smaller, on one line that scrolls sideways. -->

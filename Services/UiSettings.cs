@@ -16,6 +16,9 @@ public static class UiSettings
     private const string KeyCardShadows = "ui_cardShadows";
     private const string KeyReduceMotion = "ui_reduceMotion";
     private const string KeyCardBorders = "ui_cardBorders";
+    private const string KeyNewTag = "ui_newTag";                   // v4.8.0
+    private const string KeyQualityTags = "ui_qualityTags";         // v4.8.0
+    private const string KeyStandInPosters = "ui_standInPosters";   // v4.8.0
     private const string KeyMica = "ui_mica";              // legacy bool
     private const string KeyMicaLevel = "ui_micaLevel";   // v3.3.2 — off|subtle|strong
     private const string KeyPlayerPath = "ui_playerPath"; // v3.6.0: "" = Windows default
@@ -42,6 +45,15 @@ public static class UiSettings
     /// <summary>Disable the card hover zoom/lift animation. Default off.</summary>
     public static bool ReduceMotion { get; private set; }
 
+    /// <summary>v4.8.0: a NEW tag on movies added in the last two weeks. Default on.</summary>
+    public static bool NewTag { get; private set; } = true;
+
+    /// <summary>v4.8.0: 4K, HDR or DV on the poster. Default on.</summary>
+    public static bool QualityTags { get; private set; } = true;
+
+    /// <summary>v4.8.0: the title on a coloured card when there's no poster. Default on.</summary>
+    public static bool StandInPosters { get; private set; } = true;
+
     /// <summary>v3.6.0: the program Play opens videos with (VLC, MPC-HC, ...).
     /// Empty = whatever Windows opens video files with. See VideoPlayer.</summary>
     public static string PlayerPath { get; private set; } = "";
@@ -63,6 +75,9 @@ public static class UiSettings
         CardBorders  = AppState.Instance.GetPref(KeyCardBorders,  "true")  == "true";
         CardShadows  = AppState.Instance.GetPref(KeyCardShadows,  "false") == "true";
         ReduceMotion = AppState.Instance.GetPref(KeyReduceMotion, "false") == "true";
+        NewTag         = AppState.Instance.GetPref(KeyNewTag,         "true") == "true";
+        QualityTags    = AppState.Instance.GetPref(KeyQualityTags,    "true") == "true";
+        StandInPosters = AppState.Instance.GetPref(KeyStandInPosters, "true") == "true";
         PlayerPath   = AppState.Instance.GetPref(KeyPlayerPath,   "");
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
@@ -100,6 +115,30 @@ public static class UiSettings
         if (CardShadows == value) return;
         CardShadows = value;
         AppState.Instance.SetPref(KeyCardShadows, value ? "true" : "false");
+        Changed?.Invoke();
+    }
+
+    public static void SetNewTag(bool value)
+    {
+        if (NewTag == value) return;
+        NewTag = value;
+        AppState.Instance.SetPref(KeyNewTag, value ? "true" : "false");
+        Changed?.Invoke();
+    }
+
+    public static void SetQualityTags(bool value)
+    {
+        if (QualityTags == value) return;
+        QualityTags = value;
+        AppState.Instance.SetPref(KeyQualityTags, value ? "true" : "false");
+        Changed?.Invoke();
+    }
+
+    public static void SetStandInPosters(bool value)
+    {
+        if (StandInPosters == value) return;
+        StandInPosters = value;
+        AppState.Instance.SetPref(KeyStandInPosters, value ? "true" : "false");
         Changed?.Invoke();
     }
 

@@ -38,12 +38,16 @@ public sealed partial class TvShowCard : UserControl
         return (CardWidth, CardHeight);
     }
 
-    private static (double Width, double Height) SizeFor(string tag) => tag switch
+    /// <summary>v4.8.0: the title, year and progress under the poster (the XAML's caption block).</summary>
+    public const double CaptionHeight = 54;
+
+    /// <summary>v4.8.0: a 2:3 poster with the caption under it (Collections uses these too).</summary>
+    public static (double Width, double Height) SizeFor(string tag) => tag switch
     {
-        "S"  => (130.0, 235.0),
-        "L"  => (210.0, 365.0),
-        "XL" => (250.0, 430.0),
-        _    => (170.0, 300.0),   // M: the size before v3.7
+        "S"  => (130.0, 195 + CaptionHeight),
+        "L"  => (210.0, 315 + CaptionHeight),
+        "XL" => (250.0, 375 + CaptionHeight),
+        _    => (170.0, 255 + CaptionHeight),   // M
     };
 
     // v4.5.1 (#24): the shows row on a page that mixes them with movies
@@ -67,14 +71,69 @@ public sealed partial class TvShowCard : UserControl
             CardLift.Y = 0; CardBorder.Translation = new System.Numerics.Vector3(0, 0, 0);
             SetHoverPanel(false);
         };
+        Loaded += (_, _) =>
+        {
+            UiSettings.Changed -= OnUiSettingsChanged;
+            UiSettings.Changed += OnUiSettingsChanged;
+            ApplyStandIn();
+        };
+        Unloaded += (_, _) => UiSettings.Changed -= OnUiSettingsChanged;
+
+        // v4.8.0: the keyboard, as on movie cards: arrows move, Enter opens the
+        // show, Space plays its next episode
+        GotFocus += (_, _) =>
+        {
+            if (FocusState == FocusState.Pointer) return;
+            FocusRing.Visibility = Visibility.Visible;
+            StartBringIntoView(new BringIntoViewOptions { AnimationDesired = !UiSettings.ReduceMotion });
+        };
+        LostFocus += (_, _) => FocusRing.Visibility = Visibility.Collapsed;
+        KeyDown += (_, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, this) || Show is not { } s) return;   // a button in the hover panel
+            switch (e.Key)
+            {
+                case Windows.System.VirtualKey.Enter:
+                    e.Handled = true;
+                    (App.MainWindow as MainWindow)?.OpenTvShow(s.Id);
+                    break;
+                case Windows.System.VirtualKey.Space:
+                    e.Handled = true;
+                    LoadHoverInfo(s);
+                    OnHoverPlay(this, new RoutedEventArgs());
+                    break;
+                default: e.Handled = Controls.CardCell.MoveFocus(this, e.Key); break;
+            }
+        };
     }
 
-    // The title strip would show through the panel behind its buttons.
+    // v4.8.0: the panel covers the poster only; the title under it stays.
     private void SetHoverPanel(bool open)
     {
         HoverOverlay.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        InfoStrip.Visibility = open ? Visibility.Collapsed : Visibility.Visible;
+        PlaceholderText.Opacity = open ? 0 : 1;   // the hover panel's text would sit on the stand-in's
     }
+
+    private void OnTitlePointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) => ShowFullTitle(true);
+    private void OnTitlePointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e) => ShowFullTitle(false);
+
+    /// <summary>v4.8.0: the whole title over a title cut short (see MovieCardControl).</summary>
+    private void ShowFullTitle(bool show)
+    {
+        if (show && !TitleText.IsTextTrimmed) return;
+        if (show)
+        {
+            FullTitleText.Text = TitleText.Text;
+            var titleBottom = TitleText.TransformToVisual(CardRoot)
+                .TransformPoint(new Windows.Foundation.Point(0, TitleText.ActualHeight)).Y;
+            FullTitleShift.Y = titleBottom + FullTitle.Padding.Bottom + FullTitle.BorderThickness.Bottom - CardBorder.ActualHeight;
+        }
+        FullTitle.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // v4.8.0: Settings' stand-in posters, live
+    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyStandIn);
+    private void ApplyStandIn() => PosterPlaceholder.Opacity = UiSettings.StandInPosters ? 1 : 0;
 
     private static void OnShowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -84,17 +143,21 @@ public sealed partial class TvShowCard : UserControl
     private void Populate(TvShowListItem s)
     {
         SetHoverPanel(false);   // a recycled card may still show the last show's
+        ShowFullTitle(false);
         TitleText.Text = s.Title;
+        PlaceholderTitle.Text = s.Title;
+        PlaceholderTitle.FontSize = Controls.PlaceholderArt.FontSizeFor(CardSize.Width);
+        PlaceholderYear.Text = s.YearText;
+        PosterPlaceholder.Background = Controls.PlaceholderArt.BrushFor(s.Title);
         // v4.1.0: on Continue Watching the card says which episode is next.
         MetaText.Text = s.NextEpisode != null ? $"Next: {s.NextEpisode}" : s.YearText;
-        MetaText.Foreground = s.NextEpisode != null ? NextBrush : MetaBrush;
+        MetaText.Foreground = s.NextEpisode != null ? NextBrush : ThemeBrushes.Get("MutedBrush");
         FavBadge.Visibility = s.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
 
         if (s.IsMissing) { StatusText.Text = "MISSING"; StatusBadge.Visibility = Visibility.Visible; }
         else if (!s.IsOnline) { StatusText.Text = "OFFLINE"; StatusBadge.Visibility = Visibility.Visible; }
         else StatusBadge.Visibility = Visibility.Collapsed;
 
-        CardRoot.Height = CardSize.Height;
         InvalidateMeasure();   // the S / M / L / XL size may have changed
         ShowProgress(s);
 
@@ -230,8 +293,6 @@ public sealed partial class TvShowCard : UserControl
         => e.Handled = true;
 
     // Per card, not static: a brush belongs to the thread that made it.
-    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush MetaBrush =
-        new(Windows.UI.Color.FromArgb(0xFF, 0xD8, 0xD8, 0xD8));
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush NextBrush =
         new(Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA));
 
@@ -254,27 +315,27 @@ public sealed partial class TvShowCard : UserControl
         return finalSize;
     }
 
-    // Grow no wider than a 2:3 poster at the card's height, so the poster is never
-    // cropped top and bottom (one XL column in a narrow window would be 500 wide).
-    // Past that the card keeps to the left of its cell, in line with the title.
+    // v4.8.0: the whole cell. The grids scale a cell's height with its width
+    // (CardCell.FitGrid), so the poster stays 2:3 at any width.
     // Rows don't stretch their cards (no width to fill), so they get the size asked for.
     private double DrawnWidth(double cellWidth)
-        => double.IsInfinity(cellWidth) ? CardSize.Width
-         : Math.Max(CardSize.Width, Math.Min(cellWidth, Math.Max(CardSize.Width, CardSize.Height * 2 / 3)));
+        => double.IsInfinity(cellWidth) ? CardSize.Width : cellWidth;
 
     private int _token;
     private async void LoadPosterAsync(string? relPath)
     {
         var my = ++_token;
         PosterImage.Source = null;
-        PosterPlaceholder.Visibility = Visibility.Visible;
-        if (relPath == null) return;
+        // v4.8.0: the stand-in only when there's no poster to show (see MovieCardControl)
+        PosterPlaceholder.Visibility = Visibility.Collapsed;
+        if (relPath == null) { PosterPlaceholder.Visibility = Visibility.Visible; return; }
         var full = AppState.Instance.Db.GetCachedImagePath(relPath);
-        if (full == null) return;
+        if (full == null) { PosterPlaceholder.Visibility = Visibility.Visible; return; }
         try
         {
             var bytes = await Task.Run(() => ImageCache.GetOrLoad(relPath, full));
-            if (my != _token || bytes == null) return;
+            if (my != _token) return;
+            if (bytes == null) { PosterPlaceholder.Visibility = Visibility.Visible; return; }
             var bmp = new BitmapImage { DecodePixelWidth = 340 };
             using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
             await ms.WriteAsync(bytes.AsBuffer());
@@ -285,6 +346,6 @@ public sealed partial class TvShowCard : UserControl
             PosterImage.Source = bmp;
             PosterPlaceholder.Visibility = Visibility.Collapsed;
         }
-        catch { }
+        catch { if (my == _token) PosterPlaceholder.Visibility = Visibility.Visible; }
     }
 }

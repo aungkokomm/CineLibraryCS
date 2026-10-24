@@ -87,11 +87,11 @@
         <!-- Records grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <ItemsRepeater x:Name="RecordsRepeater" Margin="24,4,24,24">
+                <ItemsRepeater x:Name="RecordsRepeater" Margin="24,4,24,24" TabFocusNavigation="Once">
                     <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="150" MinItemHeight="280"
-                                           MinColumnSpacing="12" MinRowSpacing="12"
-                                           ItemsStretch="Fill"/>
+                        <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
+                                           MinColumnSpacing="24" MinRowSpacing="28"
+                                           ItemsStretch="Uniform"/>
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="models:MovieListItem">

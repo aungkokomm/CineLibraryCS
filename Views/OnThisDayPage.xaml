@@ -56,11 +56,11 @@
                                    Foreground="{ThemeResource MutedBrush}"
                                    VerticalAlignment="Center"/>
                     </Grid>
-                    <ItemsRepeater x:Name="WatchedRepeater" Margin="24,4,24,8">
+                    <ItemsRepeater x:Name="WatchedRepeater" Margin="24,4,24,8" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
-                            <UniformGridLayout MinItemWidth="150" MinItemHeight="280"
-                                               MinColumnSpacing="12" MinRowSpacing="12"
-                                               ItemsStretch="Fill"/>
+                            <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:MovieListItem">
@@ -85,11 +85,11 @@
                                    Foreground="{ThemeResource MutedBrush}"
                                    VerticalAlignment="Center"/>
                     </Grid>
-                    <ItemsRepeater x:Name="ReleasedRepeater" Margin="24,4,24,8">
+                    <ItemsRepeater x:Name="ReleasedRepeater" Margin="24,4,24,8" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
-                            <UniformGridLayout MinItemWidth="150" MinItemHeight="280"
-                                               MinColumnSpacing="12" MinRowSpacing="12"
-                                               ItemsStretch="Fill"/>
+                            <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:MovieListItem">

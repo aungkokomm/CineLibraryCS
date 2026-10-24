@@ -70,7 +70,8 @@ public static class ImdbUpdate
     }
 
     // One writer at a time: the button, start-up and a drive plugged in can overlap
-    private static readonly object Gate = new();
+    // v4.8.0: Fetch's .nfo fill (AppState.FillMovieNfo) takes it too, so the two never write one .nfo at once
+    internal static readonly object Gate = new();
 
     /// <summary>
     /// Writes the queued IMDb ratings into the .nfo files on connected drives

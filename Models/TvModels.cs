@@ -88,6 +88,14 @@ public partial class TvEpisodeItem : ObservableObject
     public string Header => $"{Code} · {Title}";
     public string RuntimeText => Runtime.HasValue ? $"{Runtime} min" : "";
     public string RatingText => Rating.HasValue ? $"★ {Rating:F1}" : "";
+
+    // v4.8.0: the quality on the episode row, by width first like the duplicates
+    // page, so a 1280x640 (2:1) episode reads 720p
+    public int? VideoWidth { get; set; }
+    public int? VideoHeight { get; set; }
+    public string QualityText =>
+        VideoWidth is int w && w > 0 ? (w >= 3000 ? "4K" : w >= 1700 ? "1080p" : w >= 1100 ? "720p" : w >= 700 ? "480p" : "")
+        : VideoHeight is int h && h > 0 ? (h >= 1500 ? "4K" : $"{h}p") : "";
 }
 
 /// <summary>Full episode detail incl. stream/file info — the episode dialog.</summary>

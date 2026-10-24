@@ -7,6 +7,7 @@ using CineLibraryCS.Models;
 using CineLibraryCS.Services;
 using Windows.Graphics;
 using Windows.System;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace CineLibraryCS.Views;
@@ -53,28 +54,31 @@ public sealed partial class MovieDetailDialog : Window
         SetTitleBar(AppTitleBar);
         SystemBackdrop = new MicaBackdrop();
 
-        // Window size — restore the last user-resized size if we have one,
-        // otherwise fall back to a comfortable default (1100×800). Saved on
-        // SizeChanged into prefs so resize sticks across sessions.
+        // v4.8.0 (#25): the window takes the main window's place, so a movie and
+        // back reads as one window: same position and size (maximised when it
+        // is), no opening animation, and the main window hidden meanwhile (one
+        // taskbar button). Closing it puts the main window back in its place.
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(hwnd);
         var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-
-        int width = 1100, height = 800;
-        var savedW = AppState.Instance.GetPref("detailDialogW", "");
-        var savedH = AppState.Instance.GetPref("detailDialogH", "");
-        if (int.TryParse(savedW, out var w) && w >= 700) width = w;
-        if (int.TryParse(savedH, out var h) && h >= 500) height = h;
-        appWindow.Resize(new SizeInt32(width, height));
-        appWindow.Title = "Movie Details";
-
-        // Ensure window is resizable and maximizable, then open maximized
-        if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+        appWindow.Title = "CineLibrary";
+        int noAnimation = 1;
+        DwmSetWindowAttribute(hwnd, DwmwaTransitionsForceDisabled, ref noAnimation, sizeof(int));
+        var main = MainHwnd;
+        var place = new WindowPlacement { Length = Marshal.SizeOf<WindowPlacement>() };
+        if (main != IntPtr.Zero && IsWindowVisible(main))
         {
-            presenter.IsResizable = true;
-            presenter.IsMaximizable = true;
-            presenter.Maximize();
+            // Maximised: the same, restoring to where the main window does. Otherwise
+            // its rectangle as it is (a snapped window's isn't its restore size).
+            var mainAw = App.MainWindow!.AppWindow;
+            if (IsZoomed(main) && GetWindowPlacement(main, ref place)) SetWindowPlacement(hwnd, ref place);
+            else appWindow.MoveAndResize(new RectInt32(mainAw.Position.X, mainAw.Position.Y, mainAw.Size.Width, mainAw.Size.Height));
         }
+        else if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+            presenter.Maximize();
+        s_open++;
+        HideMainSoon();
+        Closed += (_, _) => GiveBackPlace();
 
         // Esc closes the dialog
         var escAcc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
@@ -88,19 +92,14 @@ public sealed partial class MovieDetailDialog : Window
         // v4.5.0: ← / → for the previous / next movie (not while typing a note or tag)
         RootGrid.AddHandler(UIElement.KeyDownEvent,
             new Microsoft.UI.Xaml.Input.KeyEventHandler(OnRootKeyDown), handledEventsToo: true);
-
-        // Persist size on close — using AppWindow.Changed catches the final
-        // resized state regardless of how the window was dismissed.
-        appWindow.Changed += (s, args) =>
-        {
-            if (!args.DidSizeChange) return;
-            try
+        // v4.8.0: the mouse's back button goes back to the library too
+        RootGrid.AddHandler(UIElement.PointerPressedEvent,
+            new Microsoft.UI.Xaml.Input.PointerEventHandler((_, e) =>
             {
-                AppState.Instance.SetPref("detailDialogW", s.Size.Width.ToString());
-                AppState.Instance.SetPref("detailDialogH", s.Size.Height.ToString());
-            }
-            catch { }
-        };
+                if (!e.GetCurrentPoint(RootGrid).Properties.IsXButton1Pressed) return;
+                e.Handled = true;
+                Close();
+            }), handledEventsToo: true);
 
         // Inherit theme from main window
         if (RootGrid is FrameworkElement fe)
@@ -116,6 +115,80 @@ public sealed partial class MovieDetailDialog : Window
         // delay that made the dialog feel slow.
         _ = LoadAsync();
     }
+
+    // ── v4.8.0 (#25): one window to the eye ──────────────────────────────
+
+    // Movie windows open; the main window comes back when the last one closes.
+    private static int s_open;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hideMainTimer;
+
+    private static IntPtr MainHwnd => App.MainWindow is { } mw ? WinRT.Interop.WindowNative.GetWindowHandle(mw) : IntPtr.Zero;
+
+    /// <summary>Hides the main window once this one has had a moment to draw over it.</summary>
+    private void HideMainSoon()
+    {
+        var timer = _hideMainTimer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(250);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            if (!_closed && MainHwnd is var main && main != IntPtr.Zero) ShowWindow(main, SwHide);
+        };
+        timer.Start();
+    }
+
+    /// <summary>Shows the main window where this one is (moved, resized or maximised as it was), without its opening animation.</summary>
+    private void GiveBackPlace()
+    {
+        if (--s_open > 0 || App.MainWindow is not { } mainWindow) return;
+        var main = MainHwnd;
+        int noAnimation = 1;
+        DwmSetWindowAttribute(main, DwmwaTransitionsForceDisabled, ref noAnimation, sizeof(int));
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var place = new WindowPlacement { Length = Marshal.SizeOf<WindowPlacement>() };
+        var got = GetWindowPlacement(hwnd, ref place);
+        // Closed from the taskbar while minimised: come back as it was before
+        var minimised = got && place.ShowCmd == SwShowMinimized;
+        if (minimised)
+            place.ShowCmd = (place.Flags & WpfRestoreToMaximized) != 0 ? SwShowMaximized : SwShowNormal;
+        if (got && (minimised || place.ShowCmd == SwShowMaximized))
+            SetWindowPlacement(main, ref place);
+        else
+        {
+            if (IsZoomed(main)) ShowWindow(main, SwShowNormal);   // un-maximised in here
+            mainWindow.AppWindow.MoveAndResize(new RectInt32(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height));
+            ShowWindow(main, SwShow);
+        }
+        mainWindow.Activate();
+        AnimateAgainLater(main);
+    }
+
+    /// <summary>Once the main window is back, its minimise and restore animate again.</summary>
+    private static async void AnimateAgainLater(IntPtr main)
+    {
+        await Task.Delay(1000);
+        int animate = 0;
+        DwmSetWindowAttribute(main, DwmwaTransitionsForceDisabled, ref animate, sizeof(int));
+    }
+
+    private const int DwmwaTransitionsForceDisabled = 3;
+    private const int SwHide = 0, SwShowNormal = 1, SwShowMinimized = 2, SwShowMaximized = 3, SwShow = 5;
+    private const int WpfRestoreToMaximized = 2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowPlacement
+    {
+        public int Length, Flags, ShowCmd;
+        public int MinX, MinY, MaxX, MaxY;
+        public int Left, Top, Right, Bottom;
+    }
+
+    [DllImport("user32.dll")] private static extern bool GetWindowPlacement(IntPtr hWnd, ref WindowPlacement placement);
+    [DllImport("user32.dll")] private static extern bool SetWindowPlacement(IntPtr hWnd, ref WindowPlacement placement);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int cmdShow);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hWnd);
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private async Task LoadAsync()
     {
@@ -145,8 +218,6 @@ public sealed partial class MovieDetailDialog : Window
     private void PopulateUi(MovieDetail m)
     {
         UpdateBrowseNav();
-        Title = m.Title;
-        TitleBarText.Text = m.Title;
         DetailTitle.Text = m.Title;
 
         if (m.OriginalTitle != null && m.OriginalTitle != m.Title)
@@ -266,14 +337,7 @@ public sealed partial class MovieDetailDialog : Window
         if (m.Directors.Count > 0)
         {
             DirectorField.Visibility = Visibility.Visible;
-            DirectorLinks.Children.Clear();
-            foreach (var d in m.Directors)
-            {
-                var captured = d;
-                var btn = new HyperlinkButton { Content = d, Padding = new Thickness(0), FontSize = 13 };
-                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByDirector(captured));
-                DirectorLinks.Children.Add(btn);
-            }
+            AddLinks(DirectorLinks, m.Directors, d => NavigateAndClose(mw => mw.NavigateLibraryByDirector(d)));
         }
 
         // v4.5.0 (#24): writers, the first four; all of them on hover when there are more
@@ -301,14 +365,7 @@ public sealed partial class MovieDetailDialog : Window
             StudioLabel.Text = m.Studios.Count > 1 ? "Studios" : "Studio";
             StudioLabel.Visibility = Visibility.Visible;
             StudioText.Visibility = Visibility.Collapsed;
-            StudioLinks.Children.Clear();
-            foreach (var s in m.Studios)
-            {
-                var captured = s;
-                var btn = new HyperlinkButton { Content = s, Padding = new Thickness(0), FontSize = 13 };
-                btn.Click += (_, _) => NavigateAndClose(mw => mw.NavigateLibraryByStudio(captured));
-                StudioLinks.Children.Add(btn);
-            }
+            AddLinks(StudioLinks, m.Studios, s => NavigateAndClose(mw => mw.NavigateLibraryByStudio(s)));
             StudioLinks.Visibility = Visibility.Visible;
         }
 
@@ -486,62 +543,8 @@ public sealed partial class MovieDetailDialog : Window
                 return;
             }
 
-            // Poster / fanart → portable cache, only if currently missing.
-            string? posterRel = null, fanartRel = null;
-            if (string.IsNullOrWhiteSpace(m.LocalPoster) && !string.IsNullOrEmpty(d.PosterPath))
-                posterRel = await DownloadArtAsync(client, d.PosterPath!, "manual_posters", d.TmdbId);
-            if (string.IsNullOrWhiteSpace(m.LocalFanart) && !string.IsNullOrEmpty(d.BackdropPath))
-                fanartRel = await DownloadArtAsync(client, d.BackdropPath!, "manual_fanart", d.TmdbId);
-
-            var studio = d.ProductionCompanies.Count > 0 ? d.ProductionCompanies[0].Name : null;
-            var country = d.ProductionCountries.Count > 0 ? d.ProductionCountries[0].Name : null;
-
-            AppState.Instance.Db.FillMovieGaps(
-                m.Id,
-                year: d.Year > 0 ? d.Year : null,
-                rating: d.Rating > 0 ? d.Rating : null,
-                votes: d.VoteCount > 0 ? d.VoteCount : null,
-                runtime: d.Runtime > 0 ? d.Runtime : null,
-                plot: string.IsNullOrWhiteSpace(d.Overview) ? null : d.Overview,
-                tagline: string.IsNullOrWhiteSpace(d.Tagline) ? null : d.Tagline,
-                mpaa: string.IsNullOrWhiteSpace(d.Certification) ? null : d.Certification,
-                imdbId: string.IsNullOrWhiteSpace(d.ImdbId) ? null : d.ImdbId,
-                tmdbId: d.TmdbId.ToString(),
-                premiered: string.IsNullOrWhiteSpace(d.ReleaseDate) ? null : d.ReleaseDate,
-                studio: studio, country: country,
-                posterRel: posterRel, fanartRel: fanartRel);
-
-            // Genres / directors / writers — fill-only, so the detail window's
-            // Genres and Director rows aren't left blank on a partial scrape.
-            var genreNames = new List<string>();
-            foreach (var g in d.Genres)
-                if (!string.IsNullOrWhiteSpace(g.Name)) genreNames.Add(g.Name);
-            AppState.Instance.Db.FillMovieGenreDirectorWriter(
-                m.Id, genreNames, d.Directors, d.Writers);
-
-            // Cast — fetch photos for the top-billed cast and link them. Runs
-            // even when the movie already has cast, because MediaElch NFOs often
-            // store actor <thumb>s as TMDb http URLs (blank offline) or none at
-            // all; we download portable copies and AddManualActors upgrades those
-            // weak thumbs to the local cache.
-            if (d.Cast.Count > 0)
-            {
-                TmdbBusyState(true, "Fetching cast photos…");
-                var actors = new List<(string, string?, int, string?)>();
-                foreach (var c in d.Cast)
-                {
-                    if (string.IsNullOrWhiteSpace(c.Name)) continue;
-                    string? thumbRel = null;
-                    if (!string.IsNullOrEmpty(c.ProfilePath))
-                        thumbRel = await DownloadArtRawAsync(client, c.ProfilePath!, "manual_actors", "w185");
-                    actors.Add((c.Name, string.IsNullOrWhiteSpace(c.Character) ? null : c.Character,
-                                c.Order, thumbRel));
-                }
-                AppState.Instance.Db.AddManualActors(m.Id, actors);
-            }
-
-            // v4.6.0: onto the drive now if it's connected, else when it is
-            var saved = await Task.Run(() => AppState.Instance.SyncFetchedTitle(false, m.Id, m.VolumeSerial));
+            // v4.8.0: the fill itself is shared with the selection bar's bulk fetch
+            var saved = await Services.MovieFetch.ApplyAsync(client, d, m, status => TmdbBusyState(true, status));
 
             // Reload from the DB and re-render in place.
             TmdbBusyState(false, "Updated.");
@@ -559,28 +562,6 @@ public sealed partial class MovieDetailDialog : Window
             System.Diagnostics.Debug.WriteLine($"Fetch missing info failed: {ex.Message}");
             TmdbBusyState(false, "Something went wrong. Please try again.");
         }
-    }
-
-    /// <summary>Downloads original-size art into a data-folder subfolder named by
-    /// tmdb id; returns the data-relative path, or null on failure.</summary>
-    internal static async Task<string?> DownloadArtAsync(
-        Services.Tmdb.TmdbClient client, string tmdbPath, string subfolder, int tmdbId)
-    {
-        var fileName = $"{tmdbId}-{Guid.NewGuid():N}.jpg";
-        var full = Path.Combine(AppState.Instance.DataDir, subfolder, fileName);
-        return await client.DownloadImageAsync(client.GetImageUrl(tmdbPath, "original"), full)
-            ? $"{subfolder}/{fileName}" : null;
-    }
-
-    /// <summary>Downloads art keyed by its TMDb file name (used for actor photos);
-    /// returns the data-relative path, or null on failure.</summary>
-    internal static async Task<string?> DownloadArtRawAsync(
-        Services.Tmdb.TmdbClient client, string tmdbPath, string subfolder, string size)
-    {
-        var fileName = tmdbPath.TrimStart('/');
-        var full = Path.Combine(AppState.Instance.DataDir, subfolder, fileName);
-        return await client.DownloadImageAsync(client.GetImageUrl(tmdbPath, size), full)
-            ? $"{subfolder}/{fileName}" : null;
     }
 
     private void OnSyncToDrive(object sender, RoutedEventArgs e)
@@ -921,6 +902,30 @@ public sealed partial class MovieDetailDialog : Window
         Close();
     }
 
+    /// <summary>
+    /// v4.8.0 (#25): names as links, a comma after each but the last (as Country
+    /// has), kept with its name so a wrapped line never starts with one.
+    /// </summary>
+    private static void AddLinks(Panel panel, IReadOnlyList<string> names, Action<string> onClick)
+    {
+        panel.Children.Clear();
+        for (int i = 0; i < names.Count; i++)
+        {
+            var name = names[i];
+            var link = new HyperlinkButton { Content = name, Padding = new Thickness(0), FontSize = 13 };
+            link.Click += (_, _) => onClick(name);
+            if (i == names.Count - 1) { panel.Children.Add(link); break; }
+            var item = new StackPanel { Orientation = Orientation.Horizontal };
+            item.Children.Add(link);
+            item.Children.Add(new TextBlock
+            {
+                Text = ",", FontSize = 13, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
+            });
+            panel.Children.Add(item);
+        }
+    }
+
     // ── Tech badges, ratings, trailer, file info (v2.2) ──────────────────────
 
     private void PopulateTechBadges(MovieDetail m)
@@ -1112,14 +1117,15 @@ public sealed partial class MovieDetailDialog : Window
                 CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"), CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"), 0.65));
     }
 
-    /// <summary>v4.7.0 (#25): the .nfo's user rating, after the other sources.</summary>
+    /// <summary>v4.7.0 (#25): the .nfo's user rating, after the other sources.
+    /// v4.8.0 (#25): labelled "USER", as other apps and sites do.</summary>
     internal static StackPanel UserRatingStack(double value, Microsoft.UI.Xaml.Media.Brush label,
         Microsoft.UI.Xaml.Media.Brush valueBrush, double labelOpacity = 1)
     {
         var stack = new StackPanel { Spacing = 2 };
         stack.Children.Add(new TextBlock
         {
-            Text = "USER RATING",
+            Text = "USER",
             FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             CharacterSpacing = 150, Opacity = labelOpacity, Foreground = label,
         });
@@ -1338,7 +1344,7 @@ public sealed partial class MovieDetailDialog : Window
             : Visibility.Collapsed;
     }
 
-    private void OnStickyClose(object sender, RoutedEventArgs e) => Close();
+    private void OnBackToLibrary(object sender, RoutedEventArgs e) => Close();
 
     private async void OnOpenImdb(object sender, RoutedEventArgs e)
     {

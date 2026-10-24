@@ -473,6 +473,28 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- v4.8.0: movies with one actor or none, to select and fetch the
+                             cast for; shown only while there are some -->
+                        <Button x:Name="BtnFewCast" Style="{StaticResource NavItemStyle}" Click="OnNavFewCast"
+                                ToolTipService.ToolTip="Movies with one actor or none. Select them and Fetch missing info.">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE716;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Missing cast" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="FewCastBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
 
                         <!-- v4.7.0: Backup (restore personal state, v2.9) and Export (CSV /
                              HTML, v3.9.0) in one item: a menu with both. -->

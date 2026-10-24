@@ -143,7 +143,7 @@ public class ScannerService
                 var movieKey = ComputeMovieKey(volumeSerial, folderRelPath);
 
                 // Find NFO
-                var nfoPath = FindNfo(folder);
+                var nfoPath = FindNfo(folder, out var severalNfos);
                 if (nfoPath == null) { skipped++; continue; }
 
                 // Incremental short-circuit: if the row already exists and the
@@ -151,7 +151,9 @@ public class ScannerService
                 // parsing entirely. We just clear is_missing so the row is
                 // marked online again. Cuts a no-op rescan from minutes to
                 // seconds on a large library.
-                if (incremental)
+                // v4.8.0: a folder with more than one .nfo is always read, so the
+                // one FindNfo picks now takes over without a full rescan.
+                if (incremental && !severalNfos)
                 {
                     stmtGetId.Parameters["@f"].Value = folderRelPath;
                     using (var probe = stmtGetId.ExecuteReader())
@@ -698,15 +700,39 @@ public class ScannerService
         new(@"[Ss](\d{1,2})[\s._-]*[Ee](\d{1,3})",
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
-    internal static string? FindNfo(string folder)
+    internal static string? FindNfo(string folder) => FindNfo(folder, out _);
+
+    /// <summary>
+    /// v4.8.0: the .nfo Kodi reads: the one named like the video, then movie.nfo,
+    /// then any other. The first by name used to win, so with "X.mkv.nfo" and
+    /// "X.nfo" in one folder the scan read "X.mkv.nfo".
+    /// </summary>
+    internal static string? FindNfo(string folder, out bool several)
     {
+        several = false;
         try
         {
-            foreach (var f in Directory.EnumerateFiles(folder, "*.nfo"))
+            var nfos = new List<string>();
+            var videos = new List<string>();
+            foreach (var f in Directory.EnumerateFiles(folder))
             {
-                var name = Path.GetFileNameWithoutExtension(f).ToLower();
-                if (name != "tvshow" && name != "season") return f;
+                var ext = Path.GetExtension(f);
+                if (ext.Equals(".nfo", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = Path.GetFileNameWithoutExtension(f).ToLower();
+                    if (name != "tvshow" && name != "season") nfos.Add(f);
+                }
+                else if (VideoExts.Contains(ext)) videos.Add(f);
             }
+            several = nfos.Count > 1;
+            if (!several) return nfos.FirstOrDefault();
+            foreach (var v in videos)
+            {
+                var own = Path.ChangeExtension(v, ".nfo");
+                var hit = nfos.FirstOrDefault(n => n.Equals(own, StringComparison.OrdinalIgnoreCase));
+                if (hit != null) return hit;
+            }
+            return nfos.FirstOrDefault(n => Path.GetFileName(n).Equals("movie.nfo", StringComparison.OrdinalIgnoreCase)) ?? nfos[0];
         }
         catch { }
         return null;

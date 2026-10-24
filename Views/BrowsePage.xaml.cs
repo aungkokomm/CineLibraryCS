@@ -117,7 +117,12 @@ public sealed partial class BrowsePage : Page
         });
         labelStack.Children.Add(new TextBlock
         {
-            Text = $"{e.Count} movie{(e.Count == 1 ? "" : "s")}",
+            // v4.8.0 (#25): a genre counts its TV shows too
+            Text = string.Join(" · ", new[]
+            {
+                e.Count > 0 || e.Shows == 0 ? $"{e.Count} movie{(e.Count == 1 ? "" : "s")}" : null,
+                e.Shows > 0 ? $"{e.Shows} show{(e.Shows == 1 ? "" : "s")}" : null,
+            }.Where(t => t != null)),
             FontSize = 12,
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)),
         });

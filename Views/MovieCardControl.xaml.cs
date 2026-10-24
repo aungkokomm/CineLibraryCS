@@ -79,13 +79,27 @@ public sealed partial class MovieCardControl : UserControl
     // ── Global card size (all cards resize together when density changes) ──
 
     public static double GlobalCardWidth { get; private set; } = 150;
-    public static double GlobalCardHeight { get; private set; } = 280;
+    public static double GlobalCardHeight { get; private set; } = 225 + CaptionHeight;
+    /// <summary>v4.8.0: the S / M / L / XL picked on All movies, which the other movie grids follow.</summary>
+    public static string GlobalDensity { get; private set; } = "M";
     public static event EventHandler? GlobalSizeChanged;
 
-    public static void SetGlobalSize(double w, double h)
+    /// <summary>v4.8.0: the title and year under the poster (the XAML's caption block).</summary>
+    public const double CaptionHeight = 44;
+
+    /// <summary>v4.8.0: a 2:3 poster with the caption under it.</summary>
+    public static (double Width, double Height) SizeFor(string tag) => tag switch
     {
-        GlobalCardWidth = w;
-        GlobalCardHeight = h;
+        "S"  => (120.0, 180 + CaptionHeight),
+        "L"  => (190.0, 285 + CaptionHeight),
+        "XL" => (240.0, 360 + CaptionHeight),
+        _    => (150.0, 225 + CaptionHeight),   // M
+    };
+
+    public static void SetGlobalDensity(string tag)
+    {
+        GlobalDensity = tag;
+        (GlobalCardWidth, GlobalCardHeight) = SizeFor(tag);
         GlobalSizeChanged?.Invoke(null, EventArgs.Empty);
     }
 
@@ -93,6 +107,27 @@ public sealed partial class MovieCardControl : UserControl
     {
         InitializeComponent();
         ApplySize();
+
+        // v4.8.0: the keyboard (and a TV remote's arrows): arrows move between
+        // cards, Enter opens the movie, Space plays it. The ring shows for the
+        // keyboard only; a click focuses the card without it.
+        GotFocus += (_, _) =>
+        {
+            if (FocusState == FocusState.Pointer) return;
+            FocusRing.Visibility = Visibility.Visible;
+            StartBringIntoView(new BringIntoViewOptions { AnimationDesired = !UiSettings.ReduceMotion });
+        };
+        LostFocus += (_, _) => FocusRing.Visibility = Visibility.Collapsed;
+        KeyDown += (_, e) =>
+        {
+            if (!ReferenceEquals(e.OriginalSource, this)) return;   // a button in the hover panel
+            switch (e.Key)
+            {
+                case Windows.System.VirtualKey.Enter: e.Handled = true; OpenDetail(); break;
+                case Windows.System.VirtualKey.Space: e.Handled = true; _ = PlayMovieOrPromptOfflineAsync(); break;
+                default: e.Handled = Controls.CardCell.MoveFocus(this, e.Key); break;
+            }
+        };
         // v2.5.1 — subscribe on Loaded / unsubscribe on Unloaded so a
         // recycled card (UniformGridLayout reuses controls aggressively)
         // re-attaches to the density-change event each time it goes back
@@ -116,6 +151,7 @@ public sealed partial class MovieCardControl : UserControl
         {
             UpdateHoverPlay();
             HoverOverlay.Visibility = Visibility.Visible;
+            PlaceholderText.Opacity = 0;   // the hover panel's text would sit on the stand-in's
             if (UiSettings.ReduceMotion)
             {
                 HoverOverlay.Opacity = 1;   // no fade, no zoom
@@ -131,6 +167,7 @@ public sealed partial class MovieCardControl : UserControl
         };
         PointerExited += (_, _) =>
         {
+            PlaceholderText.Opacity = 1;
             if (UiSettings.ReduceMotion)
             {
                 HoverOverlay.Opacity = 0;
@@ -245,10 +282,13 @@ public sealed partial class MovieCardControl : UserControl
 
     private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyCardChrome);
 
-    /// <summary>Re-apply card border + resting shadow from the current settings.</summary>
+    /// <summary>Re-apply card border, resting shadow, stand-in poster and the
+    /// NEW / 4K / HDR tags from the current settings.</summary>
     private void ApplyCardChrome()
     {
         CardBorder.BorderThickness = new Thickness(UiSettings.CardBorders ? 1 : 0);
+        PosterPlaceholder.Opacity = UiSettings.StandInPosters ? 1 : 0;   // off: the plain card, as before 4.8.0
+        if (Movie is { } m) ApplyTags(m);
         ApplyRestingShadow();
     }
 
@@ -256,11 +296,7 @@ public sealed partial class MovieCardControl : UserControl
     private void ApplyRestingShadow()
         => CardBorder.Translation = new System.Numerics.Vector3(0, 0, UiSettings.CardShadows ? RestZ : 0f);
 
-    private void ApplySize()
-    {
-        CardRoot.Height = GlobalCardHeight;
-        InvalidateMeasure();
-    }
+    private void ApplySize() => InvalidateMeasure();
 
     // v4.1.0: ask for the S / M / L / XL size but fill the grid cell, which the
     // layout stretches to fill the row. A fixed-width card sat in the middle of
@@ -281,12 +317,11 @@ public sealed partial class MovieCardControl : UserControl
         return finalSize;
     }
 
-    // No wider than a 2:3 poster at the card's height (no top/bottom cropping when
-    // only a column or two fit); past that the card keeps to the left of its cell.
+    // v4.8.0: the whole cell. The grids scale a cell's height with its width
+    // (CardCell.FitGrid), so the poster stays 2:3 at any width.
     // A row that doesn't stretch its cards (no width to fill) gets the size asked for.
     private static double DrawnWidth(double cellWidth)
-        => double.IsInfinity(cellWidth) ? GlobalCardWidth
-         : Math.Max(GlobalCardWidth, Math.Min(cellWidth, Math.Max(GlobalCardWidth, GlobalCardHeight * 2 / 3)));
+        => double.IsInfinity(cellWidth) ? GlobalCardWidth : cellWidth;
 
     private static void OnMovieChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -331,11 +366,86 @@ public sealed partial class MovieCardControl : UserControl
         SelectedTick.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>v4.8.0: how long a movie carries the NEW tag after it's added.</summary>
+    private const long NewForSeconds = 14 * 24 * 3600;
+
+    /// <summary>v4.8.0: "Today", "3 days ago", "2 weeks ago", then "12 Mar" or "Mar 2024".</summary>
+    private static string Ago(long unixSeconds)
+    {
+        var day = DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime.Date;
+        var days = (DateTime.Today - day).Days;
+        return days <= 0 ? "Today" : days == 1 ? "Yesterday" : days < 7 ? $"{days} days ago"
+             : days < 35 ? $"{days / 7} week{(days / 7 == 1 ? "" : "s")} ago"
+             : day.Year == DateTime.Today.Year ? day.ToString("d MMM") : day.ToString("MMM yyyy");
+    }
+
+    /// <summary>v4.8.0: the NEW and 4K / HDR tags, as Settings has them. On
+    /// Recently Added the NEW tag says when each movie came in, older ones in grey.</summary>
+    private void ApplyTags(MovieListItem m)
+    {
+        bool isNew = m.DateAdded is long a && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - a < NewForSeconds;
+        if (m.ListedBy == "recently_added" && m.DateAdded is long added)
+        {
+            NewBadgeText.Text = Ago(added).ToUpperInvariant();
+            NewBadge.Background = isNew ? ThemeBrushes.Get("BrandPurpleBrush")
+                                        : new SolidColorBrush(Windows.UI.Color.FromArgb(0xCC, 0, 0, 0));
+            NewBadge.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            NewBadgeText.Text = "NEW";
+            NewBadge.Background = ThemeBrushes.Get("BrandPurpleBrush");
+            NewBadge.Visibility = UiSettings.NewTag && isNew ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        // 4K (a scope 3840x1600 counts) and HDR / Dolby Vision, from the scan
+        bool uhd = m.VideoWidth >= 3200 || m.VideoHeight >= 2000;
+        var hdr = string.IsNullOrWhiteSpace(m.HdrType) ? null
+                : m.HdrType.Contains("dolby", StringComparison.OrdinalIgnoreCase) || m.HdrType.Equals("dv", StringComparison.OrdinalIgnoreCase) ? "DV" : "HDR";
+        Chip4K.Visibility = uhd ? Visibility.Visible : Visibility.Collapsed;
+        ChipHdrText.Text = hdr ?? "";
+        ChipHdr.Visibility = hdr != null ? Visibility.Visible : Visibility.Collapsed;
+        QualityChips.Visibility = UiSettings.QualityTags && (uhd || hdr != null) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnTitlePointerEntered(object sender, PointerRoutedEventArgs e) => ShowFullTitle(true);
+    private void OnTitlePointerExited(object sender, PointerRoutedEventArgs e) => ShowFullTitle(false);
+
+    /// <summary>v4.8.0: the whole title over a title cut short, its last line on
+    /// the title's line, so the title seems to grow up over the poster.</summary>
+    private void ShowFullTitle(bool show)
+    {
+        if (show && !TitleText.IsTextTrimmed) return;
+        if (show)
+        {
+            FullTitleText.Text = TitleText.Text;
+            var titleBottom = TitleText.TransformToVisual(CardRoot)
+                .TransformPoint(new Windows.Foundation.Point(0, TitleText.ActualHeight)).Y;
+            FullTitleShift.Y = titleBottom + FullTitle.Padding.Bottom + FullTitle.BorderThickness.Bottom - CardBorder.ActualHeight;
+        }
+        FullTitle.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>v4.8.0: "2h 12m", "3h" or "48m" (list rows too).</summary>
+    internal static string RuntimeText(int minutes)
+        => minutes < 60 ? $"{minutes}m" : minutes % 60 == 0 ? $"{minutes / 60}h" : $"{minutes / 60}h {minutes % 60}m";
+
     private void Populate(MovieListItem m)
     {
         TitleText.Text = m.Title;
-        MetaText.Text = $"{m.Year?.ToString() ?? "—"}{(m.Runtime.HasValue ? $" · {m.Runtime}m" : "")}";
+        ShowFullTitle(false);   // a recycled card may still show the last movie's
+        // v4.8.0: year and length; sorted by length, the length first
+        var length = m.Runtime is int r ? RuntimeText(r) : null;
+        string Join(params string?[] parts) => string.Join(" · ", parts.Where(p => !string.IsNullOrEmpty(p)));
+        MetaText.Text = m.ListedBy == "runtime" ? Join(length, m.Year?.ToString()) : Join(m.Year?.ToString() ?? "—", length);
+        var byRating = m.ListedBy == "rating";
+        RatingInline.FontSize = byRating ? 14 : 12;
+        RatingInline.FontWeight = byRating ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
         PlaceholderTitle.Text = m.Title;
+        PlaceholderTitle.FontSize = Controls.PlaceholderArt.FontSizeFor(GlobalCardWidth);
+        PlaceholderYear.Text = m.Year is > 0 ? m.Year.Value.ToString() : "";
+        PosterPlaceholder.Background = Controls.PlaceholderArt.BrushFor(m.Title);
+        ApplyTags(m);
 
         // Status badge.
         //  • MISSING stays loud — it's a real problem (red dot + label).
@@ -368,7 +478,6 @@ public sealed partial class MovieCardControl : UserControl
 
         // Rating lives once, in the meta row. (The old floating poster badge
         // duplicated it — dropped for a cleaner card face.)
-        RatingBadge.Visibility = Visibility.Collapsed;
         if (m.Rating.HasValue)
         {
             RatingInline.Text = $"★ {m.Rating:F1}";
@@ -392,10 +501,12 @@ public sealed partial class MovieCardControl : UserControl
     {
         var myToken = ++_posterLoadToken;
 
-        PosterPlaceholder.Visibility = Visibility.Visible;
+        // v4.8.0: the stand-in only when there's no poster to show; while one
+        // loads, the plain card background (no colours flashing past on a scroll)
+        PosterPlaceholder.Visibility = Visibility.Collapsed;
         PosterImage.Source = null;
 
-        if (relPath == null) return;
+        if (relPath == null) { PosterPlaceholder.Visibility = Visibility.Visible; return; }
 
         // Decode at ~2× card width so the poster stays crisp on HiDPI displays
         // (150 / 175 / 200% scaling) without bloating memory — capped at 500 px.
@@ -413,7 +524,7 @@ public sealed partial class MovieCardControl : UserControl
         }
 
         var fullPath = AppState.Instance.Db.GetCachedImagePath(relPath);
-        if (fullPath == null) return;
+        if (fullPath == null) { PosterPlaceholder.Visibility = Visibility.Visible; return; }
 
         try
         {

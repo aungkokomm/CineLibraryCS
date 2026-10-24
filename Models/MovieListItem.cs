@@ -20,6 +20,14 @@ public partial class MovieListItem : ObservableObject
     public string? DriveLabel { get; set; }
     public string? GenresCsv { get; set; }
     public bool IsOnline { get; set; }
+    // v4.8.0: for the card's corner tags (New, 4K, HDR). Unix seconds, as stored.
+    public long? DateAdded { get; set; }
+    public int? VideoWidth { get; set; }
+    public int? VideoHeight { get; set; }
+    public string? HdrType { get; set; }
+    // v4.8.0: the sort All movies listed it under ("runtime", "rating", ...), or
+    // "recently_added" on Recently Added; the card follows it. Null elsewhere.
+    public string? ListedBy { get; set; }
 
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private bool _isWatched;

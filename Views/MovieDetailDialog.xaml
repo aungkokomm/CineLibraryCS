@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:CineLibraryCS.Models"
     xmlns:controls="using:CineLibraryCS.Controls"
-    Title="Movie Details">
+    Title="CineLibrary">
 
     <Grid x:Name="RootGrid" Background="{ThemeResource SidebarBrush}">
         <Grid.Resources>
@@ -46,16 +46,20 @@
             </DataTemplate>
         </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="36"/>
+            <RowDefinition Height="40"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Custom titlebar drag region -->
+        <!-- Custom titlebar drag region. v4.8.0 (#25): the main window's, so the
+             two read as one window -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Background="Transparent">
-            <TextBlock x:Name="TitleBarText" Text="Movie Details"
-                       FontSize="12" FontWeight="SemiBold"
-                       Foreground="{ThemeResource TextBrush}"
-                       VerticalAlignment="Center" Margin="14,0,0,0"/>
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center" Margin="8,0,0,0">
+                <Image Source="ms-appx:///Assets/icon.ico"
+                       Width="16" Height="16" VerticalAlignment="Center"/>
+                <TextBlock Text="CineLibrary" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
         </Grid>
 
         <!-- Scroll area + sticky action bar overlay (v2.3) -->
@@ -110,30 +114,43 @@
                                     Padding="8,3" FontSize="11" FontWeight="Bold"
                                     Content="TMDb"/>
                         </StackPanel>
-                        <!-- v4.5.0: the previous / next movie of the grid this window
-                             was opened from (also the ← and → keys) -->
-                        <StackPanel x:Name="BrowseNav" Orientation="Horizontal" Spacing="6"
-                                    Margin="14" Visibility="Collapsed"
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14"
                                     HorizontalAlignment="Left" VerticalAlignment="Top">
-                            <Button x:Name="PrevMovieBtn" Click="OnPrevMovie"
-                                    Style="{StaticResource CardIconToggleStyle}"
-                                    AutomationProperties.Name="Previous movie"
-                                    ToolTipService.ToolTip="Previous movie (←)">
-                                <FontIcon Glyph="&#xE76B;" FontSize="12" Foreground="White"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            <!-- v4.8.0 (#25): back to the library, as from a page of the main window
+                                 (also Esc and the mouse's back button) -->
+                            <Button Click="OnBackToLibrary" Style="{StaticResource CardIconToggleStyle}" Width="Auto"
+                                    AutomationProperties.Name="Back to library"
+                                    ToolTipService.ToolTip="Back to library (Esc)">
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,0,14,0">
+                                    <FontIcon Glyph="&#xE76B;" FontSize="12" Foreground="White"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                    <TextBlock Text="Library" FontSize="13" Foreground="White"/>
+                                </StackPanel>
                             </Button>
-                            <Border x:Name="BrowsePosPill" Height="30" Padding="12,0" CornerRadius="15"
-                                    Background="#99000000" BorderBrush="#40FFFFFF" BorderThickness="1">
-                                <TextBlock x:Name="BrowsePos" FontSize="12" Foreground="White"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <Button x:Name="NextMovieBtn" Click="OnNextMovie"
-                                    Style="{StaticResource CardIconToggleStyle}"
-                                    AutomationProperties.Name="Next movie"
-                                    ToolTipService.ToolTip="Next movie (→)">
-                                <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="White"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                            </Button>
+                            <!-- v4.5.0: the previous / next movie of the grid this window
+                                 was opened from (also the ← and → keys) -->
+                            <StackPanel x:Name="BrowseNav" Orientation="Horizontal" Spacing="6"
+                                        Visibility="Collapsed">
+                                <Button x:Name="PrevMovieBtn" Click="OnPrevMovie"
+                                        Style="{StaticResource CardIconToggleStyle}"
+                                        AutomationProperties.Name="Previous movie"
+                                        ToolTipService.ToolTip="Previous movie (←)">
+                                    <FontIcon Glyph="&#xE76B;" FontSize="12" Foreground="White"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                </Button>
+                                <Border x:Name="BrowsePosPill" Height="30" Padding="12,0" CornerRadius="15"
+                                        Background="#99000000" BorderBrush="#40FFFFFF" BorderThickness="1">
+                                    <TextBlock x:Name="BrowsePos" FontSize="12" Foreground="White"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <Button x:Name="NextMovieBtn" Click="OnNextMovie"
+                                        Style="{StaticResource CardIconToggleStyle}"
+                                        AutomationProperties.Name="Next movie"
+                                        ToolTipService.ToolTip="Next movie (→)">
+                                    <FontIcon Glyph="&#xE76C;" FontSize="12" Foreground="White"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -676,15 +693,28 @@
                 Height="52" VerticalAlignment="Top" Opacity="0.96">
             <Grid Padding="20,0">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StickyTitle" Grid.Column="0"
+                <!-- v4.8.0 (#25): back to the library, where the ✕ on the right was -->
+                <Button Grid.Column="0" Click="OnBackToLibrary" VerticalAlignment="Center"
+                        Background="Transparent" BorderThickness="0" CornerRadius="6"
+                        Padding="10,5" Margin="-10,0,8,0"
+                        AutomationProperties.Name="Back to library"
+                        ToolTipService.ToolTip="Back to library (Esc)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE76B;" FontSize="12"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                        <TextBlock Text="Library"/>
+                    </StackPanel>
+                </Button>
+                <TextBlock x:Name="StickyTitle" Grid.Column="1"
                            VerticalAlignment="Center"
                            FontSize="14" FontWeight="SemiBold"
                            Foreground="{ThemeResource TextBrush}"
                            TextTrimming="CharacterEllipsis"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <!-- v4.5.0: previous / next, as on the banner -->
                     <StackPanel x:Name="StickyBrowseNav" Orientation="Horizontal" Visibility="Collapsed">
                         <Button x:Name="StickyPrevBtn" Click="OnPrevMovie"
@@ -707,11 +737,6 @@
                             BorderThickness="0" CornerRadius="6" Padding="14,5">
                         <TextBlock Text="▶ Play"/>
                     </Button>
-                    <Button Click="OnStickyClose"
-                            Background="Transparent"
-                            Foreground="{ThemeResource MutedBrush}"
-                            BorderThickness="0" CornerRadius="6" Padding="10,5"
-                            Content="✕"/>
                 </StackPanel>
             </Grid>
         </Border>

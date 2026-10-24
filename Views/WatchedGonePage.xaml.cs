@@ -53,6 +53,11 @@ public sealed partial class WatchedGonePage : Page
 
     public void Refresh()
     {
+        // v4.8.0: the cards come in the library's size, as on On This Day
+        if (RecordsRepeater.Layout is UniformGridLayout layout)
+            Controls.CardCell.FitGrid(layout, (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight),
+                                      MovieCardControl.GlobalDensity);
+
         // Records are a bounded set (tens to a few hundred) — load in one go
         // through the same pipeline as the library, flipped to ArchivedOnly so
         // search / sort behave identically.

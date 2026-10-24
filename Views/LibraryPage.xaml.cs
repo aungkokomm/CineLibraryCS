@@ -67,7 +67,7 @@ public sealed partial class LibraryPage : Page
         AddAccelerator(VirtualKey.A, VirtualKeyModifiers.Control, (_, a) =>
         {
             if (IsTextEditFocused()) return;
-            SelectAllVisible();
+            SelectAllInView();
             a.Handled = true;
         });
 
@@ -261,8 +261,15 @@ public sealed partial class LibraryPage : Page
         AfterSelectionChanged();
     }
 
-    private void SelectAllVisible()
+    // v4.8.0: every movie in the view, the ones further down too (they load 60
+    // at a time as you scroll), so a whole filter can be fetched at once
+    private async void SelectAllInView()
     {
+        for (int guard = 0; guard < 10_000 && (_vm.HasMore || _vm.IsLoading); guard++)
+        {
+            if (_vm.IsLoading) { await Task.Delay(50); continue; }
+            await _vm.LoadMoreAsync();
+        }
         foreach (var m in _vm.Movies)
             if (_selectedIds.Add(m.Id)) m.IsSelected = true;
         AfterSelectionChanged();
@@ -488,6 +495,84 @@ public sealed partial class LibraryPage : Page
         MovieCardControl.RaiseMovieArchived();
     }
 
+    // v4.8.0 — selection bar: Fetch missing info from TMDB for every selected
+    // movie, one after another, with a sure match only (MovieFetch.SureMatchAsync)
+    private async void OnSelFetchMissing(object sender, RoutedEventArgs e)
+    {
+        var picked = SelectedMovies();
+        if (picked.Count == 0) return;
+        var ask = new ContentDialog
+        {
+            Title = $"Fetch missing info for {picked.Count} movie(s)?",
+            Content = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Text = "CineLibrary looks each one up on TMDb and fills in only what's missing, in your library " +
+                       "and, with Save fetched info to your drives on, in the movie's .nfo when its drive is connected. " +
+                       "A movie it can't match for sure is left out: one with no TMDb or IMDb id, and not exactly one " +
+                       "film of its title and year on TMDb. Open those one by one to pick the match.",
+            },
+            PrimaryButtonText = "Fetch",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+        };
+        if (await ask.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var text = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var bar = new ProgressBar { Maximum = picked.Count, Margin = new Thickness(0, 12, 0, 0) };
+        var cts = new CancellationTokenSource();
+        bool finished = false;
+        var run = new ContentDialog
+        {
+            Title = "Fetching missing info",
+            Content = new StackPanel { Children = { text, bar } },
+            CloseButtonText = "Stop",
+            XamlRoot = XamlRoot,
+            RequestedTheme = CineLibraryCS.MainWindow.CurrentTheme,
+        };
+        run.CloseButtonClick += (_, _) => { if (!finished) cts.Cancel(); };
+        var shown = run.ShowAsync();
+        var progress = new Progress<(int Done, string Title)>(p =>
+        {
+            bar.Value = p.Done;
+            if (p.Title.Length > 0) text.Text = $"{p.Done + 1} of {picked.Count}: {p.Title}";
+        });
+        var ids = picked.Select(m => m.Id).ToList();
+        Services.MovieFetch.BulkResult r;
+        try { r = await Task.Run(() => Services.MovieFetch.FetchManyAsync(ids, progress, cts.Token)); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Bulk fetch failed: {ex.Message}");
+            r = new(0, 0, 0, new List<string>(), ids.Count, Stopped: false);
+        }
+        finished = true;
+
+        ClearSelection();
+        _ = _vm.LoadAsync();   // the cards show the new posters and details
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+
+        var lines = new List<string> { $"Updated {r.Updated} of {ids.Count}." };
+        if (r.Saved > 0) lines.Add($"{r.Saved} saved to their folders, .nfo included.");
+        if (r.Waiting > 0) lines.Add($"{r.Waiting} go onto their drives when you connect them.");
+        if (r.NoMatch.Count > 0)
+            lines.Add($"No sure match on TMDb for {r.NoMatch.Count}; open each one to pick the match: " +
+                      string.Join(", ", r.NoMatch.Take(12)) + (r.NoMatch.Count > 12 ? $" and {r.NoMatch.Count - 12} more." : "."));
+        if (r.Failed > 0) lines.Add($"{r.Failed} couldn't be fetched (TMDb didn't answer). Try them again later.");
+        if (cts.IsCancellationRequested)
+        {
+            // the dialog closed with Stop
+            if (App.MainWindow is CineLibraryCS.MainWindow mw) mw.ShowToast($"Stopped. Updated {r.Updated} of {ids.Count}.");
+            return;
+        }
+        run.Title = "Fetch finished";
+        text.Text = string.Join("\n\n", lines);
+        bar.Visibility = Visibility.Collapsed;
+        run.CloseButtonText = "Close";
+        await shown;
+    }
+
     private void OnSelToggleFav(object sender, RoutedEventArgs e)
     {
         var picked = SelectedMovies();
@@ -684,8 +769,10 @@ public sealed partial class LibraryPage : Page
     private bool TryScrollByRow(int direction)
     {
         if (IsTextEditFocused()) return false;
+        // v4.8.0: on a card, ↑ / ↓ move to the card above or below instead
+        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is MovieCardControl or TvShowCard) return false;
         double rowPx = _vm.ViewMode == ViewMode.Grid
-            ? MovieCardControl.GlobalCardHeight + 12
+            ? MovieCardControl.GlobalCardHeight + GridLayout.MinRowSpacing
             : 44;
         MainScroller.ChangeView(null, MainScroller.VerticalOffset + direction * rowPx, null);
         return true;
@@ -815,18 +902,13 @@ public sealed partial class LibraryPage : Page
 
     private void ApplyDensity(string tag)
     {
-        var (w, h) = tag switch
-        {
-            "S"  => (120.0, 220.0),
-            "L"  => (190.0, 340.0),
-            "XL" => (240.0, 420.0),
-            _    => (150.0, 280.0),   // M
-        };
-
-        MovieCardControl.SetGlobalSize(w, h);
+        // v4.8.0: the sizes live with the card (a 2:3 poster and its caption)
+        MovieCardControl.SetGlobalDensity(tag);
         TvShowCard.SetLibraryDensity(tag);
-        GridLayout.MinItemWidth = w;
-        GridLayout.MinItemHeight = h;
+        Controls.CardCell.FitGrid(GridLayout, (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight), tag);
+        // the show rows above the grid: spaced like it, and as far from it as its rows
+        ((StackLayout)ShowsInSearchRepeater.Layout).Spacing = ((StackLayout)ShowsInListRepeater.Layout).Spacing = Controls.CardCell.GapFor(tag);
+        ShowsInSearchSection.Margin = ShowsInListSection.Margin = new Thickness(0, 0, 0, GridLayout.MinRowSpacing);
 
         DensityS.IsChecked  = tag == "S";
         DensityM.IsChecked  = tag == "M";
@@ -918,9 +1000,10 @@ public sealed partial class LibraryPage : Page
         else
             _vm.ClearFilters();
 
-        // Breadcrumb-style title: "All movies › Drama"
-        PageTitleText.Text = p.Label == null
-            ? "All movies"
+        // Breadcrumb-style title: "All movies › Drama". v4.8.0 (#25): a genre's page
+        // holds its TV shows too, so just the genre, as Favorites is just "Favorites"
+        PageTitleText.Text = p.Label == null ? "All movies"
+            : p.Genre != null ? p.Label
             : $"All movies › {p.Label}";
     }
 
@@ -1038,13 +1121,17 @@ public sealed partial class LibraryPage : Page
             _vm.FavoritesOnly      ? DatabaseService.TvShowPage.Favorites :
             _vm.IsWatchlistOnly    ? DatabaseService.TvShowPage.Watchlist :
             _vm.IsContinueWatching ? DatabaseService.TvShowPage.ContinueWatching :
-            _vm.HasNoteOnly        ? DatabaseService.TvShowPage.Notes : null;
-        var key = _vm.UserListId is int listId ? $"list:{listId}" : page?.ToString();
+            _vm.HasNoteOnly        ? DatabaseService.TvShowPage.Notes :
+            _vm.IsRecentlyAdded    ? DatabaseService.TvShowPage.RecentlyAdded : null;   // v4.8.0 (#25)
+        var key = _vm.UserListId is int listId ? $"list:{listId}"
+                : _vm.Genre is string genreKey ? $"genre:{genreKey}"
+                : page?.ToString();
         if (key == _shownRowKey) return;
         _shownRowKey = key;
 
         var db = AppState.Instance.Db;
         var shows = _vm.UserListId is int id ? db.GetTvShowsInList(id, AppState.Instance.Connected)
+                  : _vm.Genre is string genre ? db.GetTvShowsInGenre(genre, AppState.Instance.Connected)   // v4.8.0 (#25): By Genre
                   : page is { } p ? db.GetTvShowsForPage(p, AppState.Instance.Connected)
                   : new List<TvShowListItem>();
         ShowsInListHeader.Text = _vm.UserListId != null ? "TV SHOWS IN THIS LIST" : "TV SHOWS";
@@ -1095,6 +1182,8 @@ public sealed partial class LibraryPage : Page
             AddChip("New", "🆕",        () => DropFilter(() => _vm.IsRecentlyAdded = false));
         if (_vm.HasNoteOnly)
             AddChip("Notes", "📝",      () => DropFilter(() => _vm.HasNoteOnly = false));
+        if (_vm.FewCastOnly)
+            AddChip("Cast", "one or none", () => DropFilter(() => _vm.FewCastOnly = false));
         if (_vm.TagId != null && !string.IsNullOrEmpty(_vm.TagName))
             AddChip("Tag",   _vm.TagName, () => DropFilter(() => { _vm.TagId = null; _vm.TagName = null; }));
         ActiveFilterChips.Visibility = ActiveFilterChips.Items.Count > 0
@@ -1122,7 +1211,7 @@ public sealed partial class LibraryPage : Page
         !string.IsNullOrEmpty(_vm.SearchText) ||
         _vm.WatchedFilter != WatchedFilter.All ||
         _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
-        _vm.IsRecentlyWatched || _vm.IsRecentlyAdded || _vm.HasNoteOnly ||
+        _vm.IsRecentlyWatched || _vm.IsRecentlyAdded || _vm.HasNoteOnly || _vm.FewCastOnly ||
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
         _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||

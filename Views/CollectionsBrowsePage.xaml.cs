@@ -26,6 +26,10 @@ public partial class CollectionTileVm : ObservableObject
     public GridLength DoneWidth { get; init; }
     public GridLength LeftWidth { get; init; }
     [ObservableProperty] private BitmapImage? _coverImage;
+    // v4.8.0: the stand-in cover (as on movie cards) when no film in it has a poster
+    public Microsoft.UI.Xaml.Media.Brush PlaceholderBrush => Controls.PlaceholderArt.BrushFor(Name);
+    public double PlaceholderFontSize => Controls.PlaceholderArt.FontSizeFor(CardWidth);
+    public Visibility PlaceholderVisibility => UiSettings.StandInPosters && CoverImage == null ? Visibility.Visible : Visibility.Collapsed;
 }
 
 public sealed partial class CollectionsBrowsePage : Page
@@ -167,15 +171,9 @@ public sealed partial class CollectionsBrowsePage : Page
     {
         // v4.4.0 (#18): the show card sizes. The old ones (M was 150 x 280) were
         // narrower than a 2:3 poster, so the posters were cut at the sides.
-        (_cardWidth, _cardHeight) = tag switch
-        {
-            "S"  => (130.0, 235.0),
-            "L"  => (210.0, 365.0),
-            "XL" => (250.0, 430.0),
-            _    => (170.0, 300.0),   // M, the same sizes as All TV shows
-        };
-        CollGridLayout.MinItemWidth = _cardWidth;
-        CollGridLayout.MinItemHeight = _cardHeight;
+        // v4.8.0: the show card's own table (a 2:3 cover with its caption under it)
+        (_cardWidth, _cardHeight) = TvShowCard.SizeFor(tag);
+        Controls.CardCell.FitGrid(CollGridLayout, (_cardWidth, _cardHeight), tag);
         CollDensityS.IsChecked  = tag == "S";
         CollDensityM.IsChecked  = tag is not ("S" or "L" or "XL");
         CollDensityL.IsChecked  = tag == "L";
