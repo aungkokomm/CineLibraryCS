@@ -103,7 +103,7 @@
             </StackPanel>
         </controls:HeaderBar>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
+        <ScrollViewer x:Name="PageScroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
             <Grid>
                 <!-- LEVEL 1: Shows grid. v4.1.0: the Continue Watching row that sat
                      above it is gone; the Continue Watching page lists those shows. -->

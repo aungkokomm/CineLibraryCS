@@ -105,6 +105,10 @@ public sealed partial class StatisticsPage : Page
     private void BuildSummary(DashboardStats s)
     {
         SummaryGrid.Children.Clear();
+        // v4.8.1 (#25): the grid outlives a visit, so its columns go too; Arrange
+        // skips a grid that already has its columns and the new tiles stacked in one
+        SummaryGrid.ColumnDefinitions.Clear();
+        SummaryGrid.RowDefinitions.Clear();
         var hours = s.RuntimeMinutes / 60;
         var watched = s.Movies > 0 ? 100.0 * s.Watched / s.Movies : 0;
         SummaryGrid.Children.Add(Tile("", s.Movies.ToString("N0"), "Movies",

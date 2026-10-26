@@ -19,6 +19,7 @@ public sealed partial class TvShowsPage : Page
 
     private readonly ObservableCollection<TvShowListItem> _shows = new();
     private TvShowListItem? _currentShow;
+    private double _gridOffset;   // v4.8.1: where the grid was when a show opened
 
     // v3.7.0: All TV shows sort / watched filter / poster size, remembered
     // in prefs like the All movies toolbar.
@@ -37,6 +38,13 @@ public sealed partial class TvShowsPage : Page
         InitializeComponent();
         ShowsRepeater.ItemsSource = _shows;
         ShowsRepeater.Tapped += OnShowsTapped;
+        // v4.8.1 (#25): a wider page (the slim sidebar, a big screen) cut more off the
+        // fanart at a fixed 300; it grows with the width, as wide as the full sidebar left it
+        ShowBanner.SizeChanged += (_, e) =>
+        {
+            if (e.PreviousSize.Width != e.NewSize.Width)
+                ShowBanner.Height = Math.Clamp(e.NewSize.Width * 0.255, 300, 400);
+        };
 
         _noShowsHint = EmptyHint.Text;
         _tvSort = AppState.Instance.GetPref("tvSort", "title:asc");
@@ -267,6 +275,12 @@ public sealed partial class TvShowsPage : Page
 
     private void ShowLevel()
     {
+        // v4.8.1 (#25): the grid and the show page share one scroller, so a show
+        // opened where the grid was scrolled to, often down in its episodes. A show
+        // opens at its top, and Back puts the grid where it was.
+        var fromShow = SeasonsPanel.Visibility == Visibility.Visible;
+        if (_level == Level.Show && !fromShow) _gridOffset = PageScroller.VerticalOffset;
+
         BackBtn.Visibility       = _level == Level.Shows ? Visibility.Collapsed : Visibility.Visible;
         ShowsLevelHost.Visibility = _level == Level.Shows ? Visibility.Visible : Visibility.Collapsed;
         SeasonsPanel.Visibility   = _level == Level.Show  ? Visibility.Visible : Visibility.Collapsed;
@@ -279,6 +293,13 @@ public sealed partial class TvShowsPage : Page
             // A filtered-empty list must not leave its empty state over a show page.
             EmptyState.Visibility = Visibility.Collapsed;
             LoadShow();
+        }
+
+        if (_level == Level.Show) PageScroller.ChangeView(null, 0, null, true);
+        else if (fromShow)
+        {
+            PageScroller.UpdateLayout();   // the grid's height, or the offset is cut to the show page's
+            PageScroller.ChangeView(null, _gridOffset, null, true);
         }
     }
 

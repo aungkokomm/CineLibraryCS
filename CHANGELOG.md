@@ -6,6 +6,16 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.8.1] - 2026-10-27
+
+### Fixed
+- Statistics shows all its summary tiles again after you leave the page and come back.
+- A TV show opens at the top of its page, not down in its episodes, and Back returns All TV shows to where you were.
+- TV show and collection cards are the same size as movie cards at S, M, L and XL.
+
+### Changed
+- The fanart on a TV show page is taller in wide windows, so more of it shows.
+
 ## [4.8.0] - 2026-10-24
 
 ### Changed

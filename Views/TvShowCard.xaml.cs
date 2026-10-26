@@ -41,14 +41,14 @@ public sealed partial class TvShowCard : UserControl
     /// <summary>v4.8.0: the title, year and progress under the poster (the XAML's caption block).</summary>
     public const double CaptionHeight = 54;
 
-    /// <summary>v4.8.0: a 2:3 poster with the caption under it (Collections uses these too).</summary>
-    public static (double Width, double Height) SizeFor(string tag) => tag switch
+    /// <summary>v4.8.0: a 2:3 poster with the caption under it (Collections uses these too).
+    /// v4.8.1 (#25): as wide as a movie card, so S, M, L and XL are one size on every
+    /// page; shows were a step wider and fitted one card fewer in a row.</summary>
+    public static (double Width, double Height) SizeFor(string tag)
     {
-        "S"  => (130.0, 195 + CaptionHeight),
-        "L"  => (210.0, 315 + CaptionHeight),
-        "XL" => (250.0, 375 + CaptionHeight),
-        _    => (170.0, 255 + CaptionHeight),   // M
-    };
+        var width = MovieCardControl.SizeFor(tag).Width;
+        return (width, width * 1.5 + CaptionHeight);
+    }
 
     // v4.5.1 (#24): the shows row on a page that mixes them with movies
     // (Favorites, To Watch, lists, search) follows that page's S / M / L / XL,
