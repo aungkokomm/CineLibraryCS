@@ -22,7 +22,7 @@
                 <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Text="Watched &amp; Gone" FontSize="24" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}"/>
-                    <TextBlock Text="Movies you watched and let go — kept as records, with your notes and history, so you never re-download by mistake."
+                    <TextBlock Text="Movies and TV shows you watched and let go, kept as records with your notes and history, so you never download one again by mistake."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                TextWrapping="Wrap" MaxWidth="640"/>
                 </StackPanel>
@@ -86,7 +86,32 @@
 
         <!-- Records grid -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+            <StackPanel x:Name="RecordsPanel">
+                <!-- v4.9.0 (#25): TV show records in a row above the movies, as on the
+                     pages that mix them (Favorites, lists), with room under the cards
+                     for the row's scroll bar -->
+                <StackPanel x:Name="ShowRecordsSection" Visibility="Collapsed" Spacing="8" Margin="0,4,0,12">
+                    <TextBlock Text="TV SHOWS" Margin="24,4,24,0"
+                               FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                               Opacity="0.7" Foreground="{ThemeResource MutedBrush}"/>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                                  Padding="24,0,24,16">
+                        <ItemsRepeater x:Name="ShowRecordsRepeater" TabFocusNavigation="Once">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="24"/>
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:TvShowListItem">
+                                    <local:TvShowCard ArchiveMode="True" UsesLibrarySize="True" Show="{x:Bind}"/>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                    <TextBlock x:Name="MovieRecordsHeader" Text="MOVIES" Margin="24,0,24,0"
+                               FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                               Opacity="0.7" Foreground="{ThemeResource MutedBrush}"/>
+                </StackPanel>
                 <ItemsRepeater x:Name="RecordsRepeater" Margin="24,4,24,24" TabFocusNavigation="Once">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
@@ -110,7 +135,7 @@
                     <TextBlock Text="No records yet"
                                FontSize="15" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
-                    <TextBlock Text="When you watch a movie and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Or use “Add watched movie” above for films you saw elsewhere — at the cinema, on a streaming service, a friend's copy. Either way, the poster, details, your notes and watch history stay here as a permanent record."
+                    <TextBlock Text="When you watch a movie or TV show and delete it from your drive, right-click it in the library and choose “Send to Watched &amp; Gone”. Or use “Add watched movie” above for films you saw elsewhere: at the cinema, on a streaming service, a friend's copy. Either way, the poster, details, your notes and watch history stay here as a permanent record."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="460"/>

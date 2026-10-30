@@ -38,6 +38,10 @@ public sealed partial class TvShowsPage : Page
         InitializeComponent();
         ShowsRepeater.ItemsSource = _shows;
         ShowsRepeater.Tapped += OnShowsTapped;
+        // v4.9.0 (#25): a show sent to Watched & Gone (or restored) leaves the grid at once
+        TvShowCard.ShowsArchived += OnShowsArchived;
+        Loaded += (_, _) => { TvShowCard.ShowsArchived -= OnShowsArchived; TvShowCard.ShowsArchived += OnShowsArchived; };
+        Unloaded += (_, _) => TvShowCard.ShowsArchived -= OnShowsArchived;
         // v4.8.1 (#25): a wider page (the slim sidebar, a big screen) cut more off the
         // fanart at a fixed 300; it grows with the width, as wide as the full sidebar left it
         ShowBanner.SizeChanged += (_, e) =>
@@ -266,7 +270,10 @@ public sealed partial class TvShowsPage : Page
     public void OpenShow(int showId)
     {
         var show = AppState.Instance.Db.GetTvShows(AppState.Instance.Connected)
-            .FirstOrDefault(s => s.Id == showId);
+            .FirstOrDefault(s => s.Id == showId)
+            // v4.9.0: a Watched & Gone record opens too, from the Watched & Gone page
+            ?? AppState.Instance.Db.GetArchivedTvShows(null, "archived", "desc", AppState.Instance.Connected)
+                .FirstOrDefault(s => s.Id == showId);
         if (show == null) { Load(); return; }
         _currentShow = show;
         _level = Level.Show;
@@ -1237,6 +1244,11 @@ public sealed partial class TvShowsPage : Page
             ShowLevel();
         }
     }
+
+    private void OnShowsArchived() => DispatcherQueue.TryEnqueue(() =>
+    {
+        if (_level == Level.Shows) LoadShows();
+    });
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {

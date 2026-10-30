@@ -873,7 +873,8 @@ public class ScannerService
         {
             find.Transaction = tx;
             find.CommandText = @"SELECT id, folder_rel_path, tmdb_id, title FROM tv_shows
-                WHERE volume_serial=@s AND id<>@id AND substr(folder_rel_path, 1, length(@p)) = @p COLLATE NOCASE";
+                WHERE volume_serial=@s AND id<>@id AND archived_at IS NULL
+                  AND substr(folder_rel_path, 1, length(@p)) = @p COLLATE NOCASE";
             find.Parameters.AddWithValue("@s", serial);
             find.Parameters.AddWithValue("@id", showId);
             find.Parameters.AddWithValue("@p", folderRel + "/");
@@ -973,6 +974,35 @@ public class ScannerService
         find.Parameters.AddWithValue("@s", serial);
         find.Parameters.AddWithValue("@f", folderRel);
         var existing = find.ExecuteScalar();
+
+        // v4.9.0 (#25): a Watched & Gone show found in a NEW folder (moved, or downloaded
+        // again) comes back as its record, as a movie does: the same IMDb or TMDb id, or
+        // the same title and year when it has neither. A record's own folder is found
+        // above and stays a record.
+        if (existing == null || existing == DBNull.Value)
+        {
+            using var rec = conn.CreateCommand();
+            rec.Transaction = tx;
+            rec.CommandText = @"SELECT id FROM tv_shows WHERE archived_at IS NOT NULL AND (
+                    (@im <> '' AND imdb_id = @im) OR (@tm <> '' AND tmdb_id = @tm)
+                 OR (@im = '' AND @tm = '' AND title = @t COLLATE NOCASE AND COALESCE(year, -1) = COALESCE(@y, -1)))
+                ORDER BY id LIMIT 1";
+            rec.Parameters.AddWithValue("@im", s.ImdbId?.Trim() ?? "");
+            rec.Parameters.AddWithValue("@tm", s.TmdbId?.Trim() ?? "");
+            rec.Parameters.AddWithValue("@t", s.Title);
+            rec.Parameters.AddWithValue("@y", (object?)s.Year ?? DBNull.Value);
+            if (rec.ExecuteScalar() is long recordId)
+            {
+                using var revive = conn.CreateCommand();
+                revive.Transaction = tx;
+                revive.CommandText = "UPDATE tv_shows SET archived_at=NULL, volume_serial=@s, folder_rel_path=@f WHERE id=@id";
+                revive.Parameters.AddWithValue("@s", serial);
+                revive.Parameters.AddWithValue("@f", folderRel);
+                revive.Parameters.AddWithValue("@id", recordId);
+                revive.ExecuteNonQuery();
+                existing = recordId;
+            }
+        }
 
         using var cmd = conn.CreateCommand();
         cmd.Transaction = tx;

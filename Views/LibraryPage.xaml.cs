@@ -126,7 +126,10 @@ public sealed partial class LibraryPage : Page
         // v4.0.0: the page is cached and put back on screen as it is, so
         // re-query the shows row each time; a show may have been made a
         // favorite (or finished) on its own page meanwhile.
-        Loaded += (_, _) => { _shownRowKey = ""; RefreshShowsInList(); };
+        Loaded += (_, _) => { FitShowRows(); _shownRowKey = ""; RefreshShowsInList(); };
+        // v4.9.0 (#25): the grid's cards widen with the window, and the shows rows' with them
+        // (Watched & Gone sizes the same cards for its own row meanwhile, hence on Loaded too)
+        GridBorder.SizeChanged += (_, e) => { if (e.PreviousSize.Width != e.NewSize.Width) FitShowRows(); };
         // v4.1.0: a show card's hover panel changed a show (un-favorited it on
         // Favorites, finished it on Continue Watching): re-list the row.
         TvShowCard.ShowChanged += _ => { _shownRowKey = ""; RefreshShowsInList(); };
@@ -907,8 +910,10 @@ public sealed partial class LibraryPage : Page
         TvShowCard.SetLibraryDensity(tag);
         Controls.CardCell.FitGrid(GridLayout, (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight), tag);
         // the show rows above the grid: spaced like it, and as far from it as its rows
+        // (v4.9.0: counting the room under them for their scroll bar)
         ((StackLayout)ShowsInSearchRepeater.Layout).Spacing = ((StackLayout)ShowsInListRepeater.Layout).Spacing = Controls.CardCell.GapFor(tag);
-        ShowsInSearchSection.Margin = ShowsInListSection.Margin = new Thickness(0, 0, 0, GridLayout.MinRowSpacing);
+        ShowsInSearchSection.Margin = ShowsInListSection.Margin = new Thickness(0, 0, 0, GridLayout.MinRowSpacing - ShowsInListCards.Padding.Bottom);
+        FitShowRows();
 
         DensityS.IsChecked  = tag == "S";
         DensityM.IsChecked  = tag == "M";
@@ -938,6 +943,10 @@ public sealed partial class LibraryPage : Page
         }
         ApplyShowsLayout(_vm.ViewMode == ViewMode.List);
     }
+
+    /// <summary>v4.9.0 (#25): the show cards in the rows above the grid as big as its movie cards.</summary>
+    private void FitShowRows() => TvShowCard.FitRowsToGrid(GridLayout,
+        Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(GridRepeater).Width, ShowsInListRepeater, ShowsInSearchRepeater);
 
     /// <summary>v4.7.0 (#25): the shows on a page with movies come as rows in list view, cards otherwise.</summary>
     private void ApplyShowsLayout(bool list)

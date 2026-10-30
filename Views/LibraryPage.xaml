@@ -249,10 +249,11 @@
                            FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
                            Opacity="0.75"
                            Foreground="{ThemeResource MutedBrush}"/>
+                <!-- v4.9.0 (#25): room under the cards for the scroll bar, which lay on their progress bars -->
                 <ScrollViewer x:Name="ShowsInSearchCards" HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
-                              Padding="24,0,24,0">
+                              Padding="24,0,24,16">
                     <ItemsRepeater x:Name="ShowsInSearchRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Horizontal" Spacing="24"/>
@@ -288,7 +289,7 @@
                 <ScrollViewer x:Name="ShowsInListCards" HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
-                              Padding="24,0,24,0">
+                              Padding="24,0,24,16">
                     <ItemsRepeater x:Name="ShowsInListRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Horizontal" Spacing="24"/>

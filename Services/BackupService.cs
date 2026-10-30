@@ -79,6 +79,7 @@ public static class BackupService
         [JsonPropertyName("lists")]     public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]      public List<string> Tags { get; set; } = new();
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeEntry> Episodes { get; set; } = new();
+        [JsonPropertyName("archived")]  public bool Archived { get; set; }   // v4.9.0 — Watched & Gone
     }
 
     public class EpisodeEntry
@@ -191,7 +192,7 @@ public static class BackupService
         {
             c.CommandText = @"
                 SELECT id, volume_serial, folder_rel_path, title,
-                       is_favorite, is_watchlist, note
+                       is_favorite, is_watchlist, note, archived_at
                   FROM tv_shows";
             using var r = c.ExecuteReader();
             while (r.Read())
@@ -207,6 +208,7 @@ public static class BackupService
                     Favorite = r.GetInt32(4) == 1,
                     Watchlist = r.GetInt32(5) == 1,
                     Note = r.IsDBNull(6) ? null : r.GetString(6),
+                    Archived = !r.IsDBNull(7),
                 };
                 showIndex[id] = entry;
             }
@@ -608,11 +610,16 @@ public static class BackupService
         using (var upd = conn.CreateCommand())
         {
             upd.Transaction = tx;
-            upd.CommandText = @"UPDATE tv_shows SET is_favorite=@f, is_watchlist=@w, note=COALESCE(@n, note) WHERE id=@id";
+            // v4.9.0: Watched & Gone is additive, as for movies: never brought back on restore
+            upd.CommandText = @"UPDATE tv_shows SET is_favorite=@f, is_watchlist=@w, note=COALESCE(@n, note),
+                                    archived_at = CASE WHEN @arch=1 THEN COALESCE(archived_at, strftime('%s','now'))
+                                                       ELSE archived_at END
+                                WHERE id=@id";
             upd.Parameters.AddWithValue("@f", (dbF || e.Favorite) ? 1 : 0);
             upd.Parameters.AddWithValue("@w", (dbWl || e.Watchlist) ? 1 : 0);
             upd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(dbNote)
                 ? (object?)e.Note ?? DBNull.Value : DBNull.Value);
+            upd.Parameters.AddWithValue("@arch", e.Archived ? 1 : 0);
             upd.Parameters.AddWithValue("@id", showId);
             upd.ExecuteNonQuery();
         }

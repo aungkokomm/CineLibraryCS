@@ -629,7 +629,8 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
         foreach (var (col, type) in new[] { ("tagline", "TEXT"), ("runtime", "INTEGER"), ("studios", "TEXT"),
                                             ("countries", "TEXT"), ("creators", "TEXT"),
                                             ("fetched_at", "INTEGER"), ("synced_at", "INTEGER"),
-                                            ("user_rating", "REAL") })
+                                            ("user_rating", "REAL"),
+                                            ("archived_at", "INTEGER") })   // v4.9.0 (#25): Watched & Gone, as for movies
             if (!showCols.Contains(col)) Exec($"ALTER TABLE tv_shows ADD COLUMN {col} {type}");
         // v4.7.0: Kodi's <userrating>, shown beside IMDb and TMDb
         if (!cols.Contains("user_rating")) Exec("ALTER TABLE movies ADD COLUMN user_rating REAL");
@@ -1554,7 +1555,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using (var tc = _conn.CreateCommand())
         {
             tc.CommandText = @"SELECT volume_serial, COUNT(*), SUM(CASE WHEN is_missing=1 THEN 1 ELSE 0 END)
-                               FROM tv_shows GROUP BY volume_serial";
+                               FROM tv_shows WHERE archived_at IS NULL GROUP BY volume_serial";
             using var tr = tc.ExecuteReader();
             while (tr.Read()) tvCounts[tr.GetString(0)] = (tr.GetInt32(1), tr.GetInt32(2));
         }
@@ -1864,6 +1865,16 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using (var move = _conn.CreateCommand())
         {
             move.CommandText = "UPDATE movies SET volume_serial='__archive__' WHERE volume_serial=@s AND archived_at IS NOT NULL";
+            move.Parameters.AddWithValue("@s", serial);
+            move.ExecuteNonQuery();
+        }
+        // v4.9.0 (#25): TV show records too (their episodes go with the show row). The
+        // old drive's serial goes in front of the folder: a record with the same folder
+        // from another drive may be there already, and a pair must be one of a kind.
+        using (var move = _conn.CreateCommand())
+        {
+            move.CommandText = @"UPDATE tv_shows SET volume_serial='__archive__', folder_rel_path=@s || '/' || folder_rel_path
+                                  WHERE volume_serial=@s AND archived_at IS NOT NULL";
             move.Parameters.AddWithValue("@s", serial);
             move.ExecuteNonQuery();
         }
@@ -2708,7 +2719,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return (
             Ids($@"SELECT id FROM movies WHERE fetched_at IS NOT NULL AND COALESCE(synced_at, 0) < fetched_at
                      AND archived_at IS NULL AND volume_serial != '__archive__'{drive}"),
-            Ids($@"SELECT id FROM tv_shows WHERE fetched_at IS NOT NULL AND COALESCE(synced_at, 0) < fetched_at{drive}"));
+            Ids($@"SELECT id FROM tv_shows WHERE fetched_at IS NOT NULL AND COALESCE(synced_at, 0) < fetched_at
+                     AND archived_at IS NULL{drive}"));
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -2750,7 +2762,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
         Read(@"SELECT id, imdb_id, tmdb_id FROM movies
                 WHERE archived_at IS NULL AND volume_serial != '__archive__' AND is_missing=0", false);
-        Read("SELECT id, imdb_id, tmdb_id FROM tv_shows WHERE is_missing=0", true);
+        Read("SELECT id, imdb_id, tmdb_id FROM tv_shows WHERE is_missing=0 AND archived_at IS NULL", true);
         return list;
     }
 
@@ -3452,7 +3464,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     // The same show found again, not missing (moved to another folder or drive).
     private const string ShowTwinSql = @"SELECT t.id FROM tv_shows t
-        WHERE t.id <> s.id AND t.is_missing = 0
+        WHERE t.id <> s.id AND t.is_missing = 0 AND t.archived_at IS NULL
           AND ((TRIM(COALESCE(s.tmdb_id,'')) <> '' AND TRIM(t.tmdb_id) = TRIM(s.tmdb_id))
             OR (TRIM(COALESCE(s.imdb_id,'')) <> '' AND TRIM(t.imdb_id) = TRIM(s.imdb_id)))
         ORDER BY t.id LIMIT 1";
@@ -3470,7 +3482,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    (SELECT d.label FROM drives d WHERE d.volume_serial =
                        (SELECT volume_serial FROM tv_shows WHERE id = ({ShowTwinSql})))
               FROM tv_shows s
-             WHERE s.volume_serial = @s AND s.is_missing = 1
+             WHERE s.volume_serial = @s AND s.is_missing = 1 AND s.archived_at IS NULL
              ORDER BY s.sort_title, s.title";
         cmd.Parameters.AddWithValue("@s", serial);
         using var r = cmd.ExecuteReader();
@@ -3502,7 +3514,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             using (var get = _conn.CreateCommand())
             {
                 get.Transaction = tx;
-                get.CommandText = $"SELECT ({ShowTwinSql}), COALESCE(s.local_nfo, s.local_poster) FROM tv_shows s WHERE s.id = @id AND s.is_missing = 1";
+                get.CommandText = $"SELECT ({ShowTwinSql}), COALESCE(s.local_nfo, s.local_poster) FROM tv_shows s WHERE s.id = @id AND s.is_missing = 1 AND s.archived_at IS NULL";
                 get.Parameters.AddWithValue("@id", id);
                 using var r = get.ExecuteReader();
                 if (!r.Read()) continue;   // gone, or found again since
@@ -3589,13 +3601,93 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return del.ExecuteNonQuery();
     }
 
-    /// <summary>Number of Watched &amp; Gone records (sidebar count).</summary>
+    /// <summary>Number of Watched &amp; Gone records (sidebar count). v4.9.0: shows too.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public int GetArchivedCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE archived_at IS NOT NULL";
+        cmd.CommandText = @"SELECT (SELECT COUNT(*) FROM movies WHERE archived_at IS NOT NULL)
+                                 + (SELECT COUNT(*) FROM tv_shows WHERE archived_at IS NOT NULL)";
         return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
+    // ── v4.9.0 (#25): Watched & Gone for TV shows ────────────────────────────
+    // As for movies: only archived_at flips. The show keeps its row, episodes,
+    // watched state, notes, lists and tags, leaves every library page and comes
+    // back when its folder turns up again (ScannerService.UpsertTvShow).
+
+    /// <summary>Send TV shows to Watched &amp; Gone. No-op for records already there.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int ArchiveShows(IReadOnlyCollection<int> ids)
+    {
+        if (ids.Count == 0) return 0;
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"UPDATE tv_shows SET archived_at=strftime('%s','now') WHERE id IN ({string.Join(",", ids)}) AND archived_at IS NULL";
+        return cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Bring a TV show record back into the library.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RestoreArchivedShow(int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_shows SET archived_at=NULL WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Permanently delete a TV show record: the row (its episodes go with it)
+    /// and its cached pictures. Refuses a show that isn't a record.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void DeleteArchivedShow(int id)
+    {
+        string? art;
+        using (var get = _conn.CreateCommand())
+        {
+            get.CommandText = "SELECT COALESCE(local_nfo, local_poster) FROM tv_shows WHERE id=@id AND archived_at IS NOT NULL";
+            get.Parameters.AddWithValue("@id", id);
+            using var r = get.ExecuteReader();
+            if (!r.Read()) return;
+            art = r.IsDBNull(0) ? null : r.GetString(0);
+        }
+        using (var del = _conn.CreateCommand())
+        {
+            del.CommandText = "DELETE FROM tv_shows WHERE id=@id AND archived_at IS NOT NULL";
+            del.Parameters.AddWithValue("@id", id);
+            del.ExecuteNonQuery();
+        }
+        // a scanned show's pictures, episode thumbnails and .nfo copy share its "cache/<key>" folder
+        if (art?.Split('/') is [var top, var key, _] && top.Equals("cache", StringComparison.OrdinalIgnoreCase))
+            try { Directory.Delete(Path.Combine(_dataDir, "cache", key), true); } catch { }
+    }
+
+    /// <summary>The TV show records for the Watched &amp; Gone page, searched and sorted as its movies are.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> GetArchivedTvShows(string? search, string sortKey, string sortDir,
+        IReadOnlyDictionary<string, string> connected)
+    {
+        var dir = sortDir == "asc" ? "ASC" : "DESC";
+        var order = sortKey switch
+        {
+            "title"  => $"s.sort_title {dir}, s.title {dir}",
+            "year"   => $"s.year {dir}, s.sort_title",
+            "rating" => $"s.rating {dir}, s.sort_title",
+            _        => $"s.archived_at {dir}, s.sort_title",   // "Recently gone"
+        };
+        using var cmd = _conn.CreateCommand();
+        var where = "s.archived_at IS NOT NULL";
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            where += " AND (s.title LIKE @q ESCAPE '\\' OR s.original_title LIKE @q ESCAPE '\\')";
+            cmd.Parameters.AddWithValue("@q", $"%{EscapeLike(search.Trim())}%");
+        }
+        cmd.CommandText = $@"
+            SELECT {ShowListItemColumns}
+              FROM tv_shows s
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             WHERE {where}
+             ORDER BY {order}";
+        return ReadShowListItems(cmd, connected);
     }
 
     // ── Collections ──────────────────────────────────────────────────────────
@@ -3816,9 +3908,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                        COALESCE(SUM(CASE WHEN is_watchlist = 1 AND is_missing = 0 THEN 1 ELSE 0 END), 0),
                        COALESCE(SUM({RuntimeOrFileSql}), 0),
                        (SELECT COUNT(*) FROM movies WHERE archived_at IS NOT NULL),
-                       (SELECT COUNT(*) FROM tv_shows WHERE is_missing = 0),
-                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0),
-                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0 AND e.is_watched = 1)
+                       (SELECT COUNT(*) FROM tv_shows WHERE is_missing = 0 AND archived_at IS NULL),
+                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0 AND t.archived_at IS NULL),
+                       (SELECT COUNT(*) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id WHERE t.is_missing = 0 AND t.archived_at IS NULL AND e.is_watched = 1)
                   FROM movies m WHERE m.archived_at IS NULL";
             using var r = cmd.ExecuteReader();
             r.Read();
@@ -3839,10 +3931,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             cmd.CommandText = @"
                 SELECT d.volume_serial, COALESCE(NULLIF(d.label, ''), d.volume_serial),
                        (SELECT COUNT(*) FROM movies m WHERE m.volume_serial = d.volume_serial AND m.archived_at IS NULL),
-                       (SELECT COUNT(*) FROM tv_shows t WHERE t.volume_serial = d.volume_serial),
+                       (SELECT COUNT(*) FROM tv_shows t WHERE t.volume_serial = d.volume_serial AND t.archived_at IS NULL),
                        (SELECT COALESCE(SUM(m.file_size_bytes), 0) FROM movies m WHERE m.volume_serial = d.volume_serial AND m.archived_at IS NULL)
                      + (SELECT COALESCE(SUM(e.file_size_bytes), 0) FROM tv_episodes e JOIN tv_shows t ON t.id = e.show_id
-                         WHERE t.volume_serial = d.volume_serial)
+                         WHERE t.volume_serial = d.volume_serial AND t.archived_at IS NULL)
                   FROM drives d WHERE d.volume_serial != '__archive__'";
             using var r = cmd.ExecuteReader();
             while (r.Read())
@@ -3983,7 +4075,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
 
         // v4.8.0 (#25): the TV shows, for their own section (missing shows left out, as the sidebar does)
-        const string ShowsHere = "s.is_missing = 0";
+        const string ShowsHere = "s.is_missing = 0 AND s.archived_at IS NULL";
         using (var cmd = _conn.CreateCommand())
         {
             cmd.CommandText = $@"
@@ -4361,7 +4453,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                      JOIN movies m ON m.id=mg.movie_id AND m.is_missing=0 AND m.archived_at IS NULL
                     WHERE mg.genre_id=g.id) AS c,
                    (SELECT COUNT(DISTINCT s.id) FROM tv_show_genres sg
-                     JOIN tv_shows s ON s.id=sg.show_id AND s.is_missing=0
+                     JOIN tv_shows s ON s.id=sg.show_id AND s.is_missing=0 AND s.archived_at IS NULL
                     WHERE sg.genre_id=g.id) AS sc,
                    (SELECT m2.local_fanart FROM movies m2
                     JOIN movie_genres mg2 ON mg2.movie_id=m2.id
@@ -4373,11 +4465,11 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                     ORDER BY COALESCE(m3.rating,0) DESC LIMIT 1) AS poster,
                    (SELECT s2.local_fanart FROM tv_shows s2
                     JOIN tv_show_genres sg2 ON sg2.show_id=s2.id
-                    WHERE sg2.genre_id=g.id AND s2.local_fanart IS NOT NULL AND s2.is_missing=0
+                    WHERE sg2.genre_id=g.id AND s2.local_fanart IS NOT NULL AND s2.is_missing=0 AND s2.archived_at IS NULL
                     ORDER BY COALESCE(s2.rating,0) DESC LIMIT 1) AS show_fanart,
                    (SELECT s3.local_poster FROM tv_shows s3
                     JOIN tv_show_genres sg3 ON sg3.show_id=s3.id
-                    WHERE sg3.genre_id=g.id AND s3.local_poster IS NOT NULL AND s3.is_missing=0
+                    WHERE sg3.genre_id=g.id AND s3.local_poster IS NOT NULL AND s3.is_missing=0 AND s3.archived_at IS NULL
                     ORDER BY COALESCE(s3.rating,0) DESC LIMIT 1) AS show_poster
             FROM genres g)
             WHERE c + sc > 0
@@ -4775,7 +4867,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
               FROM user_list_shows uls
               JOIN tv_shows s ON s.id = uls.show_id
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
-             WHERE uls.list_id=@l
+             WHERE uls.list_id=@l AND s.archived_at IS NULL
              ORDER BY s.sort_title, s.title";
         cmd.Parameters.AddWithValue("@l", listId);
         return ReadShowListItems(cmd, connected);
@@ -4807,7 +4899,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 : "")}
               FROM tv_shows s
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
-             WHERE s.is_missing = 0 AND {TvShowPageWhere(page)}
+             WHERE s.is_missing = 0 AND s.archived_at IS NULL AND {TvShowPageWhere(page)}
              ORDER BY {order}s.sort_title, s.title{limit}";
         return ReadShowListItems(cmd, connected);
     }
@@ -4821,7 +4913,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             SELECT {ShowListItemColumns}
               FROM tv_shows s
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
-             WHERE s.is_missing = 0
+             WHERE s.is_missing = 0 AND s.archived_at IS NULL
                AND EXISTS (SELECT 1 FROM tv_show_genres sg JOIN genres g ON g.id=sg.genre_id WHERE sg.show_id=s.id AND g.name=@genre)
              ORDER BY s.sort_title, s.title";
         cmd.Parameters.AddWithValue("@genre", genre);
@@ -4833,7 +4925,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetTvShowPageCount(TvShowPage page)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = $"SELECT COUNT(*) FROM tv_shows s WHERE s.is_missing = 0 AND {TvShowPageWhere(page)}";
+        cmd.CommandText = $"SELECT COUNT(*) FROM tv_shows s WHERE s.is_missing = 0 AND s.archived_at IS NULL AND {TvShowPageWhere(page)}";
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
 
@@ -4977,6 +5069,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    (SELECT COALESCE(MAX(e.last_played_at), 0) FROM tv_episodes e WHERE e.show_id=s.id) AS last_played
               FROM tv_shows s
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             WHERE s.archived_at IS NULL
              ORDER BY s.sort_title, s.title";
         using var r = cmd.ExecuteReader();
         while (r.Read())
@@ -5009,7 +5102,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetTvShowCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM tv_shows WHERE is_missing=0";
+        cmd.CommandText = "SELECT COUNT(*) FROM tv_shows WHERE is_missing=0 AND archived_at IS NULL";
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
 
@@ -5219,6 +5312,43 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         }
         LogWatchEvent("episode", episodeId, watched ? "marked_watched" : "marked_unwatched");
         if (showId != 0) RaiseTvShowStateChanged(showId);
+    }
+
+    /// <summary>v4.9.0 (#25): every episode of a show watched or unwatched, as Mark all
+    /// watched does season by season, in one go: one write and one state-file save.
+    /// Returns how many episodes changed.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int SetShowWatched(int showId, bool watched)
+    {
+        int changed;
+        using (var tx = _conn.BeginTransaction())
+        {
+            using (var log = _conn.CreateCommand())
+            {
+                log.Transaction = tx;
+                log.CommandText = @"INSERT INTO watch_events(item_kind, item_id, watched_at, action)
+                    SELECT 'episode', id, strftime('%s','now'), @a FROM tv_episodes
+                     WHERE show_id=@s AND COALESCE(is_watched, 0)<>@w";
+                log.Parameters.AddWithValue("@a", watched ? "marked_watched" : "marked_unwatched");
+                log.Parameters.AddWithValue("@s", showId);
+                log.Parameters.AddWithValue("@w", watched ? 1 : 0);
+                log.ExecuteNonQuery();
+            }
+            using (var cmd = _conn.CreateCommand())
+            {
+                cmd.Transaction = tx;
+                cmd.CommandText = @"UPDATE tv_episodes SET is_watched=@w,
+                    last_played_at = CASE WHEN @w=1 AND (last_played_at IS NULL OR last_played_at=0)
+                                           THEN strftime('%s','now') ELSE last_played_at END
+                    WHERE show_id=@s AND COALESCE(is_watched, 0)<>@w";
+                cmd.Parameters.AddWithValue("@w", watched ? 1 : 0);
+                cmd.Parameters.AddWithValue("@s", showId);
+                changed = cmd.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+        if (changed > 0) RaiseTvShowStateChanged(showId);
+        return changed;
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -5627,7 +5757,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    (SELECT COUNT(*) FROM movies mv WHERE mv.archived_at IS NULL AND mv.id IN
                        (SELECT movie_id FROM movie_tags WHERE tag_id = t.id
                         UNION SELECT movie_id FROM movie_nfo_tags WHERE tag_id = t.id)) AS mc,
-                   (SELECT COUNT(*) FROM tv_shows s WHERE s.id IN
+                   (SELECT COUNT(*) FROM tv_shows s WHERE s.archived_at IS NULL AND s.id IN
                        (SELECT show_id FROM tv_show_tags WHERE tag_id = t.id
                         UNION SELECT show_id FROM tv_show_nfo_tags WHERE tag_id = t.id)) AS sc,
                    EXISTS (SELECT 1 FROM movie_tags WHERE tag_id = t.id)
@@ -5967,7 +6097,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 OR EXISTS (SELECT 1 FROM tv_show_actors sa JOIN actors a ON a.id=sa.actor_id
                             WHERE sa.show_id=s.id AND a.name LIKE {p} ESCAPE '\'))");
         }
-        var whereStr = "WHERE s.is_missing=0 AND " + string.Join(" AND ", clauses);
+        var whereStr = "WHERE s.is_missing=0 AND s.archived_at IS NULL AND " + string.Join(" AND ", clauses);
 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = $@"

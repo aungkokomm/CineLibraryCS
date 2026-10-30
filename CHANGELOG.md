@@ -6,6 +6,20 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [4.9.0] - 2026-10-30
+
+### Added
+- TV show cards have a right-click menu, as movie cards do: Play the next episode, Open show, Watched, Favorite, Watchlist, Add to list and Open folder.
+- A Watched button on TV show cards (next to Watchlist and Favorite) marks every episode of the show watched, or unwatched, after asking. The right-click menu's Watched does the same.
+- Watched & Gone for TV shows: right-click a show and Send to Watched & Gone. It leaves the library as a record with its poster, details, episodes, notes and watched episodes, in a TV shows row on the Watched & Gone page, where you can restore it or delete the record. It comes back by itself when the show turns up in another folder, and the Drives page's Review keeps ticked missing shows as records too.
+
+### Changed
+- TV show cards show a quiet dot when their drive isn't connected, as movie cards do, instead of an OFFLINE label. MISSING still shows in full.
+
+### Fixed
+- On pages that show TV shows above movies (Favorites, To watch, lists, Recently Added, By Genre, search), the show cards are the same size as the movie cards under them. They were a step smaller, most of all at L.
+- The scroll bar of that row of shows no longer lies over the cards' episode progress bars.
+
 ## [4.8.1] - 2026-10-27
 
 ### Fixed

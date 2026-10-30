@@ -800,7 +800,7 @@ public sealed partial class MovieCardControl : UserControl
         var newListItem = new MenuFlyoutItem { Text = "+ New list…" };
         newListItem.Click += async (_, _) =>
         {
-            var name = await PromptNewListNameDialog();
+            var name = await PromptNewListNameDialog(XamlRoot);
             if (string.IsNullOrWhiteSpace(name) || Movie == null) return;
             try
             {
@@ -905,7 +905,8 @@ public sealed partial class MovieCardControl : UserControl
         flyout.Items.Add(deleteItem);
     }
 
-    private async Task<string?> PromptNewListNameDialog()
+    // v4.9.0: show cards' menus ask with it too
+    internal static async Task<string?> PromptNewListNameDialog(XamlRoot xamlRoot)
     {
         var box = new TextBox { PlaceholderText = "List name" };
         var dlg = new ContentDialog
@@ -915,7 +916,7 @@ public sealed partial class MovieCardControl : UserControl
             PrimaryButtonText = "Create",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
+            XamlRoot = xamlRoot,
             RequestedTheme = MainWindow.CurrentTheme,
         };
         box.Loaded += (_, _) => box.Focus(FocusState.Programmatic);

@@ -626,8 +626,8 @@ public sealed partial class DrivesPage : Page
             if (missingShows.Count > 0)
                 intro.Add($"{missingShows.Count} TV show(s) " +
                           (missing.Count > 0 ? "weren't found either. " : $"on “{drive?.Label}” weren't found in the last scan. ") +
-                          "Ticked ones stay as they are. Unticked ones are removed, and one that's now on another drive " +
-                          "first passes its watched episodes, favorite, note, lists and tags on to it there.");
+                          "Ticked ones are kept as records in Watched & Gone, as movies are. Unticked ones are removed, and " +
+                          "one that's now on another drive first passes its watched episodes, favorite, note, lists and tags on to it there.");
             intro.Add("Your files are never touched.");
             var content = new StackPanel { Spacing = 6, MinWidth = 480 };
             content.Children.Add(new TextBlock
@@ -667,6 +667,9 @@ public sealed partial class DrivesPage : Page
             var dropIds = checkboxes.Where(c => c.box.IsChecked != true).Select(c => c.id).ToList();
             int kept = keepIds.Count > 0 ? AppState.Instance.Db.ArchiveMovies(keepIds) : 0;
             int removed = dropIds.Count > 0 ? AppState.Instance.Db.DeleteMoviesByIds(dropIds) : 0;
+            // v4.9.0 (#25): a kept show becomes a Watched & Gone record, as a kept movie does
+            var keepShows = showBoxes.Where(c => c.box.IsChecked == true).Select(c => c.id).ToList();
+            if (keepShows.Count > 0) kept += AppState.Instance.Db.ArchiveShows(keepShows);
             var dropShows = showBoxes.Where(c => c.box.IsChecked != true).Select(c => c.id).ToList();
             if (dropShows.Count > 0)
             {

@@ -32,12 +32,28 @@ public sealed partial class WatchedGonePage : Page
         // every Loaded because this page instance is cached and re-shown —
         // a ctor-only subscription would die at the first Unloaded.
         MovieCardControl.AnyMovieArchived += OnArchiveChanged;
+        TvShowCard.ShowsArchived += OnArchiveChanged;   // v4.9.0: show records too
         Loaded += (_, _) =>
         {
             MovieCardControl.AnyMovieArchived -= OnArchiveChanged;
             MovieCardControl.AnyMovieArchived += OnArchiveChanged;
+            TvShowCard.ShowsArchived -= OnArchiveChanged;
+            TvShowCard.ShowsArchived += OnArchiveChanged;
+            FitShowRecords();   // the library's rows size the same cards meanwhile
         };
-        Unloaded += (_, _) => MovieCardControl.AnyMovieArchived -= OnArchiveChanged;
+        // v4.9.0 (#25): the movie record cards widen with the window, the show records with them
+        RecordsPanel.SizeChanged += (_, e) => { if (e.PreviousSize.Width != e.NewSize.Width) FitShowRecords(); };
+        Unloaded += (_, _) =>
+        {
+            MovieCardControl.AnyMovieArchived -= OnArchiveChanged;
+            TvShowCard.ShowsArchived -= OnArchiveChanged;
+        };
+        ShowRecordsRepeater.Tapped += (_, e) =>
+        {
+            var d = e.OriginalSource as DependencyObject;
+            while (d != null && d is not TvShowCard) d = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(d);
+            if (d is TvShowCard { Show: { } show } && App.MainWindow is MainWindow mw) mw.OpenTvShow(show.Id);
+        };
         _ready = true;
         Refresh();
     }
@@ -68,8 +84,27 @@ public sealed partial class WatchedGonePage : Page
             Limit: 10000, Offset: 0), AppState.Instance.Connected);
 
         RecordsRepeater.ItemsSource = _records;
-        CountText.Text = _records.Count == 1 ? "1 record" : $"{_records.Count:N0} records";
-        EmptyState.Visibility = _records.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // v4.9.0 (#25): the TV show records, in the movie cards' size
+        TvShowCard.SetLibraryDensity(MovieCardControl.GlobalDensity);
+        FitShowRecords();
+        var shows = AppState.Instance.Db.GetArchivedTvShows(_search, _sortKey, _sortDir, AppState.Instance.Connected);
+        ShowRecordsRepeater.ItemsSource = shows;
+        ShowRecordsSection.Visibility = shows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MovieRecordsHeader.Visibility = shows.Count > 0 && _records.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var total = _records.Count + shows.Count;
+        CountText.Text = total == 1 ? "1 record" : $"{total:N0} records";
+        EmptyState.Visibility = total == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>v4.9.0 (#25): the show record cards as big as the movie record cards, which
+    /// widen to fill their row.</summary>
+    private void FitShowRecords()
+    {
+        if (RecordsRepeater.Layout is UniformGridLayout layout)
+            TvShowCard.FitRowsToGrid(layout, Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(RecordsRepeater).Width
+                                             - RecordsRepeater.Margin.Left - RecordsRepeater.Margin.Right, ShowRecordsRepeater);
     }
 
     private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)

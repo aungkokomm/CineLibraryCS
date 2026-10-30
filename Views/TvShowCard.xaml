@@ -44,11 +44,15 @@
                               FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                 </Border>
 
-                <!-- Status badge -->
+                <!-- Status badge. v4.9.0: a dot and a label, as on movie cards -->
                 <Border x:Name="StatusBadge" Background="#CC000000" CornerRadius="8"
                         VerticalAlignment="Top" HorizontalAlignment="Left"
                         Padding="6,2" Margin="6" Visibility="Collapsed">
-                    <TextBlock x:Name="StatusText" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse x:Name="StatusDot" Width="6" Height="6" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="StatusText" FontSize="9" FontWeight="Bold" Foreground="White"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Border>
 
                 <!-- v3.8.0: green tick once every episode is watched, as on movie cards -->
@@ -80,13 +84,21 @@
                                        TextWrapping="Wrap" Margin="0,4,0,0"/>
                         </StackPanel>
                         <!-- v4.5.0 (#23): Watchlist and Favorite as icons, dim when off.
-                             The heart sits right over the favorite badge. -->
+                             The heart sits right over the favorite badge.
+                             v4.9.0 (#25): Watched between them, as on movie cards: the
+                             whole show, after asking -->
                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="8"
                                     VerticalAlignment="Top" HorizontalAlignment="Right">
                             <Button x:Name="HoverWatchlistBtn" Click="OnHoverWatchlist" Tapped="OnHoverButtonTapped"
                                     Style="{StaticResource CardIconToggleStyle}"
                                     AutomationProperties.Name="Watchlist">
                                 <FontIcon x:Name="WatchlistIcon" FontSize="14"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
+                            </Button>
+                            <Button x:Name="HoverWatchedBtn" Click="OnHoverWatched" Tapped="OnHoverButtonTapped"
+                                    Style="{StaticResource CardIconToggleStyle}"
+                                    AutomationProperties.Name="Watched">
+                                <FontIcon x:Name="WatchedIcon" Glyph="&#xE73E;" FontSize="14"
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                             </Button>
                             <Button x:Name="HoverFavBtn" Click="OnHoverFavorite" Tapped="OnHoverButtonTapped"

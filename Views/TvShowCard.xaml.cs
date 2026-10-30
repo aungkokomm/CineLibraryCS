@@ -54,8 +54,35 @@ public sealed partial class TvShowCard : UserControl
     // (Favorites, To Watch, lists, search) follows that page's S / M / L / XL,
     // not All TV shows'. LibraryPage sets the size and marks its cards.
     public bool UsesLibrarySize { get; set; }
+
+    /// <summary>v4.9.0 (#25): a Watched &amp; Gone record. No drive badge, no Play or
+    /// toggles, and the menu offers Restore / Delete record, as movie records do.</summary>
+    public bool ArchiveMode { get; set; }
+
+    /// <summary>v4.9.0: raised after a show is sent to Watched &amp; Gone, restored or its
+    /// record deleted, so All TV shows and the Watched &amp; Gone page re-list.</summary>
+    public static event Action? ShowsArchived;
     private static (double Width, double Height) _librarySize = SizeFor("M");
     public static void SetLibraryDensity(string tag) => _librarySize = SizeFor(tag);
+
+    /// <summary>v4.9.0 (#25): a row of shows above a grid of movie cards takes the size the
+    /// grid draws them at (it widens them to fill its row), so the shows are as big as the
+    /// movies; they kept the plain S / M / L / XL size and looked a step smaller. The poster
+    /// is the movie poster's size; the caption under it is the show card's. Cards already in
+    /// the rows are measured again.</summary>
+    public static void FitRowsToGrid(UniformGridLayout grid, double gridAvailableWidth, params ItemsRepeater[] rows)
+    {
+        if (gridAvailableWidth <= 0) return;
+        var (width, height) = Controls.CardCell.StretchedSize(grid, gridAvailableWidth);
+        _librarySize = (width, height - MovieCardControl.CaptionHeight + CaptionHeight);
+        foreach (var row in rows)
+        {
+            for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(row); i++)
+                (Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(row, i) as UIElement)?.InvalidateMeasure();
+            row.InvalidateMeasure();
+        }
+    }
+
     private (double Width, double Height) CardSize => UsesLibrarySize ? _librarySize : (CardWidth, CardHeight);
 
     public TvShowCard()
@@ -79,6 +106,12 @@ public sealed partial class TvShowCard : UserControl
         };
         Unloaded += (_, _) => UiSettings.Changed -= OnUiSettingsChanged;
 
+        // v4.9.0 (#25): a right-click menu, as movie cards have. Built on opening, so
+        // the ticks and the lists are the show's as it is now.
+        var menu = new MenuFlyout();
+        menu.Opening += (_, _) => BuildContextMenu(menu);
+        ContextFlyout = menu;
+
         // v4.8.0: the keyboard, as on movie cards: arrows move, Enter opens the
         // show, Space plays its next episode
         GotFocus += (_, _) =>
@@ -97,7 +130,7 @@ public sealed partial class TvShowCard : UserControl
                     e.Handled = true;
                     (App.MainWindow as MainWindow)?.OpenTvShow(s.Id);
                     break;
-                case Windows.System.VirtualKey.Space:
+                case Windows.System.VirtualKey.Space when !ArchiveMode:   // a record doesn't play
                     e.Handled = true;
                     LoadHoverInfo(s);
                     OnHoverPlay(this, new RoutedEventArgs());
@@ -154,8 +187,24 @@ public sealed partial class TvShowCard : UserControl
         MetaText.Foreground = s.NextEpisode != null ? NextBrush : ThemeBrushes.Get("MutedBrush");
         FavBadge.Visibility = s.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
 
-        if (s.IsMissing) { StatusText.Text = "MISSING"; StatusBadge.Visibility = Visibility.Visible; }
-        else if (!s.IsOnline) { StatusText.Text = "OFFLINE"; StatusBadge.Visibility = Visibility.Visible; }
+        // v4.9.0: as on movie cards, MISSING stays loud and OFFLINE is a quiet dot:
+        // an unplugged drive is the normal state of every show on it. A record has neither.
+        if (ArchiveMode) StatusBadge.Visibility = Visibility.Collapsed;
+        else if (s.IsMissing)
+        {
+            StatusDot.Fill = MissingDotBrush;
+            StatusText.Text = "MISSING";
+            StatusText.Visibility = Visibility.Visible;
+            StatusBadge.Background = LoudBadgeBrush;
+            StatusBadge.Visibility = Visibility.Visible;
+        }
+        else if (!s.IsOnline)
+        {
+            StatusDot.Fill = OfflineDotBrush;
+            StatusText.Visibility = Visibility.Collapsed;
+            StatusBadge.Background = QuietBadgeBrush;
+            StatusBadge.Visibility = Visibility.Visible;
+        }
         else StatusBadge.Visibility = Visibility.Collapsed;
 
         InvalidateMeasure();   // the S / M / L / XL size may have changed
@@ -221,10 +270,26 @@ public sealed partial class TvShowCard : UserControl
         FavIcon.Foreground = s.IsFavorite ? FavOnBrush : IconOffBrush;
         WatchlistIcon.Glyph = s.IsWatchlist ? "" : "";     // PinFill / Pin
         WatchlistIcon.Foreground = s.IsWatchlist ? WatchlistOnBrush : IconOffBrush;
+        // v4.9.0 (#25): the whole show, green when every episode is watched
+        WatchedIcon.Foreground = s.FullyWatched ? WhiteBrush : IconOffBrush;
+        if (s.FullyWatched) HoverWatchedBtn.Background = WatchedOnBrush;   // the green of the ✓ badge
+        else HoverWatchedBtn.ClearValue(Control.BackgroundProperty);
+        HoverWatchedBtn.Visibility = s.EpisodeCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // v4.9.0: a record shows what it is, nothing to play or change
+        if (ArchiveMode)
+        {
+            HoverPlayBtn.Visibility = HoverNote.Visibility = Visibility.Collapsed;
+            HoverWatchlistBtn.Visibility = HoverWatchedBtn.Visibility = HoverFavBtn.Visibility = Visibility.Collapsed;
+        }
     }
 
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush IconOffBrush =
         new(Windows.UI.Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush WhiteBrush =
+        new(Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush WatchedOnBrush =
+        new(Windows.UI.Color.FromArgb(0xCC, 0x22, 0xC5, 0x5E));
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush FavOnBrush =
         new(Windows.UI.Color.FromArgb(0xFF, 0xF4, 0x3F, 0x5E));
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush WatchlistOnBrush =
@@ -288,6 +353,207 @@ public sealed partial class TvShowCard : UserControl
         ShowChanged?.Invoke(s);
     }
 
+    private async void OnHoverWatched(object sender, RoutedEventArgs e)
+    {
+        if (Show is { } s) await ToggleShowWatchedAsync(s);
+    }
+
+    /// <summary>v4.9.0 (#25): every episode watched, or none, after asking: one click
+    /// for what took Mark all watched on each season.</summary>
+    private async Task ToggleShowWatchedAsync(TvShowListItem s)
+    {
+        if (s.EpisodeCount == 0) return;
+        var watch = !s.FullyWatched;
+        var count = watch ? s.EpisodeCount - s.WatchedCount : s.WatchedCount;
+        var episodes = count == 1 ? "1 episode" : $"{count:N0} episodes";
+        var dlg = new ContentDialog
+        {
+            Title = watch ? $"Mark “{s.Title}” watched?" : $"Mark “{s.Title}” unwatched?",
+            Content = watch
+                ? $"{episodes} not yet watched will be marked watched, every season, as Mark all watched does on the show page."
+                : $"All {episodes} will be marked unwatched, every season.",
+            PrimaryButtonText = watch ? "Mark watched" : "Mark unwatched",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = MainWindow.CurrentTheme,
+        };
+        if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+
+        AppState.Instance.Db.SetShowWatched(s.Id, watch);
+        s.WatchedCount = watch ? s.EpisodeCount : 0;
+        ShowProgress(s);
+        LoadHoverInfo(s);
+        AfterHoverChange(s);
+    }
+
+    private void BuildContextMenu(MenuFlyout menu)
+    {
+        menu.Items.Clear();
+        if (Show is not { } s) return;
+        var mw = App.MainWindow as MainWindow;
+        if (ArchiveMode) { BuildRecordMenu(menu, s); return; }
+        LoadHoverInfo(s);   // the next episode, for Play
+
+        var online = AppState.Instance.Connected.ContainsKey(s.VolumeSerial);
+        var play = new MenuFlyoutItem
+        {
+            Text = _next is { } n ? $"▶ Play {n.Code}" : "▶ Play",
+            IsEnabled = online && _next is { File: not null },
+        };
+        play.Click += (_, _) => OnHoverPlay(this, new RoutedEventArgs());
+        menu.Items.Add(play);
+        var open = new MenuFlyoutItem { Text = "Open show" };
+        open.Click += (_, _) => mw?.OpenTvShow(s.Id);
+        menu.Items.Add(open);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var watched = new ToggleMenuFlyoutItem { Text = "Watched", IsChecked = s.FullyWatched, IsEnabled = s.EpisodeCount > 0 };
+        watched.Click += async (_, _) => await ToggleShowWatchedAsync(s);
+        menu.Items.Add(watched);
+        var fav = new ToggleMenuFlyoutItem { Text = "Favorite", IsChecked = s.IsFavorite };
+        fav.Click += (_, _) => OnHoverFavorite(this, new RoutedEventArgs());
+        menu.Items.Add(fav);
+        var watchlist = new ToggleMenuFlyoutItem { Text = "Watchlist", IsChecked = s.IsWatchlist };
+        watchlist.Click += (_, _) => OnHoverWatchlist(this, new RoutedEventArgs());
+        menu.Items.Add(watchlist);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        // the movie card's Add to list, for the show
+        var lists = new MenuFlyoutSubItem { Text = "📑 Add to list" };
+        var allLists = AppState.Instance.Db.GetUserLists();
+        var membership = AppState.Instance.Db.GetUserListsForShow(s.Id);
+        if (allLists.Count == 0)
+            lists.Items.Add(new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false });
+        foreach (var ul in allLists)
+        {
+            var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = membership.Contains(ul.Id) };
+            var listId = ul.Id;
+            item.Click += (_, _) =>
+            {
+                if (item.IsChecked) AppState.Instance.Db.AddShowToUserList(listId, s.Id);
+                else AppState.Instance.Db.RemoveShowFromUserList(listId, s.Id);
+                mw?.RefreshSidebar();
+                ShowChanged?.Invoke(s);
+            };
+            lists.Items.Add(item);
+        }
+        lists.Items.Add(new MenuFlyoutSeparator());
+        var newList = new MenuFlyoutItem { Text = "+ New list…" };
+        newList.Click += async (_, _) =>
+        {
+            var name = await MovieCardControl.PromptNewListNameDialog(XamlRoot);
+            if (string.IsNullOrWhiteSpace(name)) return;
+            try
+            {
+                var id = AppState.Instance.Db.CreateUserList(name.Trim());
+                AppState.Instance.Db.AddShowToUserList(id, s.Id);
+                mw?.RefreshSidebar();
+                ShowChanged?.Invoke(s);
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                mw?.ShowToast($"A list named “{name.Trim()}” already exists");
+            }
+        };
+        lists.Items.Add(newList);
+        menu.Items.Add(lists);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        // the show page's Open Folder
+        var detail = online ? AppState.Instance.Db.GetTvShowDetail(s.Id) : null;
+        var folder = detail is { FolderRelPath: { Length: > 0 } rel } && AppState.Instance.Connected.TryGetValue(s.VolumeSerial, out var letter)
+            ? Path.Combine($"{letter}:\\", rel.Replace('/', '\\')) : null;
+        var openFolder = new MenuFlyoutItem { Text = "📂 Open folder", IsEnabled = folder != null };
+        openFolder.Click += async (_, _) =>
+        {
+            if (folder != null && Directory.Exists(folder))
+                await Windows.System.Launcher.LaunchFolderPathAsync(folder);
+        };
+        menu.Items.Add(openFolder);
+
+        // v4.9.0 (#25): Watched & Gone, as movie cards have it
+        menu.Items.Add(new MenuFlyoutSeparator());
+        var archive = new MenuFlyoutItem
+        {
+            Text = "Send to Watched & Gone",
+            Icon = new FontIcon { Glyph = "", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons,Segoe MDL2 Assets") },
+        };
+        archive.Click += async (_, _) =>
+        {
+            var dlg = new ContentDialog
+            {
+                Title = "Send to Watched & Gone?",
+                Content = $"“{s.Title}” moves out of your library into Watched & Gone. Its poster, details, " +
+                          "episodes, your notes and what you've watched are all kept as a record. " +
+                          "The files on your drive are not touched.\n\n" +
+                          "You can restore it from the Watched & Gone page anytime, and it comes back by " +
+                          "itself if the show turns up in another folder.",
+                PrimaryButtonText = "Send",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            AppState.Instance.Db.ArchiveShows(new[] { s.Id });
+            mw?.ShowToast($"“{s.Title}” sent to Watched & Gone");
+            AfterArchiveChange(s);
+        };
+        menu.Items.Add(archive);
+    }
+
+    /// <summary>v4.9.0: a record's menu on the Watched &amp; Gone page, as for movie records.</summary>
+    private void BuildRecordMenu(MenuFlyout menu, TvShowListItem s)
+    {
+        var mw = App.MainWindow as MainWindow;
+        var open = new MenuFlyoutItem { Text = "Open show" };
+        open.Click += (_, _) => mw?.OpenTvShow(s.Id);
+        menu.Items.Add(open);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var restore = new MenuFlyoutItem { Text = "Restore to library" };
+        restore.Click += (_, _) =>
+        {
+            AppState.Instance.Db.RestoreArchivedShow(s.Id);
+            mw?.ShowToast($"“{s.Title}” restored to your library");
+            AfterArchiveChange(s);
+        };
+        menu.Items.Add(restore);
+
+        var delete = new MenuFlyoutItem
+        {
+            Text = "Delete record permanently",
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44)),
+        };
+        delete.Click += async (_, _) =>
+        {
+            var dlg = new ContentDialog
+            {
+                Title = "Delete this record?",
+                Content = $"“{s.Title}”: its record, episodes, cached pictures, notes and watch history " +
+                          "will be permanently removed from CineLibrary. This can't be undone.",
+                PrimaryButtonText = "Delete forever",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot,
+                RequestedTheme = MainWindow.CurrentTheme,
+            };
+            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
+            AppState.Instance.Db.DeleteArchivedShow(s.Id);
+            mw?.ShowToast("Record deleted");
+            AfterArchiveChange(s);
+        };
+        menu.Items.Add(delete);
+    }
+
+    private static void AfterArchiveChange(TvShowListItem s)
+    {
+        (App.MainWindow as MainWindow)?.RefreshSidebar();
+        ShowChanged?.Invoke(s);   // the pages with a shows row re-list
+        ShowsArchived?.Invoke();
+    }
+
     // The pages open a show on Tapped; a click on a panel button mustn't also do that.
     private void OnHoverButtonTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
         => e.Handled = true;
@@ -295,6 +561,14 @@ public sealed partial class TvShowCard : UserControl
     // Per card, not static: a brush belongs to the thread that made it.
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush NextBrush =
         new(Windows.UI.Color.FromArgb(0xFF, 0xA7, 0x8B, 0xFA));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush MissingDotBrush =
+        new(Windows.UI.Color.FromArgb(0xFF, 0xEF, 0x44, 0x44));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush OfflineDotBrush =
+        new(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush LoudBadgeBrush =
+        new(Windows.UI.Color.FromArgb(0xCC, 0, 0, 0));
+    private readonly Microsoft.UI.Xaml.Media.SolidColorBrush QuietBadgeBrush =
+        new(Windows.UI.Color.FromArgb(0x66, 0, 0, 0));
 
     // v4.1.0: ask for the S / M / L / XL size but fill whatever width the layout
     // gives. Rows place the card at this size; the All TV shows grid stretches its

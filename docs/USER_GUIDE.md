@@ -377,6 +377,15 @@ many seasons, how much you've watched, and:
   isn't connected, the card says where the next episode is instead.
 - The **📌** and **♥** icons in the top corner switch Watchlist and
   Favorite on and off. They're dim when off and bright when on.
+- The **✓** between them marks the whole show watched, every episode of
+  every season, after asking. It's green when you've watched them all;
+  click it then to mark them all unwatched.
+
+**Right-click a show card** for the rest: ▶ Play the next episode, Open
+show, Watched, Favorite, Watchlist, 📑 Add to list, 📂 Open folder and
+Send to Watched & Gone (see *Watched & Gone*).
+
+A small grey dot in a card's corner means its drive isn't connected.
 
 Clicking anywhere else on the card opens the show. This works on every
 page with show cards: All TV Shows, Favorites, To Watch, Continue
@@ -638,6 +647,19 @@ like; do it before or after, it doesn't matter.
 A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
 count, the moment you have your first record.
 
+### TV shows too
+
+**Right-click a show card** → **Send to Watched & Gone**. The show
+becomes a record the same way: its poster, details, episodes, your notes
+and every episode you've watched are kept, and it leaves All TV Shows,
+Favorites, lists, search and Statistics. Your files aren't touched.
+
+Show records sit in a **TV shows** row at the top of the Watched & Gone
+page, above the movies. Right-click one to **Restore to library** or
+**Delete record permanently**; click it to open the show. A show record
+comes back by itself, like a movie, when the show turns up in another
+folder or on another drive.
+
 ### Add a movie you watched somewhere else
 
 You don't only watch films off your own drives. You catch one **at the
@@ -683,8 +705,8 @@ When a drive scan notices movies it can no longer find on disk, the Drives
 page shows a **Review N…** button. Click it to see exactly what's missing,
 each with a **Keep** checkbox — **watched and noted movies are pre-ticked**.
 
-- **Ticked** movies become Watched & Gone records.
-- **Unticked** movies are removed from CineLibrary.
+- **Ticked** movies and TV shows become Watched & Gone records.
+- **Unticked** ones are removed from CineLibrary.
 
 Quick **Keep all / Keep none** links make bulk choices easy. As always,
 your files aren't touched — this only decides what CineLibrary remembers.
@@ -708,7 +730,7 @@ so it's reliable across drives.
 
 Records are part of your portable CineLibrary data — move the whole folder
 to another PC and your Watched & Gone history comes with it. A **Backup**
-also remembers which movies are records.
+also remembers which movies and shows are records.
 
 ---
 

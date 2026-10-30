@@ -29,6 +29,20 @@ public sealed class CardCell : Panel
     public static double GapFor(string density) => density == "S" ? 16 : 24;
 
     /// <summary>
+    /// v4.9.0 (#25): the size a grid draws its cards at, given the width it lays them
+    /// out in (its available width, not its drawn one): as many as fit at their
+    /// S / M / L / XL size with a gap after each, widened by whole pixels to fill the
+    /// row, and taller in step. UniformGridLayout's own sums, measured to match.
+    /// </summary>
+    public static (double Width, double Height) StretchedSize(UniformGridLayout layout, double rowWidth)
+    {
+        var (width, height, gap) = (layout.MinItemWidth, layout.MinItemHeight, layout.MinColumnSpacing);
+        var across = Math.Max(1, Math.Floor(rowWidth / (width + gap)));
+        var extra = Math.Truncate((rowWidth - (across * (width + gap) - gap)) / across);
+        return (width + extra, height + height * extra / width);
+    }
+
+    /// <summary>
     /// v4.8.0: an arrow key on a card. Focus goes to the nearest card that way in
     /// the same grid or row; up or down past its edge, to whatever is there (the
     /// toolbar above, the movies under a row of shows). False when nothing is.
