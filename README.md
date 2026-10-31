@@ -44,9 +44,13 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 <img width="960" alt="CineLibrary in dark theme: the All Movies poster grid, the sidebar and the title-bar search" src="docs/images/cinelibrary-library.png" />
 
+⏯️ **Continue Watching keeps everything you've started in one place**: films and shows together, grouped by when you last watched them, with how much is left.
+
+<img width="960" alt="The Continue Watching page: films and TV shows together under This week and This month, each with how much is left" src="docs/images/cinelibrary-continue-watching.png" />
+
 ✨ **Richer, deeper movie details than ever before** - discover the stories behind your collection in a whole new way.
 
-<img width="960" height="457" alt="CineLibrary - movie detail view" src="https://github.com/user-attachments/assets/bc89a995-5aea-4bc1-864e-6188b9df28ff" />
+<img width="960" alt="A movie page in CineLibrary: the fanart banner, the poster, the rating and file details, Play and the other buttons" src="docs/images/cinelibrary-movie.png" />
 
 📺 **TV shows get a page of their own**: the fanart, the cast with photos, the drive the show is on, and every episode in a list with Favorite and Watched buttons.
 
