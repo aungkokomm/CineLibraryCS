@@ -39,7 +39,8 @@
                         <TextBlock Text="{x:Bind Title}" Height="32" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{ThemeResource TextBrush}" TextWrapping="WrapWholeWords"
                                    TextTrimming="CharacterEllipsis" MaxLines="2"/>
-                        <TextBlock Text="{x:Bind YearText}" FontSize="11" Margin="0,-4,0,0"
+                        <!-- 4.10.0 (#25): clear of the button's round corner, which clips what's under it -->
+                        <TextBlock Text="{x:Bind YearText}" FontSize="11" Margin="0,-4,0,6"
                                    Foreground="{ThemeResource MutedBrush}"/>
                     </StackPanel>
                 </Button>

@@ -25,6 +25,8 @@ public static class TvStateSidecar
         // v2.9 — per-episode personal state.
         [JsonPropertyName("favorite")]       public bool Favorite { get; set; }
         [JsonPropertyName("note")]           public string? Note { get; set; }
+        // v4.10.0: where it stopped
+        [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }
     }
 
     public class State
@@ -37,15 +39,17 @@ public static class TvStateSidecar
         [JsonPropertyName("lists")]     public List<string> Lists { get; set; } = new();
         // v2.9 — show-level free-form tags.
         [JsonPropertyName("tags")]      public List<string> Tags { get; set; } = new();
+        // v4.10.0: the audio and subtitles chosen for the show
+        [JsonPropertyName("tracks")]    public TrackChoice? Tracks { get; set; }
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeState> Episodes { get; set; } = new();
         [JsonPropertyName("updated")]   public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
         public bool HasContent =>
             Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) ||
-            Lists.Count > 0 || Tags.Count > 0 ||
+            Lists.Count > 0 || Tags.Count > 0 || Tracks != null ||
             Episodes.Values.Any(e => e.Watched || (e.LastPlayedUnix ?? 0) > 0
-                                 || e.Favorite || !string.IsNullOrWhiteSpace(e.Note));
+                                 || e.Favorite || !string.IsNullOrWhiteSpace(e.Note) || (e.ResumeMs ?? 0) > 0);
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -125,10 +129,11 @@ public static class TvStateSidecar
 
         state.Lists = db.GetUserListNamesForShow(showId);
         state.Tags = db.GetTagNamesForShow(showId);
+        state.Tracks = db.GetSavedTracks('s', showId);
 
         using (var c = conn.CreateCommand())
         {
-            c.CommandText = "SELECT season, episode, is_watched, last_played_at, is_favorite, note FROM tv_episodes WHERE show_id=@id";
+            c.CommandText = "SELECT season, episode, is_watched, last_played_at, is_favorite, note, resume_ms FROM tv_episodes WHERE show_id=@id";
             c.Parameters.AddWithValue("@id", showId);
             using var r = c.ExecuteReader();
             while (r.Read())
@@ -137,8 +142,9 @@ public static class TvStateSidecar
                 var lp = r.IsDBNull(3) ? 0L : r.GetInt64(3);
                 var fav = !r.IsDBNull(4) && r.GetInt32(4) == 1;
                 var note = r.IsDBNull(5) ? null : r.GetString(5);
+                var resume = r.IsDBNull(6) ? 0L : r.GetInt64(6);
                 // Only persist rows that carry anything personal.
-                if (!watched && lp == 0 && !fav && string.IsNullOrWhiteSpace(note)) continue;
+                if (!watched && lp == 0 && !fav && string.IsNullOrWhiteSpace(note) && resume == 0) continue;
                 state.Episodes[Key(r.GetInt32(0), r.GetInt32(1))] =
                     new EpisodeState
                     {
@@ -146,6 +152,7 @@ public static class TvStateSidecar
                         LastPlayedUnix = lp > 0 ? lp : null,
                         Favorite = fav,
                         Note = note,
+                        ResumeMs = resume > 0 ? resume : null,
                     };
             }
         }
@@ -196,6 +203,7 @@ public static class TvStateSidecar
             upd.Parameters.AddWithValue("@id", showId);
             upd.ExecuteNonQuery();
         }
+        if (s.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 's', showId, s.Tracks);   // v4.10.0
 
         // Lists — additive, create-if-missing (same rule as movies).
         foreach (var listName in s.Lists.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -240,12 +248,14 @@ public static class TvStateSidecar
                    SET is_watched = CASE WHEN is_watched=1 OR @w=1 THEN 1 ELSE 0 END,
                        last_played_at = MAX(last_played_at, @lp),
                        is_favorite = CASE WHEN is_favorite=1 OR @f=1 THEN 1 ELSE 0 END,
-                       note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END
+                       note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END,
+                       resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END
                  WHERE show_id=@id AND season=@se AND episode=@ep";
             upd.Parameters.AddWithValue("@w", est.Watched ? 1 : 0);
             upd.Parameters.AddWithValue("@lp", est.LastPlayedUnix ?? 0);
             upd.Parameters.AddWithValue("@f", est.Favorite ? 1 : 0);
             upd.Parameters.AddWithValue("@n", (object?)est.Note ?? DBNull.Value);
+            upd.Parameters.AddWithValue("@r", est.ResumeMs ?? 0);
             upd.Parameters.AddWithValue("@id", showId);
             upd.Parameters.AddWithValue("@se", season);
             upd.Parameters.AddWithValue("@ep", ep);

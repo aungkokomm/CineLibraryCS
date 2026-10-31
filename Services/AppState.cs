@@ -50,6 +50,21 @@ public class AppState
     }
 
     /// <summary>
+    /// v4.10.0: playback stopped, so the title's state file gets where it stopped and its
+    /// tracks. Only then: the place is saved every 10 s, far too often for a drive. Off the
+    /// UI thread: the drive may be why playback stopped.
+    /// </summary>
+    public void SavePlaybackState(bool episode, int id) => _ = Task.Run(() =>
+    {
+        try
+        {
+            if (!episode) OnPersonalStateChanged(id);
+            else if (Db.GetShowIdOfEpisode(id) is { } show) OnTvShowStateChanged(show);
+        }
+        catch { /* best effort, as every state file write is */ }
+    });
+
+    /// <summary>
     /// Walk every movie with non-default personal state and mirror it to
     /// the per-folder sidecar. Used by:
     ///   • App startup (catches state edited before this feature, or while

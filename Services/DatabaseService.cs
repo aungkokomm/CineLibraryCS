@@ -419,6 +419,15 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         // are excluded from every live-library query and survive drive
         // removal and missing-cleanup.
         if (!cols.Contains("archived_at"))      Exec("ALTER TABLE movies ADD COLUMN archived_at INTEGER");
+        // v4.10.0 — where the built-in player stopped (ms); 0 = from the start
+        if (!cols.Contains("resume_ms"))        Exec("ALTER TABLE movies ADD COLUMN resume_ms INTEGER DEFAULT 0");
+        // v4.10.0: the audio and subtitles chosen in the player, for a movie ('m') or a whole show ('s')
+        Exec(@"CREATE TABLE IF NOT EXISTS track_choices (
+                 kind TEXT NOT NULL, id INTEGER NOT NULL,
+                 audio TEXT, audio_index INTEGER DEFAULT 0,
+                 subtitles TEXT, subtitle_index INTEGER DEFAULT 0, subtitles_off INTEGER DEFAULT 0,
+                 subtitle_delay_ms INTEGER DEFAULT 0,
+                 PRIMARY KEY (kind, id))");
         // Hidden sentinel drive that archived records are re-pointed to when
         // their original drive is removed (movies cascade-delete with their
         // drive, and a record must outlive the drive it came from). Never
@@ -606,6 +615,8 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
             Exec("ALTER TABLE tv_episodes ADD COLUMN is_favorite INTEGER DEFAULT 0");
         if (!epCols.Contains("note"))
             Exec("ALTER TABLE tv_episodes ADD COLUMN note TEXT");
+        if (!epCols.Contains("resume_ms"))   // v4.10.0, as on movies
+            Exec("ALTER TABLE tv_episodes ADD COLUMN resume_ms INTEGER DEFAULT 0");
 
         // v4.6.0: what CineLibrary Essentials 1.3 writes. Edition; every studio
         // and country (studio / country keep the first, for the filters); a
@@ -2078,7 +2089,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     // of every movie list query and read by name, so the queries' own extra
     // columns keep their places.
     private const string CardExtrasSql =
-        "m.date_added AS card_added, m.video_width AS card_w, m.video_height AS card_h, m.hdr_type AS card_hdr";
+        "m.date_added AS card_added, m.video_width AS card_w, m.video_height AS card_h, m.hdr_type AS card_hdr, m.resume_ms AS card_resume, m.last_played_at AS card_played";
 
     private static MovieListItem WithCardExtras(Microsoft.Data.Sqlite.SqliteDataReader r, MovieListItem m)
     {
@@ -2088,6 +2099,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         m.VideoWidth = Int("card_w");
         m.VideoHeight = Int("card_h");
         m.HdrType = r.IsDBNull(r.GetOrdinal("card_hdr")) ? null : r.GetString(r.GetOrdinal("card_hdr"));
+        m.ResumeMs = Long("card_resume") ?? 0;
+        m.LastPlayed = Long("card_played") ?? 0;
         return m;
     }
 
@@ -2563,6 +2576,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     /// <summary>Does this movie currently have any cast rows? Used to decide
     /// whether a TMDB fetch should fill in the cast.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public bool MovieHasActors(int id)
     {
         using var cmd = _conn.CreateCommand();
@@ -4235,7 +4249,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     // ── Image cache ──────────────────────────────────────────────────────────
 
-    [MethodImpl(MethodImplOptions.Synchronized)]
+    // Not synchronized: cards ask during layout, and this reads no database
     public string? GetCachedImagePath(string? relPath)
     {
         if (relPath == null) return null;
@@ -4785,6 +4799,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             (is_watched=1 OR is_favorite=1 OR is_watchlist=1
              OR (last_played_at IS NOT NULL AND last_played_at > 0)
              OR (note IS NOT NULL AND TRIM(note) != '')
+             OR resume_ms > 0
+             OR EXISTS (SELECT 1 FROM track_choices t WHERE t.kind='m' AND t.id = movies.id)
              OR EXISTS (SELECT 1 FROM user_list_movies ulm
                           WHERE ulm.movie_id = movies.id))";
         if (volumeSerial != null)
@@ -4895,7 +4911,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = $@"
             SELECT {ShowListItemColumns}{(page == TvShowPage.ContinueWatching
                 ? @", (SELECT printf('S%02dE%02d', e.season, e.episode) FROM tv_episodes e
-                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY e.season, e.episode LIMIT 1)"
+                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY e.season, e.episode LIMIT 1)
+                    , (SELECT e.resume_ms || ':' || COALESCE(NULLIF(e.runtime, 0) * 60000, e.duration_seconds * 1000, 0) FROM tv_episodes e
+                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY e.season, e.episode LIMIT 1)
+                    , (SELECT MAX(e.last_played_at) FROM tv_episodes e WHERE e.show_id=s.id)"
                 : "")}
               FROM tv_shows s
               LEFT JOIN drives d ON d.volume_serial = s.volume_serial
@@ -5002,6 +5021,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 WatchedCount = r.GetInt32(11),
                 IsOnline = connected.ContainsKey(serial),
                 NextEpisode = r.FieldCount > 12 && !r.IsDBNull(12) ? r.GetString(12) : null,
+                NextEpisodeLeft = r.FieldCount > 13 && !r.IsDBNull(13) ? EpisodeLeft(r.GetString(13)) : null,
+                LastPlayed = r.FieldCount > 14 && !r.IsDBNull(14) ? r.GetInt64(14) : 0,
             });
         }
         return list;
@@ -5136,6 +5157,14 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         return list;
     }
 
+    // "resume:length" in ms, from the Continue Watching query
+    private static string? EpisodeLeft(string saved)
+    {
+        var parts = saved.Split(':');
+        return long.Parse(parts[0]) is > 0 and var resume && long.Parse(parts[1]) is > 0 and var length && resume < length
+            ? Models.TimeLeft.Text(length - resume) : null;
+    }
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public List<Models.TvEpisodeItem> GetEpisodes(int showId, int season, IReadOnlyDictionary<string, string> connected)
     {
@@ -5153,7 +5182,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = @"
             SELECT id, season, episode, title, plot, aired, runtime, rating,
                    local_thumb, video_file_rel_path, is_watched, is_favorite, note,
-                   video_width, video_height
+                   video_width, video_height, resume_ms, duration_seconds
               FROM tv_episodes WHERE show_id=@id AND season=@se ORDER BY episode";
         cmd.Parameters.AddWithValue("@id", showId);
         cmd.Parameters.AddWithValue("@se", season);
@@ -5178,6 +5207,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Note = r.IsDBNull(12) ? null : r.GetString(12),
                 VideoWidth = r.IsDBNull(13) ? null : r.GetInt32(13),
                 VideoHeight = r.IsDBNull(14) ? null : r.GetInt32(14),
+                ResumeMs = r.IsDBNull(15) ? 0 : r.GetInt64(15),
+                DurationSeconds = r.IsDBNull(16) ? null : r.GetInt32(16),
                 VolumeSerial = serial,
                 IsOnline = online,
             });
@@ -5408,8 +5439,9 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         var ids = new List<int>();
         using var cmd = _conn.CreateCommand();
         var where = @"(is_favorite=1 OR is_watchlist=1 OR (note IS NOT NULL AND TRIM(note)!='')
+                       OR EXISTS (SELECT 1 FROM track_choices t WHERE t.kind='s' AND t.id=tv_shows.id)
                        OR EXISTS (SELECT 1 FROM tv_episodes e WHERE e.show_id=tv_shows.id
-                                   AND (e.is_watched=1 OR e.last_played_at>0)))";
+                                   AND (e.is_watched=1 OR e.last_played_at>0 OR e.resume_ms>0)))";
         if (volumeSerial != null)
         {
             cmd.CommandText = $"SELECT id FROM tv_shows WHERE volume_serial=@s AND {where}";
@@ -5449,6 +5481,171 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.ExecuteNonQuery();
         LogWatchEvent("movie", movieId, "played");
         RaisePersonalStateChanged(movieId);
+    }
+
+    // ── v4.10.0 Built-in player ──────────────────────────────────────────────
+
+    /// <summary>Where the built-in player stopped in a movie or episode (ms); 0 = from the start.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public long GetResumeMs(bool episode, int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"SELECT COALESCE(resume_ms, 0) FROM {(episode ? "tv_episodes" : "movies")} WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        return Convert.ToInt64(cmd.ExecuteScalar() ?? 0L);
+    }
+
+    /// <summary>No state event: it runs every few seconds while a video plays. The state
+    /// file gets it when playback stops (AppState.SavePlaybackState).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetTrackChoice(bool episode, int id, TrackChoice choice)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            INSERT INTO track_choices (kind, id, audio, audio_index, subtitles, subtitle_index, subtitles_off, subtitle_delay_ms)
+            VALUES ('{(episode ? "s" : "m")}', {(episode ? "(SELECT show_id FROM tv_episodes WHERE id=@id)" : "@id")}, @a, @ai, @s, @si, @off, @delay)
+            ON CONFLICT (kind, id) DO UPDATE SET audio=@a, audio_index=@ai, subtitles=@s, subtitle_index=@si,
+                                                 subtitles_off=@off, subtitle_delay_ms=@delay";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@a", (object?)choice.Audio ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ai", choice.AudioIndex);
+        cmd.Parameters.AddWithValue("@s", (object?)choice.Subtitles ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@si", choice.SubtitleIndex);
+        cmd.Parameters.AddWithValue("@off", choice.SubtitlesOff ? 1 : 0);
+        cmd.Parameters.AddWithValue("@delay", choice.SubtitleDelayMs);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>The tracks chosen for a movie, or for the episode's whole show (the next episode
+    /// keeps the language; how far its subtitles were out isn't known).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public TrackChoice? GetTrackChoice(bool episode, int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT audio, audio_index, subtitles, subtitle_index, subtitles_off, subtitle_delay_ms
+              FROM track_choices
+             WHERE kind='{(episode ? "s" : "m")}' AND id={(episode ? "(SELECT show_id FROM tv_episodes WHERE id=@id)" : "@id")}";
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new TrackChoice(r.IsDBNull(0) ? null : r.GetString(0), r.GetInt32(1), r.IsDBNull(2) ? null : r.GetString(2), r.GetInt32(3),
+                               r.GetInt32(4) == 1, episode ? 0 : r.GetInt32(5));
+    }
+
+    /// <summary>A title's saved tracks as they are, for a backup or a state file:
+    /// kind 'm' with a movie id, 's' with a show id.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public TrackChoice? GetSavedTracks(char kind, int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT audio, audio_index, subtitles, subtitle_index, subtitles_off, subtitle_delay_ms
+                              FROM track_choices WHERE kind=@k AND id=@id";
+        cmd.Parameters.AddWithValue("@k", kind.ToString());
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new TrackChoice(r.IsDBNull(0) ? null : r.GetString(0), r.GetInt32(1), r.IsDBNull(2) ? null : r.GetString(2), r.GetInt32(3),
+                               r.GetInt32(4) == 1, r.GetInt32(5));
+    }
+
+    /// <summary>Tracks from a backup or a state file. Those already chosen here stay, as with notes.</summary>
+    internal static void RestoreTracks(SqliteConnection conn, SqliteTransaction tx, char kind, int id, TrackChoice tracks)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = @"INSERT OR IGNORE INTO track_choices (kind, id, audio, audio_index, subtitles, subtitle_index, subtitles_off, subtitle_delay_ms)
+                            VALUES (@k, @id, @a, @ai, @s, @si, @off, @delay)";
+        cmd.Parameters.AddWithValue("@k", kind.ToString());
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@a", (object?)tracks.Audio ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ai", tracks.AudioIndex);
+        cmd.Parameters.AddWithValue("@s", (object?)tracks.Subtitles ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@si", tracks.SubtitleIndex);
+        cmd.Parameters.AddWithValue("@off", tracks.SubtitlesOff ? 1 : 0);
+        cmd.Parameters.AddWithValue("@delay", tracks.SubtitleDelayMs);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Where a movie stopped, from a backup or a state file: never over a place saved
+    /// here, and not for a movie that has since been watched.</summary>
+    internal static void RestoreResume(SqliteConnection conn, SqliteTransaction tx, int movieId, long ms)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE movies SET resume_ms=@ms WHERE id=@id AND COALESCE(resume_ms, 0)=0 AND is_watched=0";
+        cmd.Parameters.AddWithValue("@ms", ms);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int? GetShowIdOfEpisode(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT show_id FROM tv_episodes WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        return cmd.ExecuteScalar() is { } id and not DBNull ? Convert.ToInt32(id) : null;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetResumeMs(bool episode, int id, long ms)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"UPDATE {(episode ? "tv_episodes" : "movies")} SET resume_ms=@ms WHERE id=@id";
+        cmd.Parameters.AddWithValue("@ms", ms);
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Marks a movie watched, as Watched does, but never unwatched: nothing
+    /// happens when it already is. True when it changed.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool SetMovieWatched(int id)
+    {
+        int changed;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"UPDATE movies SET is_watched=1, last_played_at=strftime('%s','now')
+                                WHERE id=@id AND COALESCE(is_watched, 0)=0";
+            cmd.Parameters.AddWithValue("@id", id);
+            changed = cmd.ExecuteNonQuery();
+        }
+        if (changed == 0) return false;
+        LogWatchEvent("movie", id, "marked_watched");
+        RaisePersonalStateChanged(id);
+        return true;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool IsEpisodeWatched(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(is_watched, 0) FROM tv_episodes WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0) == 1;
+    }
+
+    /// <summary>The episode after (or before) this one in its show, by season and number, that
+    /// has a video file, with its show's drive; null at the end (or start). Specials (season 0)
+    /// go to specials only.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (int Id, string Code, string Title, string File, string VolumeSerial)? GetAdjacentEpisode(int episodeId, bool next)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT n.id, printf('S%02dE%02d', n.season, n.episode), COALESCE(n.title, ''), n.video_file_rel_path, s.volume_serial
+              FROM tv_episodes c
+              JOIN tv_episodes n ON n.show_id = c.show_id
+              JOIN tv_shows s ON s.id = n.show_id
+             WHERE c.id = @id AND n.video_file_rel_path IS NOT NULL AND (c.season = 0) = (n.season = 0)
+               AND {(next ? "(n.season > c.season OR (n.season = c.season AND n.episode > c.episode))"
+                          : "(n.season < c.season OR (n.season = c.season AND n.episode < c.episode))")}
+             ORDER BY {(next ? "n.season, n.episode" : "n.season DESC, n.episode DESC")} LIMIT 1";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return (r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4));
     }
 
     // ── v2.9 Watch history ───────────────────────────────────────────────────
@@ -5776,6 +5973,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     /// has it, joining a tag of that name if there is one. A title's .nfo tag of
     /// the old name stays: it comes from the file. Returns the tag's new id.
     /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public int RenameOwnTag(int tagId, string newName)
     {
         var (movies, shows) = OwnTagTitles(tagId);
@@ -5792,6 +5990,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     }
 
     /// <summary>v4.7.0 (Tags page): takes your tag off every movie and show; the .nfo files' tags stay.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void DeleteOwnTag(int tagId)
     {
         var (movies, shows) = OwnTagTitles(tagId);

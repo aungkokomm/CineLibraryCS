@@ -264,7 +264,7 @@ public sealed partial class DrivesPage : Page
 
         var progress = new Progress<ScanProgress>(p =>
         {
-            DispatcherQueue.TryEnqueue(() =>
+            DispatcherQueue.Post(() =>
             {
                 ScanStatusText.Text = p.Done
                     ? $"Done — {p.Inserted} new, {p.Updated} updated, {p.Skipped} skipped"
@@ -357,7 +357,7 @@ public sealed partial class DrivesPage : Page
                 int prog = i + 1;
                 var progress = new Progress<ScanProgress>(p =>
                 {
-                    DispatcherQueue.TryEnqueue(() =>
+                    DispatcherQueue.Post(() =>
                     {
                         ScanStatusText.Text = $"{prog}/{work.Count} — {label}: {p.Found} checked";
                         ScanDetailText.Text = p.Done ? "" : Path.GetFileName(p.CurrentFolder);

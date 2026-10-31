@@ -8,7 +8,7 @@ namespace CineLibraryCS.Services;
 ///
 /// "Personal" = everything the user creates: favorites, watchlist, watched
 /// flags, last-played timestamps, notes, lists, tags, per-episode state,
-/// and the watch-events audit log. Catalogued metadata (titles, plots,
+/// where a title stopped, its chosen tracks, and the watch-events audit log. Catalogued metadata (titles, plots,
 /// posters) is NOT exported — it comes back from MediaElch's .nfo files
 /// on the next scan.
 ///
@@ -23,6 +23,8 @@ namespace CineLibraryCS.Services;
 ///   • For matched rows, DB-true wins (OR semantics for booleans;
 ///     MAX for last_played_at; DB note kept if non-empty).
 ///   • Tags and list memberships are OR-merged (additive — never removed).
+///   • A resume position fills an empty one on a title not watched since;
+///     tracks chosen in this DB stay.
 ///   • watch_events are appended verbatim (history is append-only).
 ///
 /// Result: importing the same file twice is a no-op; importing on top of
@@ -65,6 +67,8 @@ public static class BackupService
         [JsonPropertyName("archived")]       public bool Archived { get; set; }   // v3.3 — Watched & Gone
         [JsonPropertyName("lists")]          public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]           public List<string> Tags { get; set; } = new();
+        [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }           // v4.10.0
+        [JsonPropertyName("tracks")]         public TrackChoice? Tracks { get; set; }      // v4.10.0
     }
 
     public class ShowEntry
@@ -80,6 +84,7 @@ public static class BackupService
         [JsonPropertyName("tags")]      public List<string> Tags { get; set; } = new();
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeEntry> Episodes { get; set; } = new();
         [JsonPropertyName("archived")]  public bool Archived { get; set; }   // v4.9.0 — Watched & Gone
+        [JsonPropertyName("tracks")]    public TrackChoice? Tracks { get; set; }   // v4.10.0
     }
 
     public class EpisodeEntry
@@ -88,6 +93,7 @@ public static class BackupService
         [JsonPropertyName("lastPlayedUnix")] public long? LastPlayedUnix { get; set; }
         [JsonPropertyName("favorite")]       public bool Favorite { get; set; }
         [JsonPropertyName("note")]           public string? Note { get; set; }
+        [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }   // v4.10.0
     }
 
     public class WatchEvent
@@ -149,12 +155,14 @@ public static class BackupService
             c.CommandText = @"
                 SELECT id, volume_serial, folder_rel_path, title,
                        is_watched, is_favorite, is_watchlist, last_played_at, note,
-                       archived_at
+                       archived_at, resume_ms
                   FROM movies
                  WHERE is_watched=1 OR is_favorite=1 OR is_watchlist=1
                     OR last_played_at>0
                     OR (note IS NOT NULL AND TRIM(note) != '')
                     OR archived_at IS NOT NULL
+                    OR resume_ms>0
+                    OR EXISTS (SELECT 1 FROM track_choices t WHERE t.kind='m' AND t.id = movies.id)
                     OR EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id = movies.id)
                     OR EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id = movies.id)";
             using var r = c.ExecuteReader();
@@ -174,6 +182,7 @@ public static class BackupService
                     LastPlayedUnix = r.IsDBNull(7) ? null : r.GetInt64(7),
                     Note = r.IsDBNull(8) ? null : r.GetString(8),
                     Archived = !r.IsDBNull(9),
+                    ResumeMs = r.IsDBNull(10) || r.GetInt64(10) == 0 ? null : r.GetInt64(10),
                 };
                 b.Movies.Add(entry);
                 movieIndex[id] = entry;
@@ -185,6 +194,8 @@ public static class BackupService
         // Movie tags
         foreach (var (movieId, entry) in movieIndex)
             entry.Tags = db.GetTagNamesForMovie(movieId);
+        foreach (var (movieId, entry) in movieIndex)
+            entry.Tracks = db.GetSavedTracks('m', movieId);
 
         // Shows + their episodes
         var showIndex = new Dictionary<int, ShowEntry>();
@@ -217,9 +228,9 @@ public static class BackupService
         using (var c = conn.CreateCommand())
         {
             c.CommandText = @"
-                SELECT show_id, season, episode, is_watched, last_played_at, is_favorite, note
+                SELECT show_id, season, episode, is_watched, last_played_at, is_favorite, note, resume_ms
                   FROM tv_episodes
-                 WHERE is_watched=1 OR last_played_at>0
+                 WHERE is_watched=1 OR last_played_at>0 OR resume_ms>0
                     OR is_favorite=1 OR (note IS NOT NULL AND TRIM(note) != '')";
             using var r = c.ExecuteReader();
             while (r.Read())
@@ -232,6 +243,7 @@ public static class BackupService
                     LastPlayedUnix = r.IsDBNull(4) ? null : (r.GetInt64(4) > 0 ? r.GetInt64(4) : null),
                     Favorite = !r.IsDBNull(5) && r.GetInt32(5) == 1,
                     Note = r.IsDBNull(6) ? null : r.GetString(6),
+                    ResumeMs = r.IsDBNull(7) || r.GetInt64(7) == 0 ? null : r.GetInt64(7),
                 };
             }
         }
@@ -240,13 +252,15 @@ public static class BackupService
         {
             entry.Lists = db.GetUserListNamesForShow(showId);
             entry.Tags = db.GetTagNamesForShow(showId);
+            entry.Tracks = db.GetSavedTracks('s', showId);
         }
         // Only export shows that carry *something* — fully blank shows
         // (no fav/wl/note/lists/tags/episodes) wouldn't bring back anything.
         foreach (var entry in showIndex.Values)
         {
             if (entry.Favorite || entry.Watchlist || !string.IsNullOrWhiteSpace(entry.Note)
-                || entry.Lists.Count > 0 || entry.Tags.Count > 0 || entry.Episodes.Count > 0)
+                || entry.Lists.Count > 0 || entry.Tags.Count > 0 || entry.Episodes.Count > 0
+                || entry.Tracks != null)
                 b.Shows.Add(entry);
         }
 
@@ -566,6 +580,9 @@ public static class BackupService
         upd.Parameters.AddWithValue("@id", movieId);
         upd.ExecuteNonQuery();
 
+        if (e.ResumeMs is > 0) DatabaseService.RestoreResume(conn, tx, movieId, e.ResumeMs.Value);
+        if (e.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 'm', movieId, e.Tracks);
+
         foreach (var listName in e.Lists.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!listIds.TryGetValue(listName, out var listId)) continue;
@@ -623,6 +640,7 @@ public static class BackupService
             upd.Parameters.AddWithValue("@id", showId);
             upd.ExecuteNonQuery();
         }
+        if (e.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 's', showId, e.Tracks);
 
         foreach (var listName in e.Lists.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -654,12 +672,14 @@ public static class BackupService
                                     is_watched = CASE WHEN is_watched=1 OR @w=1 THEN 1 ELSE 0 END,
                                     last_played_at = MAX(last_played_at, @lp),
                                     is_favorite = CASE WHEN is_favorite=1 OR @f=1 THEN 1 ELSE 0 END,
-                                    note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END
+                                    note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END,
+                                    resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END
                                  WHERE show_id=@id AND season=@se AND episode=@ep";
             upd.Parameters.AddWithValue("@w",  est.Watched ? 1 : 0);
             upd.Parameters.AddWithValue("@lp", est.LastPlayedUnix ?? 0);
             upd.Parameters.AddWithValue("@f",  est.Favorite ? 1 : 0);
             upd.Parameters.AddWithValue("@n",  (object?)est.Note ?? DBNull.Value);
+            upd.Parameters.AddWithValue("@r",  est.ResumeMs ?? 0);
             upd.Parameters.AddWithValue("@id", showId);
             upd.Parameters.AddWithValue("@se", season);
             upd.Parameters.AddWithValue("@ep", ep);

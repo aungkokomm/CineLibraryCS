@@ -133,6 +133,7 @@ public sealed partial class LibraryPage : Page
         // v4.1.0: a show card's hover panel changed a show (un-favorited it on
         // Favorites, finished it on Continue Watching): re-list the row.
         TvShowCard.ShowChanged += _ => { _shownRowKey = ""; RefreshShowsInList(); };
+        Services.Playback.BuiltInPlayer.Stopped += OnPlaybackStopped;
 
         // v2.8.2 — tap a show card in the "TV shows in this list" row to
         // open that show on the TV page.
@@ -150,6 +151,21 @@ public sealed partial class LibraryPage : Page
         GridRepeater.ElementClearing += OnGridRepeaterElementClearing;
         ListRepeater.ElementPrepared += OnListRepeaterElementPrepared;
         ListRepeater.ElementClearing += OnListRepeaterElementClearing;
+        foreach (var repeater in ContinueRepeaters)
+        {
+            repeater.ElementPrepared += OnGridRepeaterElementPrepared;
+            repeater.ElementPrepared += OnListRepeaterElementPrepared;
+            repeater.ElementClearing += OnGridRepeaterElementClearing;
+            repeater.ElementClearing += OnListRepeaterElementClearing;
+            repeater.Tapped += (s, e) => OpenTappedShow(e.OriginalSource);
+        }
+        ContinueGroups.SizeChanged += (_, e) => { if (e.PreviousSize.Width != e.NewSize.Width) FitShowRows(); };
+        _vm.Movies.CollectionChanged += (_, _) =>
+        {
+            if (_continuePosted || !_vm.IsContinueWatching) return;
+            _continuePosted = true;
+            DispatcherQueue.Post(() => { _continuePosted = false; ApplyContinueGroups(); });
+        };
 
         // Multi-select wiring (v2.5) — cards/rows raise this static event;
         // we manage the actual selection set and visual.
@@ -202,7 +218,7 @@ public sealed partial class LibraryPage : Page
                     // selected" counter stays honest.
                     if (_selectedIds.Count > 0)
                     {
-                        DispatcherQueue.TryEnqueue(() =>
+                        DispatcherQueue.Post(() =>
                         {
                             var visible = new HashSet<int>(_vm.Movies.Select(m => m.Id));
                             var before = _selectedIds.Count;
@@ -465,7 +481,7 @@ public sealed partial class LibraryPage : Page
 
     private void OnAnyMovieArchived()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             _ = _vm.LoadAsync();
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
@@ -820,7 +836,7 @@ public sealed partial class LibraryPage : Page
     {
         // v4.0.0: a page whose only items are TV shows (the row above) isn't empty.
         var empty = _vm.Movies.Count == 0 && !_vm.IsLoading
-                    && ShowsInListSection.Visibility != Visibility.Visible;
+                    && _rowShowCount == 0;
         EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         GridBorder.Opacity = empty ? 0 : 1;
         ListBorder.Opacity = empty ? 0 : 1;
@@ -835,8 +851,8 @@ public sealed partial class LibraryPage : Page
         {
             EmptyTitle.Text = "Welcome to CineLibrary";
             EmptyStateHint.Text =
-                "Point CineLibrary at the folder where MediaElch saved your scraped " +
-                "movies (each movie in its own folder with a .nfo + poster). " +
+                "Point CineLibrary at your movies folder, scraped with CineLibrary Essentials " +
+                "(each movie in its own folder with a .nfo + poster). " +
                 "Drives → Add folder.";
             EmptyCtaBtn.Content = "📂 Add my movies folder";
             EmptyCtaBtn.Visibility = Visibility.Visible;
@@ -914,6 +930,8 @@ public sealed partial class LibraryPage : Page
         ((StackLayout)ShowsInSearchRepeater.Layout).Spacing = ((StackLayout)ShowsInListRepeater.Layout).Spacing = Controls.CardCell.GapFor(tag);
         ShowsInSearchSection.Margin = ShowsInListSection.Margin = new Thickness(0, 0, 0, GridLayout.MinRowSpacing - ShowsInListCards.Padding.Bottom);
         FitShowRows();
+        _continueList = null;
+        ApplyContinueGroups();
 
         DensityS.IsChecked  = tag == "S";
         DensityM.IsChecked  = tag == "M";
@@ -942,11 +960,76 @@ public sealed partial class LibraryPage : Page
             ListBorder.Visibility = Visibility.Collapsed;
         }
         ApplyShowsLayout(_vm.ViewMode == ViewMode.List);
+        ApplyContinueGroups();
     }
 
-    /// <summary>v4.9.0 (#25): the show cards in the rows above the grid as big as its movie cards.</summary>
+    /// <summary>v4.9.0 (#25): the show cards in the rows above the grid as big as its movie cards.
+    /// 4.10.0: and those in Continue Watching's groups, the width they're laid out in.</summary>
     private void FitShowRows() => TvShowCard.FitRowsToGrid(GridLayout,
-        Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(GridRepeater).Width, ShowsInListRepeater, ShowsInSearchRepeater);
+        ContinueGroups.Visibility == Visibility.Visible
+            ? Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(ContinueGroups).Width - ContinueGroups.Padding.Left - ContinueGroups.Padding.Right
+            : Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(GridRepeater).Width,
+        [ShowsInListRepeater, ShowsInSearchRepeater, .. ContinueRepeaters]);
+
+    private ItemsRepeater[] ContinueRepeaters => new[] { ContinueWeek, ContinueMonth, ContinueEarlier };
+    private bool? _continueList;   // cards or rows in the groups now; null to lay them out afresh
+    private bool _continuePosted;
+
+    /// <summary>
+    /// 4.10.0: Continue Watching in its own date order comes in three groups, films and
+    /// shows together, latest first. Any other sort lists them as the other pages do.
+    /// </summary>
+    private void ApplyContinueGroups()
+    {
+        var grouped = _vm.IsContinueWatching && _vm.SortKey == SortKey.LastPlayed && _vm.SortDir == SortDir.Desc;
+        var list = _vm.ViewMode == ViewMode.List;
+        GridBorder.Visibility = !grouped && !list ? Visibility.Visible : Visibility.Collapsed;
+        ListBorder.Visibility = !grouped && list ? Visibility.Visible : Visibility.Collapsed;
+        ShowsInListSection.Visibility = !grouped && _rowShowCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ContinueGroups.Visibility = grouped ? Visibility.Visible : Visibility.Collapsed;
+        if (!grouped)
+        {
+            foreach (var repeater in ContinueRepeaters) repeater.ItemsSource = null;
+            return;
+        }
+
+        if (_continueList != list)
+        {
+            _continueList = list;
+            foreach (var repeater in ContinueRepeaters)
+            {
+                repeater.ItemsSource = null;
+                repeater.ItemTemplate = Resources[list ? "ContinueRows" : "ContinueCards"];
+                repeater.Layout = list ? new StackLayout { Spacing = 2 } : new UniformGridLayout
+                {
+                    MinItemWidth = GridLayout.MinItemWidth,
+                    MinItemHeight = GridLayout.MinItemHeight + TvShowCard.CaptionHeight - MovieCardControl.CaptionHeight,
+                    MinColumnSpacing = GridLayout.MinColumnSpacing,
+                    MinRowSpacing = GridLayout.MinRowSpacing,
+                    ItemsStretch = GridLayout.ItemsStretch,
+                };
+            }
+        }
+
+        var items = _vm.Movies.Select(m => (Played: m.LastPlayed, Item: (object)m))
+            .Concat(_rowShows.Select(s => (Played: s.LastPlayed, Item: (object)s)))
+            .OrderByDescending(i => i.Played).ToList();
+        const long Day = 86_400;
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var groups = new[]
+        {
+            (Header: ContinueWeekHeader, Repeater: ContinueWeek, From: now - 7 * Day, To: long.MaxValue),
+            (Header: ContinueMonthHeader, Repeater: ContinueMonth, From: now - 30 * Day, To: now - 7 * Day),
+            (Header: ContinueEarlierHeader, Repeater: ContinueEarlier, From: long.MinValue, To: now - 30 * Day),
+        };
+        foreach (var g in groups)
+        {
+            var part = items.Where(i => i.Played >= g.From && i.Played < g.To).Select(i => i.Item).ToList();
+            g.Header.Visibility = g.Repeater.Visibility = part.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (g.Repeater.ItemsSource is not List<object> shown || !shown.SequenceEqual(part))
+                g.Repeater.ItemsSource = part;
+        }
+    }
 
     /// <summary>v4.7.0 (#25): the shows on a page with movies come as rows in list view, cards otherwise.</summary>
     private void ApplyShowsLayout(bool list)
@@ -1018,7 +1101,7 @@ public sealed partial class LibraryPage : Page
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             if (e.PropertyName == nameof(LibraryViewModel.TotalCount) ||
                 e.PropertyName == nameof(LibraryViewModel.HasMore) ||
@@ -1056,6 +1139,18 @@ public sealed partial class LibraryPage : Page
     // inside a vertical ScrollViewer steals the mouse wheel and makes the
     // main grid feel unscrollable. They're now sidebar entries only.
 
+    /// <summary>v4.10.0: a film or episode stopped: its card shows how far it got, and Continue
+    /// Watching lists what's still part-way, latest first.</summary>
+    private void OnPlaybackStopped(PlaybackItem item)
+    {
+        if (item.Kind == PlaybackKind.Movie && _vm.Movies.FirstOrDefault(m => m.Id == item.Id) is { } movie)
+            movie.ResumeMs = AppState.Instance.Db.GetResumeMs(false, item.Id);
+        if (!_vm.IsContinueWatching) return;
+        _vm.ShowContinueWatching();
+        _shownRowKey = "";
+        RefreshShowsInList();
+    }
+
     // ── v2.9 TV-in-search row ────────────────────────────────────────────────
 
     private string? _lastShowsSearchTerm;
@@ -1074,10 +1169,11 @@ public sealed partial class LibraryPage : Page
             _lastShowsSearchTerm = null;
             return;
         }
-        if (q == _lastShowsSearchTerm) return;
-        _lastShowsSearchTerm = q;
+        var term = $"{q}|{_vm.WatchedFilter}";
+        if (term == _lastShowsSearchTerm) return;
+        _lastShowsSearchTerm = term;
 
-        var shows = AppState.Instance.Db.SearchTvShows(q, AppState.Instance.Connected, limit: 24);
+        var shows = ByWatched(AppState.Instance.Db.SearchTvShows(q, AppState.Instance.Connected, limit: 24));
         if (shows.Count == 0)
         {
             ShowsInSearchSection.Visibility = Visibility.Collapsed;
@@ -1116,6 +1212,7 @@ public sealed partial class LibraryPage : Page
 
     private string? _shownRowKey = "";   // "" = not run yet, so the first call always queries
     private int _rowShowCount;
+    private List<TvShowListItem> _rowShows = new();
 
     /// <summary>
     /// v2.8.2 — when the current view is a user list, show that list's TV
@@ -1135,7 +1232,8 @@ public sealed partial class LibraryPage : Page
         var key = _vm.UserListId is int listId ? $"list:{listId}"
                 : _vm.Genre is string genreKey ? $"genre:{genreKey}"
                 : page?.ToString();
-        if (key == _shownRowKey) return;
+        key = $"{key}|{_vm.WatchedFilter}";
+        if (key == _shownRowKey) { ApplyContinueGroups(); return; }
         _shownRowKey = key;
 
         var db = AppState.Instance.Db;
@@ -1143,13 +1241,23 @@ public sealed partial class LibraryPage : Page
                   : _vm.Genre is string genre ? db.GetTvShowsInGenre(genre, AppState.Instance.Connected)   // v4.8.0 (#25): By Genre
                   : page is { } p ? db.GetTvShowsForPage(p, AppState.Instance.Connected)
                   : new List<TvShowListItem>();
+        shows = ByWatched(shows);
         ShowsInListHeader.Text = _vm.UserListId != null ? "TV SHOWS IN THIS LIST" : "TV SHOWS";
         ShowsInListRepeater.ItemsSource = ShowsInListRows.ItemsSource = shows.Count > 0 ? shows : null;
-        ShowsInListSection.Visibility = shows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _rowShows = shows;
         _rowShowCount = shows.Count;
+        ApplyContinueGroups();
         UpdateCountText();
         UpdateEmptyState();
     }
+
+    /// <summary>4.10.0 (#25): the Watched and Unwatched pills cover the shows too, as on All TV shows.</summary>
+    private List<TvShowListItem> ByWatched(List<TvShowListItem> shows) => _vm.WatchedFilter switch
+    {
+        WatchedFilter.Watched => shows.Where(s => s.FullyWatched).ToList(),
+        WatchedFilter.Unwatched => shows.Where(s => !s.FullyWatched).ToList(),
+        _ => shows,
+    };
 
     /// <summary>"128 movies", plus " · 3 shows" when the shows row is showing (v4.0.0).</summary>
     private void UpdateCountText()
@@ -1339,6 +1447,7 @@ public sealed partial class LibraryPage : Page
         ListBorder.Visibility = Visibility.Collapsed;
         ApplyShowsLayout(false);
         _vm.ViewMode = ViewMode.Grid;
+        ApplyContinueGroups();
     }
 
     private void OnViewList(object sender, RoutedEventArgs e)
@@ -1350,6 +1459,7 @@ public sealed partial class LibraryPage : Page
         ListBorder.Visibility = Visibility.Visible;
         ApplyShowsLayout(true);
         _vm.ViewMode = ViewMode.List;
+        ApplyContinueGroups();
     }
 
     // ── Watched filter ────────────────────────────────────────────────────

@@ -40,6 +40,14 @@
 
                         <!-- dim overlay when watched -->
                         <Border x:Name="WatchedDim" Background="#88000000" Visibility="Collapsed"/>
+                                <!-- v4.10.0: how far it was watched -->
+                                <Grid x:Name="ResumeLine" Height="4" VerticalAlignment="Bottom" Background="#99000000" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="ResumeDone"/>
+                                        <ColumnDefinition x:Name="ResumeRest"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{StaticResource BrandPurpleBrush}"/>
+                                </Grid>
 
                         <!-- v4.6.0: an aired episode you don't have -->
                         <Border x:Name="NotInLibraryBadge" Visibility="Collapsed"

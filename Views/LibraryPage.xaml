@@ -7,6 +7,33 @@
     xmlns:controls="using:CineLibraryCS.Controls"
     Background="{ThemeResource BgBrush}">
 
+    <!-- 4.10.0: Continue Watching's groups hold films and shows together -->
+    <Page.Resources>
+        <DataTemplate x:Key="ContinueMovieCard" x:DataType="models:MovieListItem">
+            <!-- As far short of the cell as a show's caption is taller, so the posters match -->
+            <local:MovieCardControl Movie="{x:Bind}" Margin="0,0,0,10"/>
+        </DataTemplate>
+        <DataTemplate x:Key="ContinueShowCard" x:DataType="models:TvShowListItem">
+            <local:TvShowCard Show="{x:Bind}" UsesLibrarySize="True"/>
+        </DataTemplate>
+        <DataTemplate x:Key="ContinueMovieRow" x:DataType="models:MovieListItem">
+            <local:MovieRowControl Movie="{x:Bind}"/>
+        </DataTemplate>
+        <DataTemplate x:Key="ContinueShowRow" x:DataType="models:TvShowListItem">
+            <local:TvShowRowControl Show="{x:Bind}"/>
+        </DataTemplate>
+        <local:FilmOrShowTemplate x:Key="ContinueCards" Film="{StaticResource ContinueMovieCard}" Show="{StaticResource ContinueShowCard}"/>
+        <local:FilmOrShowTemplate x:Key="ContinueRows" Film="{StaticResource ContinueMovieRow}" Show="{StaticResource ContinueShowRow}"/>
+        <Style x:Key="ContinueHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="CharacterSpacing" Value="150"/>
+            <Setter Property="Opacity" Value="0.7"/>
+            <Setter Property="Foreground" Value="{ThemeResource MutedBrush}"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+    </Page.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -338,6 +365,16 @@
                             Foreground="#FFFFFF"
                             BorderThickness="0"
                             CornerRadius="8" Padding="16,8"/>
+                </StackPanel>
+
+                <!-- 4.10.0: Continue Watching in its own date order (ApplyContinueGroups) -->
+                <StackPanel x:Name="ContinueGroups" Visibility="Collapsed" Padding="24,0,24,24" Spacing="10">
+                    <TextBlock x:Name="ContinueWeekHeader" Text="THIS WEEK" Style="{StaticResource ContinueHeader}"/>
+                    <ItemsRepeater x:Name="ContinueWeek" TabFocusNavigation="Once" Margin="0,0,0,20"/>
+                    <TextBlock x:Name="ContinueMonthHeader" Text="THIS MONTH" Style="{StaticResource ContinueHeader}"/>
+                    <ItemsRepeater x:Name="ContinueMonth" TabFocusNavigation="Once" Margin="0,0,0,20"/>
+                    <TextBlock x:Name="ContinueEarlierHeader" Text="EARLIER" Style="{StaticResource ContinueHeader}"/>
+                    <ItemsRepeater x:Name="ContinueEarlier" TabFocusNavigation="Once"/>
                 </StackPanel>
 
                 <!-- Grid View -->

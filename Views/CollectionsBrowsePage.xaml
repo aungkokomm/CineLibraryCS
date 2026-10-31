@@ -178,7 +178,7 @@
                                FontSize="15" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}"
                                HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="EmptyHint" Text="MediaElch collections (franchises, sagas) appear here once at least two of their movies are in your library and tagged in their .nfo files."
+                    <TextBlock x:Name="EmptyHint" Text="Collections (franchises, sagas) appear here once at least two of their movies are in your library and tagged in their .nfo files."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="380"/>

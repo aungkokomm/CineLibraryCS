@@ -86,6 +86,8 @@ public partial class LibraryViewModel : ObservableObject
     {
         IsLoading = true;
         var opts = BuildOpts(0);
+        // 4.10.0: Continue Watching's groups hold everything, so its films come at once
+        if (IsContinueWatching) opts = opts with { Limit = int.MaxValue };
         // Real total for the filter — separate cheap COUNT(*) query so the
         // header reads "60 of 1,200 movies" instead of pretending the whole
         // library is whatever the first page returned.
@@ -95,7 +97,7 @@ public partial class LibraryViewModel : ObservableObject
         ));
 
         Movies.Clear();
-        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : opts.SortKey; Movies.Add(m); }
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; Movies.Add(m); }
         FilterTotal = total;
         HasMore = movies.Count == PageSize && Movies.Count < total;
         TotalCount = Movies.Count;
@@ -108,7 +110,7 @@ public partial class LibraryViewModel : ObservableObject
         IsLoading = true;
         var opts = BuildOpts(Movies.Count);
         var movies = await Task.Run(() => _state.Db.GetMovies(opts, _state.Connected));
-        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : opts.SortKey; Movies.Add(m); }
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; Movies.Add(m); }
         HasMore = movies.Count == PageSize && Movies.Count < FilterTotal;
         TotalCount = Movies.Count;
         IsLoading = false;
@@ -185,7 +187,7 @@ public partial class LibraryViewModel : ObservableObject
             try { await Task.Delay(300, token); }
             catch (OperationCanceledException) { return; }
             if (token.IsCancellationRequested) return;
-            _dispatcherQueue?.TryEnqueue(async () =>
+            _dispatcherQueue?.Post(async () =>
             {
                 if (token.IsCancellationRequested) return;
                 await LoadAsync();

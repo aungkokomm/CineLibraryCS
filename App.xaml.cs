@@ -9,6 +9,8 @@ public partial class App : Application
 
     public App()
     {
+        Services.StartLog.Begin();
+        SynchronizationContext.SetSynchronizationContext(new Services.UiContext(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()));
         InitializeComponent();
         UnhandledException += OnUnhandledException;
 
@@ -28,8 +30,11 @@ public partial class App : Application
     {
         try
         {
+            Services.StartLog.Mark("launched");
             MainWindow = new MainWindow();
+            Services.StartLog.Mark("main window built");
             MainWindow.Activate();
+            Services.StartLog.Mark("main window activated");
         }
         catch (Exception ex)
         {

@@ -26,6 +26,8 @@ public partial class TvShowListItem : ObservableObject
     // v4.1.0: "S01E04", the episode ▶ Play next would start. Filled for the
     // Continue Watching page only; the card shows "Next: S01E04" in place of the year.
     public string? NextEpisode { get; set; }
+    // v4.10.0: how much of that episode is left, when it was stopped part-way
+    public string? NextEpisodeLeft { get; set; }
 
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private bool _isWatchlist;
@@ -77,6 +79,13 @@ public partial class TvEpisodeItem : ObservableObject
     // updates instantly when toggled from the details dialog.
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private string? _note;
+    // v4.10.0: where the built-in player stopped, 0 when it's not part-way
+    [ObservableProperty] private long _resumeMs;
+    /// <summary>The file's length in seconds, for when there's no runtime.</summary>
+    public int? DurationSeconds { get; set; }
+
+    /// <summary>How far it was watched, 0 to 1; 0 when its length isn't known.</summary>
+    public double ResumeProgress => TimeLeft.Share(ResumeMs, Runtime is > 0 ? Runtime.Value * 60_000L : (DurationSeconds ?? 0) * 1000L);
 
     /// <summary>
     /// v4.6.0: an aired episode you don't have (from TMDb), shown greyed in its

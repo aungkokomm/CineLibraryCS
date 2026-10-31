@@ -47,7 +47,7 @@ of movies in under five minutes.
 ## Before you start
 
 CineLibrary is a **reader**, not a scraper. It expects your movie folders
-to be already scraped by [MediaElch](https://www.kvibes.de/mediaelch/) so
+to be already scraped by [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) so
 each movie sits in its own folder with a `.nfo` file and poster images
 next to the video. A typical layout looks like this:
 
@@ -65,7 +65,7 @@ H:\Movies\
 └── ...
 ```
 
-If you don't have `.nfo` files yet, run MediaElch over your library first.
+If you don't have `.nfo` files yet, run CineLibrary Essentials over your library first.
 Once your folders look like the example above, you're ready.
 
 You'll also need:
@@ -120,7 +120,7 @@ A few tips:
   Update; **Review N…** on the drive lets you remove it.
 - **Give drives friendly names.** Right-click a drive entry and rename
   it (e.g. *"Seagate Red 5TB — Movies"*) so the sidebar reads cleanly.
-- **Re-scan after MediaElch updates.** If you re-scrape metadata or add
+- **Re-scan after scraping again.** If you re-scrape metadata or add
   new movies, hit **Rescan** on the drive entry; CineLibrary picks up
   the new and changed files.
 - **Removing a drive is non-destructive** for your video files —
@@ -303,7 +303,7 @@ favorite keeps its ♥ on the card.
   badge counter on the sidebar item.
 
 These flags are local to your CineLibrary install — they don't write
-back to your `.nfo` files, so MediaElch re-scrapes won't disturb them.
+back to your `.nfo` files, so a re-scrape won't disturb them.
 
 ---
 
@@ -316,7 +316,7 @@ As of **v2.8.0**, CineLibrary catalogs TV shows alongside your movies.
 Any folder that contains a **`tvshow.nfo`** is treated as a TV show.
 Episodes are the video files inside it (directly, or in season folders
 such as `Season 01`) whose names carry an `SxxExx` marker, each with a
-matching `.nfo` — exactly what MediaElch (or CineLibrary Essentials)
+matching `.nfo` — exactly what CineLibrary Essentials
 produces:
 
 ```
@@ -746,7 +746,7 @@ Open any movie's **details** and click **Fetch missing info from TMDB**:
   (instant), or shows a small picker so you confirm the right film.
 - It fills **only what's missing** — a blank poster, plot, year, runtime,
   cast, and so on. **Anything already there is left untouched**, so your
-  MediaElch data and your own edits are safe.
+  scraped data and your own edits are safe.
 - Cast photos and artwork are cached with the app immediately, and the
   details window refreshes in place.
 - A cast photo that only lives on the drive (in the folder's `.actors`
@@ -781,7 +781,7 @@ next to the button says "saved to the movie's folder". Only files that
 aren't there yet are added.
 
 **Into the movie's `.nfo` too (4.8.0).** The movie's `.nfo` gets what it
-was missing, the way Kodi writes it, so Kodi, MediaElch and the next scan
+was missing, the way Kodi writes it, so Kodi, CineLibrary Essentials and the next scan
 see it as well: an empty plot, genres, director, writers, studio, cast and
 so on are filled in. A tag that has a value is never changed and nothing is
 taken out. A cast of 15 or fewer gets the people TMDb has that it doesn't
@@ -1356,14 +1356,14 @@ account required. Your library data never leaves your machine.
 ### A movie I just added isn't showing up
 
 Hit **Rescan** on the drive that contains it. CineLibrary catalogs
-folders that have a `.nfo` file inside; if MediaElch hasn't scraped
-that movie yet, it won't show up.
+folders that have a `.nfo` file inside; if that movie hasn't been scraped
+yet, it won't show up.
 
 ### Posters are missing or look wrong
 
 CineLibrary reads `poster.jpg` (or `folder.jpg`, or the largest image
-file alongside the `.nfo`) per MediaElch's conventions. Re-scrape with
-MediaElch and rescan the drive in CineLibrary.
+file alongside the `.nfo`) per the Kodi convention. Re-scrape with
+CineLibrary Essentials and rescan the drive in CineLibrary.
 
 ### Movies are showing OFFLINE even though the drive is plugged in
 

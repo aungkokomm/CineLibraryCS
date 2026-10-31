@@ -48,6 +48,15 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- v4.10.0: how far it was watched -->
+                <Grid x:Name="ResumeLine" Height="4" VerticalAlignment="Bottom" Background="#99000000" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="ResumeDone"/>
+                        <ColumnDefinition x:Name="ResumeRest"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Background="{StaticResource BrandPurpleBrush}"/>
+                </Grid>
+
                 <StackPanel Orientation="Horizontal" Spacing="4" Margin="6"
                             VerticalAlignment="Top" HorizontalAlignment="Left">
                     <!-- Status badge: small dot + label, corner -->

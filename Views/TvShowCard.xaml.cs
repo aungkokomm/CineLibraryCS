@@ -165,7 +165,7 @@ public sealed partial class TvShowCard : UserControl
     }
 
     // v4.8.0: Settings' stand-in posters, live
-    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyStandIn);
+    private void OnUiSettingsChanged() => DispatcherQueue.Post(ApplyStandIn);
     private void ApplyStandIn() => PosterPlaceholder.Opacity = UiSettings.StandInPosters ? 1 : 0;
 
     private static void OnShowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -183,7 +183,7 @@ public sealed partial class TvShowCard : UserControl
         PlaceholderYear.Text = s.YearText;
         PosterPlaceholder.Background = Controls.PlaceholderArt.BrushFor(s.Title);
         // v4.1.0: on Continue Watching the card says which episode is next.
-        MetaText.Text = s.NextEpisode != null ? $"Next: {s.NextEpisode}" : s.YearText;
+        MetaText.Text = s.NextEpisode == null ? s.YearText : s.NextEpisodeLeft != null ? $"{s.NextEpisode} · {s.NextEpisodeLeft}" : $"Next: {s.NextEpisode}";
         MetaText.Foreground = s.NextEpisode != null ? NextBrush : ThemeBrushes.Get("MutedBrush");
         FavBadge.Visibility = s.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
 
@@ -305,16 +305,35 @@ public sealed partial class TvShowCard : UserControl
         var path = Path.Combine($"{letter}:\\", file.Replace('/', '\\'));
         if (!File.Exists(path)) { mw?.ShowToast($"Couldn't find {next.Code} on the drive"); return; }
 
-        bool launched;
-        try { launched = await VideoPlayer.PlayAsync(path); }
-        catch { launched = false; }
-        if (!launched) { mw?.ShowToast("Couldn't launch the video player"); return; }
+        PlayedWith how;
+        try
+        {
+            how = await VideoPlayer.PlayAsync(path, new PlaybackItem(PlaybackKind.Episode, next.Id, $"{s.Title} {next.Code}"),
+                (_, watched) => { if (watched) EpisodeWatched(s); else mw?.RefreshSidebar(); });
+        }
+        catch { how = PlayedWith.Nothing; }
+        if (how == PlayedWith.Nothing) { mw?.ShowToast("Couldn't launch the video player"); return; }
 
         try
         {
             AppState.Instance.Db.MarkEpisodePlayed(next.Id);
-            AppState.Instance.Db.SetEpisodeWatched(next.Id, true);
-            s.WatchedCount++;
+            // v4.10.0: the built-in player marks it watched near the end; another player never tells
+            if (how == PlayedWith.External)
+            {
+                AppState.Instance.Db.SetEpisodeWatched(next.Id, true);
+                EpisodeWatched(s);
+            }
+            else mw?.RefreshSidebar();
+        }
+        catch { }
+    }
+
+    private void EpisodeWatched(TvShowListItem s)
+    {
+        s.WatchedCount++;
+        // The card may show another show by the time the built-in player says so
+        if (Show == s)
+        {
             ShowProgress(s);
             LoadHoverInfo(s);
             UpdateHoverActions(s);
@@ -323,10 +342,9 @@ public sealed partial class TvShowCard : UserControl
                 s.NextEpisode = now.Code;
                 MetaText.Text = $"Next: {now.Code}";
             }
-            mw?.RefreshSidebar();
-            ShowChanged?.Invoke(s);
         }
-        catch { }
+        (App.MainWindow as MainWindow)?.RefreshSidebar();
+        ShowChanged?.Invoke(s);
     }
 
     private void OnHoverFavorite(object sender, RoutedEventArgs e)

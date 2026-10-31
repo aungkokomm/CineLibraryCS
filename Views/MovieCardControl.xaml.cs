@@ -280,7 +280,7 @@ public sealed partial class MovieCardControl : UserControl
         UiSettings.Changed -= OnUiSettingsChanged;
     }
 
-    private void OnUiSettingsChanged() => DispatcherQueue.TryEnqueue(ApplyCardChrome);
+    private void OnUiSettingsChanged() => DispatcherQueue.Post(ApplyCardChrome);
 
     /// <summary>Re-apply card border, resting shadow, stand-in poster and the
     /// NEW / 4K / HDR tags from the current settings.</summary>
@@ -343,7 +343,9 @@ public sealed partial class MovieCardControl : UserControl
         {
             WatchedBadge.Visibility = Movie.IsWatched ? Visibility.Visible : Visibility.Collapsed;
             ApplyToggleIcons(Movie);
+            ApplyResume(Movie);
         }
+        else if (e.PropertyName == nameof(MovieListItem.ResumeMs)) ApplyResume(Movie);
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
         {
             FavBadge.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
@@ -437,7 +439,8 @@ public sealed partial class MovieCardControl : UserControl
         // v4.8.0: year and length; sorted by length, the length first
         var length = m.Runtime is int r ? RuntimeText(r) : null;
         string Join(params string?[] parts) => string.Join(" · ", parts.Where(p => !string.IsNullOrEmpty(p)));
-        MetaText.Text = m.ListedBy == "runtime" ? Join(length, m.Year?.ToString()) : Join(m.Year?.ToString() ?? "—", length);
+        MetaText.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0 ? m.ResumeText
+                      : m.ListedBy == "runtime" ? Join(length, m.Year?.ToString()) : Join(m.Year?.ToString() ?? "—", length);
         var byRating = m.ListedBy == "rating";
         RatingInline.FontSize = byRating ? 14 : 12;
         RatingInline.FontWeight = byRating ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
@@ -492,10 +495,21 @@ public sealed partial class MovieCardControl : UserControl
             (m.GenresCsv ?? "").Split(',').Select(g => g.Trim()).Where(g => g.Length > 0).Take(3));
 
         ApplySelectionVisual();
+        ApplyResume(m);
         LoadPosterAsync(m.LocalPoster);
     }
 
     private int _posterLoadToken;
+
+    /// <summary>v4.10.0: the line along the poster's foot, while it's part-way.</summary>
+    private void ApplyResume(MovieListItem m)
+    {
+        var shown = m.ResumeProgress > 0 && !m.IsWatched;
+        ResumeLine.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown) return;
+        ResumeDone.Width = new GridLength(m.ResumeProgress, GridUnitType.Star);
+        ResumeRest.Width = new GridLength(1 - m.ResumeProgress, GridUnitType.Star);
+    }
 
     private async void LoadPosterAsync(string? relPath)
     {
@@ -662,7 +676,7 @@ public sealed partial class MovieCardControl : UserControl
             try { await Task.Delay(220, cts.Token); }
             catch (OperationCanceledException) { return; }
             if (cts.IsCancellationRequested) return;
-            dq.TryEnqueue(() =>
+            dq.Post(() =>
             {
                 if (cts.IsCancellationRequested) return;
                 OpenDetail();
@@ -700,7 +714,13 @@ public sealed partial class MovieCardControl : UserControl
         try
         {
             AppState.Instance.Db.MarkPlayed(Movie.Id);
-            await VideoPlayer.PlayAsync(videoPath);
+            var movie = Movie;
+            await VideoPlayer.PlayAsync(videoPath, new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), (_, watched) =>
+            {
+                // v4.10.0: the built-in player marks it watched near the end
+                if (watched) movie.IsWatched = true;
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
             // Bubble so sidebar Continue Watching count refreshes
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         }

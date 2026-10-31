@@ -111,46 +111,7 @@
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         Padding="14,12,14,8">
                     <StackPanel x:Name="LogoPanel" Orientation="Horizontal" Spacing="10">
-                        <Border CornerRadius="9" Width="32" Height="32"
-                                BorderBrush="#55FFFFFF" BorderThickness="1">
-                            <Border.Background>
-                                <!-- Vivid violet gradient: bright purple top,
-                                     deep indigo-violet base — echoes the app
-                                     icon's rich purple body. -->
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0.4,1">
-                                    <GradientStop Offset="0" Color="#C13AEB"/>
-                                    <GradientStop Offset="1" Color="#5B21B6"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <!-- Child is clipped to the parent's corner radius. -->
-                            <Grid>
-                                <!-- Glossy top sheen — soft white highlight over
-                                     the upper half, fading to nothing. -->
-                                <Border>
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Offset="0"    Color="#4DFFFFFF"/>
-                                            <GradientStop Offset="0.55" Color="#00FFFFFF"/>
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                </Border>
-                                <!-- Tiny sparkle, top-left, nodding to the icon. -->
-                                <TextBlock Text="✦" FontSize="7" Foreground="#CCFFFFFF"
-                                           HorizontalAlignment="Left" VerticalAlignment="Top"
-                                           Margin="5,4,0,0"/>
-                                <!-- Glossy white play triangle (vector, crisp). -->
-                                <Polygon Points="0,0 0,13 11,6.5"
-                                         HorizontalAlignment="Center" VerticalAlignment="Center"
-                                         Margin="2,0,0,0">
-                                    <Polygon.Fill>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                            <GradientStop Offset="0" Color="#FFFFFF"/>
-                                            <GradientStop Offset="1" Color="#E9D5FF"/>
-                                        </LinearGradientBrush>
-                                    </Polygon.Fill>
-                                </Polygon>
-                            </Grid>
-                        </Border>
+                        <ContentControl ContentTemplate="{StaticResource LogoTileTemplate}" IsTabStop="False"/>
                         <StackPanel x:Name="LogoTextPanel" VerticalAlignment="Center"
                                     Orientation="Horizontal" Spacing="0">
                             <TextBlock Text="Cine" FontSize="15" FontWeight="SemiBold"
@@ -215,14 +176,25 @@
                             </Grid>
                         </Button>
 
-                        <!-- Favorites -->
-                        <Button x:Name="BtnFavorites" Style="{StaticResource NavItemStyle}" Click="OnNavFavorites">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xEB51;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Favorites" VerticalAlignment="Center"/>
-                            </StackPanel>
+                        <!-- Continue Watching (v1.8) -->
+                        <Button x:Name="BtnContinueWatching" Style="{StaticResource NavItemStyle}"
+                                Click="OnNavContinueWatching">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xE768;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Continue Watching" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="ContinueWatchingBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
                         </Button>
 
                         <!-- Watchlist (v1.3) -->
@@ -243,6 +215,16 @@
                                                Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
                                 </Border>
                             </Grid>
+                        </Button>
+
+                        <!-- Favorites -->
+                        <Button x:Name="BtnFavorites" Style="{StaticResource NavItemStyle}" Click="OnNavFavorites">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xEB51;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Favorites" VerticalAlignment="Center"/>
+                            </StackPanel>
                         </Button>
 
                         <!-- Notes (v2.8.2) — every movie that carries a note -->
@@ -290,27 +272,6 @@
                         <!-- DISCOVER group (v1.9.3) -->
                         <TextBlock x:Name="DiscoverLabel" Text="DISCOVER" Style="{StaticResource SidebarGroupLabelStyle}"/>
 
-                        <!-- Continue Watching (v1.8) -->
-                        <Button x:Name="BtnContinueWatching" Style="{StaticResource NavItemStyle}"
-                                Click="OnNavContinueWatching">
-                            <Grid HorizontalAlignment="Stretch">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <FontIcon Foreground="{ThemeResource NavDiscoverIconBrush}" Glyph="&#xE768;" FontSize="15"
-                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                              VerticalAlignment="Center"/>
-                                    <TextBlock Text="Continue Watching" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
-                                    <TextBlock x:Name="ContinueWatchingBadge" Text="0" FontSize="11"
-                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
-                                </Border>
-                            </Grid>
-                        </Button>
-
                         <!-- Recently Added (v1.7) -->
                         <Button x:Name="BtnRecentlyAdded" Style="{StaticResource NavItemStyle}" Click="OnNavRecentlyAdded">
                             <StackPanel Orientation="Horizontal" Spacing="10">
@@ -353,6 +314,16 @@
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="On This Day" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Statistics (v1.4.1) -->
+                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <FontIcon Foreground="{ThemeResource NavDiscoverIconBrush}" Glyph="&#xE9D9;" FontSize="15"
+                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Text="Statistics" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
 
@@ -452,16 +423,6 @@
 
                         <!-- TOOLS group (v1.9.3) -->
                         <TextBlock x:Name="ToolsLabel" Text="TOOLS" Style="{StaticResource SidebarGroupLabelStyle}"/>
-
-                        <!-- Statistics (v1.4.1) -->
-                        <Button x:Name="BtnStatistics" Style="{StaticResource NavItemStyle}" Click="OnNavStatistics">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavToolsIconBrush}" Glyph="&#xE9D9;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Statistics" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
 
                         <!-- Dupes (v3.4.4) — find movies held more than once -->
                         <Button x:Name="BtnDupes" Style="{StaticResource NavItemStyle}" Click="OnNavDupes">

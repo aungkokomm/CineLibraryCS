@@ -62,7 +62,7 @@ public sealed partial class MainWindow : Window
 
         // Apply Mica material (user-toggleable in Settings) and keep it in sync.
         ApplyMica();
-        UiSettings.Changed += () => DispatcherQueue.TryEnqueue(ApplyMica);
+        UiSettings.Changed += () => DispatcherQueue.Post(ApplyMica);
 
         // Window size
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -150,6 +150,7 @@ public sealed partial class MainWindow : Window
         // still exists, and the SqliteConnection still needs clean disposal.
         this.Closed += (_, _) =>
         {
+            StartLog.Mark("main window closed");
             try { _deviceWatcher?.Dispose(); } catch { }
             _deviceWatcher = null;
             try { _vm.Shutdown(); } catch { }
@@ -202,6 +203,26 @@ public sealed partial class MainWindow : Window
     /// reduce motion. Both visual extras default off, persisted via prefs,
     /// and applied live (cards listen to UiSettings.Changed).
     /// </summary>
+    // v4.10.0: VLC's English names for the languages, which is how it labels tracks
+    private static readonly string[] PlayerLanguages =
+    [
+        "English", "Hindi", "Burmese", "Tamil", "Telugu", "Malayalam", "Kannada", "Bengali", "Marathi", "Urdu",
+        "Arabic", "Chinese", "French", "German", "Indonesian", "Italian", "Japanese", "Korean", "Portuguese",
+        "Russian", "Spanish", "Thai", "Turkish", "Vietnamese",
+    ];
+
+    private static ComboBox PlayerLanguageBox(string header, string current, Action<string> set, bool off)
+    {
+        const string AsInFile = "As in the file";
+        var box = new ComboBox { Header = header, MinWidth = 220, Margin = new Thickness(0, 0, 0, 8) };
+        box.Items.Add(AsInFile);
+        if (off) box.Items.Add("Off");
+        foreach (var language in PlayerLanguages) box.Items.Add(language);
+        box.SelectedItem = current.Length == 0 ? AsInFile : current;
+        box.SelectionChanged += (_, _) => set(box.SelectedItem as string is { } chosen and not AsInFile ? chosen : "");
+        return box;
+    }
+
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
         // v4.8.0 (#25): the notes in the text colour, a little dimmed, and a size up:
@@ -360,6 +381,60 @@ public sealed partial class MainWindow : Window
 
         // ── Playback (v3.6.0) ──
         panel.Children.Add(Header("PLAYBACK"));
+        // v4.10.0: CineLibrary's own player
+        var builtInToggle = new ToggleSwitch
+        {
+            Header = "Play in CineLibrary",
+            IsOn = UiSettings.UseBuiltInPlayer,
+            OffContent = "Off", OnContent = "On",
+        };
+        builtInToggle.Toggled += (_, _) => UiSettings.SetUseBuiltInPlayer(builtInToggle.IsOn);
+        panel.Children.Add(builtInToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Movies and episodes play in CineLibrary's own player. It starts where you stopped, marks them watched near the end and offers the next episode.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        panel.Children.Add(PlayerLanguageBox("Audio language", UiSettings.PreferredAudio, UiSettings.SetPreferredAudio, off: false));
+        panel.Children.Add(PlayerLanguageBox("Subtitle language", UiSettings.PreferredSubtitles, UiSettings.SetPreferredSubtitles, off: true));
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Used when the file has that language. What you choose in the player is remembered for each film or show.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        var pauseToggle = new ToggleSwitch
+        {
+            Header = "Details when paused",
+            IsOn = UiSettings.PauseScreen,
+            OffContent = "Off", OnContent = "On",
+        };
+        pauseToggle.Toggled += (_, _) => UiSettings.SetPauseScreen(pauseToggle.IsOn);
+        panel.Children.Add(pauseToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "A few seconds into a pause, the poster, plot, cast and time left show over the picture.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        if (Services.Playback.SubtitleSearch.Available)
+        {
+            var onlineToggle = new ToggleSwitch
+            {
+                Header = "Find subtitles online",
+                IsOn = UiSettings.FindSubtitlesOnline,
+                OffContent = "Off", OnContent = "On",
+            };
+            onlineToggle.Toggled += (_, _) => UiSettings.SetFindSubtitlesOnline(onlineToggle.IsOn);
+            panel.Children.Add(onlineToggle);
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Adds a search to the player's Subtitles menu. It looks on OpenSubtitles.com, with no login, in your subtitle language and in English.",
+                FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10),
+            });
+        }
         panel.Children.Add(new TextBlock { Text = "Video player", FontSize = 13 });
         var playerBox = new TextBox
         {
@@ -409,7 +484,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(defaultPlayer);
         panel.Children.Add(new TextBlock
         {
-            Text = "Play opens videos in this program, for example VLC, MPC-HC, PotPlayer or mpv. With none chosen, Play uses whatever Windows opens video files with.",
+            Text = "With Play in CineLibrary off, or for a file it can't play, Play opens videos in this program, for example VLC, MPC-HC, PotPlayer or mpv. With none chosen, Play uses whatever Windows opens video files with.",
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
@@ -508,12 +583,16 @@ public sealed partial class MainWindow : Window
         //   3. Fill the sidebar, rendering it immediately (skip the 150 ms
         //      debounce that exists to coalesce mid-session bursts).
         await Task.Run(() => AppState.Instance.RefreshConnected());
+        StartLog.Mark("drives checked");
 
         NavigateTo("library");
         SetActiveNav(BtnAllMovies);   // initial active highlight on All Movies
+        StartLog.Mark("library opened");
 
         await _vm.InitializeAsync();
+        StartLog.Mark("data loaded");
         RefreshSidebarImmediate();
+        StartLog.Mark("sidebar filled");
 
         // Fire-and-forget update check. Silent on no-network. Skipped versions
         // are remembered via the prefs table so the user isn't nagged.
@@ -535,7 +614,7 @@ public sealed partial class MainWindow : Window
 
             _pendingUpdateVersion = info.LatestVersion;
             _pendingUpdateUrl = info.ReleaseUrl;
-            DispatcherQueue.TryEnqueue(() => ShowUpdateToast(info.LatestVersion));
+            DispatcherQueue.Post(() => ShowUpdateToast(info.LatestVersion));
         }
         catch { /* never let an update check break the app */ }
     }
@@ -585,7 +664,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     public void ShowToastWithUndo(string message, Action undo)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             var myGen = ++_toastGeneration;
             ToastText.Text = message;
@@ -607,7 +686,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ScheduleToastHide(int generation)
     {
-        Task.Delay(6000).ContinueWith(_ => DispatcherQueue.TryEnqueue(() =>
+        Task.Delay(6000).ContinueWith(_ => DispatcherQueue.Post(() =>
         {
             if (_toastGeneration != generation) return;
             _pendingUndo = null;
@@ -631,7 +710,7 @@ public sealed partial class MainWindow : Window
         _ = Task.Delay(150, token).ContinueWith(t =>
         {
             if (t.IsCanceled) return;
-            DispatcherQueue.TryEnqueue(RefreshSidebarImmediate);
+            DispatcherQueue.Post(RefreshSidebarImmediate);
         }, TaskScheduler.Default);
     }
 
@@ -1160,7 +1239,7 @@ public sealed partial class MainWindow : Window
         _ = copyTask.ContinueWith(t =>
         {
             try { result = t.Result; } catch { }
-            DispatcherQueue.TryEnqueue(() => { try { dlg.Hide(); } catch { } });
+            DispatcherQueue.Post(() => { try { dlg.Hide(); } catch { } });
         }, TaskScheduler.Default);
 
         await dlg.ShowAsync();
@@ -2162,43 +2241,98 @@ public sealed partial class MainWindow : Window
 
     private async void OnAboutClick(object sender, RoutedEventArgs e)
     {
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock
+        // 4.10.0 (#25): set out and coloured as Settings is
+        var dim = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush");
+
+        TextBlock Header(string t) => new()
         {
-            Text = "A fast, native movie catalog for MediaElch-scraped collections.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Browse, search and play your movies across multiple external drives.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Built with C# + WinUI 3.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        var link = new HyperlinkButton
-        {
-            Content = "github.com/aungkokomm/CineLibraryCS",
-            NavigateUri = new Uri("https://github.com/aungkokomm/CineLibraryCS"),
-            Padding = new Thickness(0),
+            Text = t, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 120, Opacity = 0.75, Foreground = dim,
+            Margin = new Thickness(0, 12, 0, 4),
         };
-        panel.Children.Add(link);
+        TextBlock Note(string t) => new()
+        {
+            Text = t, FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+        };
+        HyperlinkButton Link(string text, string url) => new()
+        {
+            Content = text, NavigateUri = new Uri(url), Padding = new Thickness(0),
+        };
+
+        var panel = new StackPanel { Spacing = 6, MinWidth = 360 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "A fast, native Windows app for your movies and TV shows. Browse, manage and play your whole collection across any number of drives, even when they are unplugged.",
+            TextWrapping = TextWrapping.Wrap,
+        });
+        panel.Children.Add(Note("Portable and private: it runs from any folder, with no account and no telemetry."));
+
+        panel.Children.Add(Header("COMPANION APP"));
+        panel.Children.Add(Note("CineLibrary Essentials gets your folders ready: it renames, organizes and scrapes them, then CineLibrary takes over."));
+        panel.Children.Add(Link("CineLibrary Essentials", "https://github.com/aungkokomm/CineLibraryEssentials"));
+
+        panel.Children.Add(Header("LICENSE"));
+        panel.Children.Add(Note("Free and open source under the MIT License. \u00a9 2026 Aung Ko Ko. Built with C# and WinUI 3."));
+        panel.Children.Add(Link("github.com/aungkokomm/CineLibraryCS", "https://github.com/aungkokomm/CineLibraryCS"));
+
+        panel.Children.Add(Header("CREDITS"));
+        panel.Children.Add(Note("Videos play with LibVLC and LibVLCSharp by VideoLAN and the VLC authors, under the LGPL."));
+        var agregarr = new Microsoft.UI.Xaml.Documents.Hyperlink { NavigateUri = new Uri("https://agregarr.org/docs/imdb-ratings/") };
+        agregarr.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "Agregarr" });
+        var ratings = Note("IMDb ratings come from ");
+        ratings.Inlines.Add(agregarr);
+        ratings.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "'s free ratings service." });
+        panel.Children.Add(ratings);
+        panel.Children.Add(Note("This product uses the TMDB API but is not endorsed or certified by TMDB."));
+        panel.Children.Add(Note("Portions of this software are copyright \u00a9 2026 The FreeType Project (www.freetype.org). All rights reserved."));
+        var notices = new HyperlinkButton { Content = "Third-party notices", Padding = new Thickness(0) };
+        notices.Click += (_, _) =>
+        {
+            // Notepad by its full path: a bare name fails beside this app's own WinAppSDK files
+            var notepad = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "notepad.exe");
+            var file = Path.Combine(AppContext.BaseDirectory, "THIRD-PARTY-NOTICES.txt");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = notepad, Arguments = $"\"{file}\"", UseShellExecute = false });
+        };
+        panel.Children.Add(notices);
 
         // Read the version straight from the assembly so the About box can
         // never drift out of sync with the build again.
         var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         var versionText = v != null ? $"{v.Major}.{v.Minor}.{v.Build}" : "";
 
+        var word = new StackPanel { Orientation = Orientation.Horizontal };
+        word.Children.Add(new TextBlock { Text = "Cine", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+        word.Children.Add(new TextBlock
+        {
+            Text = "Library", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = (Brush)Application.Current.Resources["BrandPurpleBrush"],
+        });
+        var name = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        name.Children.Add(word);
+        name.Children.Add(new TextBlock { Text = $"Version {versionText}", FontSize = 13, Opacity = 0.75, Foreground = dim });
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        title.Children.Add(new Viewbox
+        {
+            Width = 44, Height = 44,
+            Child = new ContentControl { ContentTemplate = (DataTemplate)Application.Current.Resources["LogoTileTemplate"], IsTabStop = false },
+        });
+        title.Children.Add(name);
+
         var dialog = new ContentDialog
         {
-            Title = $"CineLibrary v{versionText}",
-            Content = panel,
-            CloseButtonText = "OK",
+            Title = title,
+            Content = new ScrollViewer
+            {
+                Content = panel,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                MaxHeight = 520,
+                Padding = new Thickness(0, 0, 16, 0),
+            },
+            CloseButtonText = "Done",
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
         };
+        UseAppDarkLook(dialog);
         await dialog.ShowAsync();
     }
 
@@ -2206,7 +2340,7 @@ public sealed partial class MainWindow : Window
 
     public void ShowToast(string message)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             var myGen = ++_toastGeneration;
             ToastText.Text = message;
@@ -2419,9 +2553,9 @@ public sealed partial class MainWindow : Window
             else if (!conditional.Contains(b)) b.Visibility = Visibility.Visible;
         }
         // A group label goes when nothing under it shows
-        DiscoverLabel.Visibility = AnyVisible(BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay);
+        DiscoverLabel.Visibility = AnyVisible(BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay, BtnStatistics);
         BrowseLabel.Visibility = AnyVisible(BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags);
-        ToolsLabel.Visibility = AnyVisible(BtnStatistics, BtnDupes, BtnFewCast, BtnBackupExport);
+        ToolsLabel.Visibility = AnyVisible(BtnDupes, BtnFewCast, BtnBackupExport);
         if (_sidebarCollapsed) BuildRail();
     }
 

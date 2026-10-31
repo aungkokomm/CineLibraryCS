@@ -133,6 +133,7 @@ public sealed partial class MovieRowControl : UserControl
     private void OnMoviePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (Movie == null) return;
+        if (e.PropertyName is nameof(MovieListItem.IsWatched) or nameof(MovieListItem.ResumeMs)) ApplyResume(Movie);
         if (e.PropertyName is nameof(MovieListItem.IsWatched) or nameof(MovieListItem.IsWatchlist))
             ApplyToggleIcons(Movie);
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
@@ -154,10 +155,23 @@ public sealed partial class MovieRowControl : UserControl
             : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 
+    /// <summary>v4.10.0: the line along the thumbnail's foot, while it's part-way.</summary>
+    private void ApplyResume(MovieListItem m)
+    {
+        var shown = m.ResumeProgress > 0 && !m.IsWatched;
+        ResumeLine.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown) return;
+        ResumeDone.Width = new GridLength(m.ResumeProgress, GridUnitType.Star);
+        ResumeRest.Width = new GridLength(1 - m.ResumeProgress, GridUnitType.Star);
+    }
+
     private void Populate(MovieListItem m)
     {
         RowTitle.Text = m.Title;
-        RowMeta.Text = $"{m.Year?.ToString() ?? "—"}{(m.Runtime is int r ? " · " + MovieCardControl.RuntimeText(r) : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
+        RowMeta.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0
+            ? $"{m.Year?.ToString() ?? "—"} · {m.ResumeText}"
+            : $"{m.Year?.ToString() ?? "—"}{(m.Runtime is int r ? " · " + MovieCardControl.RuntimeText(r) : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
+        ApplyResume(m);
         RowFav.Visibility = m.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RowRating.Text = m.RatingText;
 
@@ -309,7 +323,7 @@ public sealed partial class MovieRowControl : UserControl
             try { await Task.Delay(220, cts.Token); }
             catch (OperationCanceledException) { return; }
             if (cts.IsCancellationRequested) return;
-            dq.TryEnqueue(() =>
+            dq.Post(() =>
             {
                 if (cts.IsCancellationRequested) return;
                 OpenDetail();
@@ -342,7 +356,13 @@ public sealed partial class MovieRowControl : UserControl
         try
         {
             AppState.Instance.Db.MarkPlayed(Movie.Id);
-            await VideoPlayer.PlayAsync(videoPath);
+            var movie = Movie;
+            await VideoPlayer.PlayAsync(videoPath, new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), (_, watched) =>
+            {
+                // v4.10.0: the built-in player marks it watched near the end
+                if (watched) movie.IsWatched = true;
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         }
         catch

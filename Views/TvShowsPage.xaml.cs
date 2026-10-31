@@ -1193,7 +1193,7 @@ public sealed partial class TvShowsPage : Page
                 catch { }
                 if (uri == null) continue;
                 var capturedUri = uri;
-                DispatcherQueue.TryEnqueue(() =>
+                DispatcherQueue.Post(() =>
                 {
                     try
                     {
@@ -1245,7 +1245,7 @@ public sealed partial class TvShowsPage : Page
         }
     }
 
-    private void OnShowsArchived() => DispatcherQueue.TryEnqueue(() =>
+    private void OnShowsArchived() => DispatcherQueue.Post(() =>
     {
         if (_level == Level.Shows) LoadShows();
     });
@@ -1282,10 +1282,26 @@ public sealed partial class TvShowsPage : Page
         if (!File.Exists(path)) { await ShowOfflineDialog(ep.Title); return; }
 
         // Launch FIRST so a DB hiccup can never stop playback.
-        bool launched = false;
-        try { launched = await VideoPlayer.PlayAsync(path); }
-        catch { launched = false; }
-        if (!launched)
+        var how = PlayedWith.Nothing;
+        try
+        {
+            how = await VideoPlayer.PlayAsync(path, new PlaybackItem(PlaybackKind.Episode, ep.Id, $"{ep.Code} {ep.Title}"), (played, watched) =>
+            {
+                // v4.10.0: this one, or a next episode the built-in player went on to
+                if (_showEpisodes.FirstOrDefault(x => x.Id == played.Id) is { } done)
+                {
+                    done.ResumeMs = AppState.Instance.Db.GetResumeMs(true, done.Id);
+                    if (watched)
+                    {
+                        done.IsWatched = true;
+                        RefreshHeaderProgress();
+                    }
+                }
+                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+            });
+        }
+        catch { how = PlayedWith.Nothing; }
+        if (how == PlayedWith.Nothing)
         {
             if (App.MainWindow is MainWindow mw) mw.ShowToast("Couldn't launch the video player");
             return;
@@ -1295,7 +1311,8 @@ public sealed partial class TvShowsPage : Page
         try
         {
             AppState.Instance.Db.MarkEpisodePlayed(ep.Id);
-            if (!ep.IsWatched)
+            // v4.10.0: the built-in player marks it watched near the end; another player never tells
+            if (how == PlayedWith.External && !ep.IsWatched)
             {
                 AppState.Instance.Db.SetEpisodeWatched(ep.Id, true);
                 ep.IsWatched = true;
@@ -1416,7 +1433,7 @@ public sealed partial class TvShowsPage : Page
 
     private void OnAddShowTagBlur(object sender, RoutedEventArgs e)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             if (AddShowTagBox.FocusState != FocusState.Programmatic)
             {

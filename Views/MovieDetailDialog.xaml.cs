@@ -127,13 +127,14 @@ public sealed partial class MovieDetailDialog : Window
     /// <summary>Hides the main window once this one has had a moment to draw over it.</summary>
     private void HideMainSoon()
     {
-        var timer = _hideMainTimer = DispatcherQueue.CreateTimer();
+        var ui = DispatcherQueue;
+        var timer = _hideMainTimer = ui.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(250);
         timer.IsRepeating = false;
-        timer.Tick += (_, _) =>
+        timer.Tick += (_, _) => ui.Post(() =>
         {
             if (!_closed && MainHwnd is var main && main != IntPtr.Zero) ShowWindow(main, SwHide);
-        };
+        });
         timer.Start();
     }
 
@@ -380,17 +381,14 @@ public sealed partial class MovieDetailDialog : Window
             // v4.4.1: the whole cast now; a very big one (up to a few hundred)
             // shows its first 24 until Show all, so the page and the photo
             // loading stay reasonable.
-            var shown = m.Actors.Count > CastPreview ? m.Actors.Take(CastPreview).ToList() : m.Actors;
-            CastRepeater.ItemsSource = shown;
             FitCastCardHeight(m.Actors);   // all of them, so Show all keeps the card height
-            CastShowAllBtn.Content = $"Show all {m.Actors.Count}";
-            CastShowAllBtn.Visibility = shown.Count < m.Actors.Count ? Visibility.Visible : Visibility.Collapsed;
             string? movieFolderAbs = null;
             if (m.IsOnline && m.CurrentLetter != null && m.FolderRelPath != null)
                 movieFolderAbs = Path.Combine($"{m.CurrentLetter}:\\",
                     m.FolderRelPath.Replace('/', '\\'));
             _castFolderAbs = movieFolderAbs;
-            _ = LoadCastThumbsAsync(shown, movieFolderAbs);
+            CastRepeater.ItemsSource = null;
+            ShowCast();
         }
 
         // Images
@@ -680,12 +678,31 @@ public sealed partial class MovieDetailDialog : Window
     private const int CastPreview = 24;
     private string? _castFolderAbs;
 
+    private const double LowWindow = 900;
+    private bool _castAll;   // Show all was clicked, for this movie
+
     private void OnCastShowAll(object sender, RoutedEventArgs e)
     {
-        if (_movie == null) return;
-        CastRepeater.ItemsSource = _movie.Actors;
-        CastShowAllBtn.Visibility = Visibility.Collapsed;
-        _ = LoadCastThumbsAsync(_movie.Actors.Skip(CastPreview).ToList(), _castFolderAbs);
+        _castAll = true;
+        ShowCast();
+    }
+
+    /// <summary>
+    /// 4.10.0 (#25): in a low window one row of cast, so what's under it is close. In
+    /// a taller one the first 24 of a very big cast. Show all brings the rest in both.
+    /// </summary>
+    private void ShowCast()
+    {
+        if (_movie == null || _movie.Actors.Count == 0) return;
+        var width = ContentScroller.ActualWidth - ContentScroller.Padding.Left - ContentScroller.Padding.Right;
+        var across = (int)Math.Max(1, Math.Floor(width / (CastGridLayout.MinItemWidth + CastGridLayout.MinColumnSpacing)));
+        var most = ContentScroller.ActualHeight < LowWindow ? across : CastPreview;
+        var shown = _castAll || _movie.Actors.Count <= most ? _movie.Actors : _movie.Actors.Take(most).ToList();
+        if (CastRepeater.ItemsSource is System.Collections.IList now && now.Count == shown.Count) return;
+        CastRepeater.ItemsSource = shown;
+        CastShowAllBtn.Content = $"Show all {_movie.Actors.Count}";
+        CastShowAllBtn.Visibility = shown.Count < _movie.Actors.Count ? Visibility.Visible : Visibility.Collapsed;
+        _ = LoadCastThumbsAsync(shown.Where(a => a.ThumbBitmap == null).ToList(), _castFolderAbs);
     }
 
     /// <summary>
@@ -811,6 +828,7 @@ public sealed partial class MovieDetailDialog : Window
     {
         _movie = null;
         _castFolderAbs = null;
+        _castAll = false;
         foreach (var e in new FrameworkElement[]
                  {
                      OriginalTitle, TaglineWrap, PlotSection, PlotDivider, DirectorField, WriterField,
@@ -1259,10 +1277,13 @@ public sealed partial class MovieDetailDialog : Window
     {
         var inner = e.NewSize.Width - ContentScroller.Padding.Left - ContentScroller.Padding.Right;
         ContentStack.Width = Math.Max(0, inner);
-        HeroBorder.Height = Math.Clamp(inner / 3.2, 220, 460);   // 1100 wide = the old 340
+        // 4.10.0 (#25): in a low window it gives way, so the poster, Play and the plot show without
+        // scrolling. Not under 180: the poster rises 120 into it, up to the buttons on top of it.
+        HeroBorder.Height = Math.Max(180, Math.Min(Math.Clamp(inner / 3.2, 220, 460), e.NewSize.Height - 480));   // 1100 wide = the old 340
         ApplyLayout(e.NewSize.Width < 900 ? DetailLayout.Narrow
                   : e.NewSize.Width >= 1600 ? DetailLayout.Wide
                   : DetailLayout.Standard);
+        ShowCast();
     }
 
     private enum DetailLayout { Unset, Narrow, Standard, Wide }
@@ -1381,7 +1402,15 @@ public sealed partial class MovieDetailDialog : Window
             AppState.Instance.Db.MarkPlayed(_movie.Id);
             // Tell the host so its sidebar badge updates
             WatchlistChanged?.Invoke(this, EventArgs.Empty);
-            await VideoPlayer.PlayAsync(videoPath);
+            var movie = _movie;
+            await VideoPlayer.PlayAsync(videoPath, new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), (_, watched) =>
+            {
+                // v4.10.0: the built-in player marks it watched near the end
+                if (!watched || _closed) return;
+                movie.IsWatched = true;
+                WatchedBtn.Content = "✓ Watched";
+                WatchlistChanged?.Invoke(this, EventArgs.Empty);
+            });
         }
     }
 
@@ -1595,7 +1624,7 @@ public sealed partial class MovieDetailDialog : Window
         {
             // Collapse the input when it loses focus without a submission.
             // Brief delay so a click on a suggestion has time to fire.
-            DispatcherQueue.TryEnqueue(() =>
+            DispatcherQueue.Post(() =>
             {
                 if (!AddTagBox.FocusState.Equals(FocusState.Programmatic))
                 {

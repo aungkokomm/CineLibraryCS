@@ -17,6 +17,9 @@ CineLibrary-Data/
 _*.ps1
 dist/
 
+# The OpenSubtitles key: built into the app, never in the public source.
+ThirdParty/opensubtitles.key
+
 # Stray root-level art files (e.g. accidental icon → PNG conversions).
 # Real artwork lives under Assets\.
 /*.png

@@ -41,7 +41,7 @@ public sealed partial class TvShowRowControl : UserControl
         // Continue Watching: which episode is next, as the card says
         var episodes = s.EpisodeCount == 1 ? "1 episode" : $"{s.EpisodeCount} episodes";
         RowMeta.Text = s.NextEpisode != null
-            ? $"{s.YearText} · Next: {s.NextEpisode}"
+            ? s.NextEpisodeLeft != null ? $"{s.YearText} · {s.NextEpisode} · {s.NextEpisodeLeft}" : $"{s.YearText} · Next: {s.NextEpisode}"
             : $"{s.YearText} · {episodes}{(s.GenresCsv != null ? $" · {s.GenresCsv.Split(',')[0].Trim()}" : "")}";
         RowFav.Visibility = s.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RowRating.Text = s.RatingText;

@@ -402,7 +402,7 @@
                                FontSize="15" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center"/>
                     <TextBlock x:Name="EmptyHint"
-                               Text="Add a drive whose folders contain tvshow.nfo (MediaElch-scraped shows), then Update Database."
+                               Text="Add a drive whose folders contain tvshow.nfo (shows scraped with CineLibrary Essentials), then Update Database."
                                FontSize="12" Foreground="{ThemeResource MutedBrush}"
                                HorizontalAlignment="Center" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="420"/>

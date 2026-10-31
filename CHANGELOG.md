@@ -6,6 +6,39 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.0.0] - 2026-10-31
+
+### Added
+- CineLibrary plays movies and episodes in its own player (VLC's engine), over the window you pressed Play in. It plays the formats VLC plays, uses the graphics card for decoding, and shows subtitles as VLC does.
+- It starts where you stopped last time (Start over goes back to the beginning), saves your place every 10 seconds, and marks a movie or episode watched once 90% of it has played.
+- At the end of an episode it offers the next one and plays it after 10 seconds.
+- Audio and Subtitles menus choose the language. Full screen, seeking, volume and the keyboard work as in other players: Space, Left/Right (Ctrl for a minute), Up/Down, M, F or F11, Home, N, P, Esc.
+- Previous and Next go to the previous or next episode, or through a film's chapters.
+- The controls come up when the mouse goes near the bottom of the video, in a window and in full screen; moving it elsewhere only shows the pointer.
+- The controls are see-through over the film, and the mouse wheel works on the seek bar and the volume.
+- Continue Watching shows how much is left of each film and episode, and posters show how far you got.
+- Continue Watching groups everything into This week, This month and Earlier, films and shows together.
+- Keys and the wheel show a small note (volume, +10 s, subtitles) instead of the whole bar.
+- Settings > Playback sets your audio and subtitle languages; what you choose in the player is remembered for each film or show.
+- Point at the seek bar for the time there, with chapters marked. Click the length for the time left or the end time.
+- Full screen shows the title with the controls. A few seconds into a pause, the poster, plot, cast and time left show over the picture.
+- Right-click the video for speed, zoom (Fit, Fill, 16:9, 4:3) and subtitle timing. The menus are frosted glass over the film. G and H move the subtitles too.
+- Settings > Playback > Play in CineLibrary turns it off; Play then uses the program chosen below it, as before. A file the player can't open goes to that program too.
+- Backups and the state files on your drives keep where you stopped and your audio and subtitle choices.
+- About lists the player's libraries and links to their licences.
+
+### Changed
+
+- Continue Watching moved up under All TV Shows, with To Watch next to it, and Statistics moved to Discover.
+- About now matches Settings, with new text, CineLibrary Essentials and the credits.
+- The movie page fits low windows better: a shorter banner, and one row of cast with Show all.
+
+### Fixed
+
+- The Watched and Unwatched filters now cover TV shows as well as movies on By Genre, Favorites, lists and search.
+- The year under a film in the collection and More by strips is no longer cut off.
+- The app could close by itself, for example while typing in the search box. It now shows the error and keeps running.
+
 ## [4.9.0] - 2026-10-30
 
 ### Added

@@ -16,9 +16,9 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>4.9.0</Version>
-    <AssemblyVersion>4.9.0.0</AssemblyVersion>
-    <FileVersion>4.9.0.0</FileVersion>
+    <Version>5.0.0</Version>
+    <AssemblyVersion>5.0.0.0</AssemblyVersion>
+    <FileVersion>5.0.0.0</FileVersion>
 
     <!--
       v2.9.2 — faster cold start. ReadyToRun precompiles the app's IL to
@@ -36,6 +36,54 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+    <!-- v4.10.0: the built-in player. VLC's engine, the LGPL build (x64 only) -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.2" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
+  </ItemGroup>
+
+  <!-- v4.10.0: only the reviewed VLC files are copied (an allowlist, so a new VLC
+       version can't bring in anything unreviewed). See the license check. -->
+  <ItemGroup>
+    <VlcWindowsX64IncludeFiles Include="libvlc.dll;libvlccore.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\access\libattachment_plugin.dll;plugins\access\libfilesystem_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\audio_filter\libaudio_format_plugin.dll;plugins\audio_filter\libgain_plugin.dll;plugins\audio_filter\libremap_plugin.dll;plugins\audio_filter\libscaletempo_plugin.dll;plugins\audio_filter\libsimple_channel_mixer_plugin.dll;plugins\audio_filter\libspeex_resampler_plugin.dll;plugins\audio_filter\libtrivial_channel_mixer_plugin.dll;plugins\audio_filter\libtospdif_plugin.dll;plugins\audio_filter\libugly_resampler_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\audio_mixer\libfloat_mixer_plugin.dll;plugins\audio_mixer\libinteger_mixer_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\audio_output\libdirectsound_plugin.dll;plugins\audio_output\libmmdevice_plugin.dll;plugins\audio_output\libwasapi_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\codec\libadpcm_plugin.dll;plugins\codec\libaes3_plugin.dll;plugins\codec\libaraw_plugin.dll;plugins\codec\libavcodec_plugin.dll;plugins\codec\libcc_plugin.dll;plugins\codec\libd3d11va_plugin.dll;plugins\codec\libdav1d_plugin.dll;plugins\codec\libdvbsub_plugin.dll;plugins\codec\libdxva2_plugin.dll;plugins\codec\libflac_plugin.dll;plugins\codec\liblibass_plugin.dll;plugins\codec\liblpcm_plugin.dll;plugins\codec\libmpg123_plugin.dll;plugins\codec\libopus_plugin.dll;plugins\codec\librawvideo_plugin.dll;plugins\codec\libscte27_plugin.dll;plugins\codec\libspdif_plugin.dll;plugins\codec\libspudec_plugin.dll;plugins\codec\libsubsdec_plugin.dll;plugins\codec\libsubstx3g_plugin.dll;plugins\codec\libsubsusf_plugin.dll;plugins\codec\libtextst_plugin.dll;plugins\codec\libttml_plugin.dll;plugins\codec\libvorbis_plugin.dll;plugins\codec\libwebvtt_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\d3d11\libdirect3d11_filters_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\d3d9\libdirect3d9_filters_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\demux\libasf_plugin.dll;plugins\demux\libavi_plugin.dll;plugins\demux\libes_plugin.dll;plugins\demux\libflacsys_plugin.dll;plugins\demux\libh26x_plugin.dll;plugins\demux\libmkv_plugin.dll;plugins\demux\libmp4_plugin.dll;plugins\demux\libmpgv_plugin.dll;plugins\demux\libogg_plugin.dll;plugins\demux\libps_plugin.dll;plugins\demux\libsubtitle_plugin.dll;plugins\demux\libts_plugin.dll;plugins\demux\libvc1_plugin.dll;plugins\demux\libvobsub_plugin.dll;plugins\demux\libwav_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\misc\libxml_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\packetizer\libpacketizer_av1_plugin.dll;plugins\packetizer\libpacketizer_copy_plugin.dll;plugins\packetizer\libpacketizer_dirac_plugin.dll;plugins\packetizer\libpacketizer_dts_plugin.dll;plugins\packetizer\libpacketizer_flac_plugin.dll;plugins\packetizer\libpacketizer_h264_plugin.dll;plugins\packetizer\libpacketizer_hevc_plugin.dll;plugins\packetizer\libpacketizer_mlp_plugin.dll;plugins\packetizer\libpacketizer_mpeg4audio_plugin.dll;plugins\packetizer\libpacketizer_mpeg4video_plugin.dll;plugins\packetizer\libpacketizer_mpegaudio_plugin.dll;plugins\packetizer\libpacketizer_mpegvideo_plugin.dll;plugins\packetizer\libpacketizer_vc1_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\stream_filter\libcache_block_plugin.dll;plugins\stream_filter\libcache_read_plugin.dll;plugins\stream_filter\libprefetch_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\text_renderer\libfreetype_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_chroma\libchain_plugin.dll;plugins\video_chroma\libgrey_yuv_plugin.dll;plugins\video_chroma\libi420_10_p010_plugin.dll;plugins\video_chroma\libi420_nv12_plugin.dll;plugins\video_chroma\libi420_rgb_plugin.dll;plugins\video_chroma\libi420_rgb_mmx_plugin.dll;plugins\video_chroma\libi420_rgb_sse2_plugin.dll;plugins\video_chroma\libi420_yuy2_plugin.dll;plugins\video_chroma\libi420_yuy2_mmx_plugin.dll;plugins\video_chroma\libi420_yuy2_sse2_plugin.dll;plugins\video_chroma\libi422_i420_plugin.dll;plugins\video_chroma\libi422_yuy2_plugin.dll;plugins\video_chroma\libi422_yuy2_mmx_plugin.dll;plugins\video_chroma\libi422_yuy2_sse2_plugin.dll;plugins\video_chroma\librv32_plugin.dll;plugins\video_chroma\libswscale_plugin.dll;plugins\video_chroma\libyuvp_plugin.dll;plugins\video_chroma\libyuy2_i420_plugin.dll;plugins\video_chroma\libyuy2_i422_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_filter\libblend_plugin.dll;plugins\video_filter\libcanvas_plugin.dll;plugins\video_filter\libcroppadd_plugin.dll;plugins\video_filter\libdeinterlace_plugin.dll;plugins\video_filter\libscale_plugin.dll;plugins\video_filter\libtransform_plugin.dll" />
+    <VlcWindowsX64IncludeFiles Include="plugins\video_output\libdirect3d11_plugin.dll;plugins\video_output\libdirect3d9_plugin.dll;plugins\video_output\libdrawable_plugin.dll;plugins\video_output\libwinhibit_plugin.dll;plugins\video_output\libwingdi_plugin.dll" />
+  </ItemGroup>
+
+  <!-- v4.10.0: the resampler VLC itself uses, from VLC 3.0.24. The LGPL package leaves it
+       out, but libsamplerate is BSD since 0.1.9 and this module's own code is LGPL. -->
+  <ItemGroup>
+    <None Include="ThirdParty\vlc\libsamplerate_plugin.dll"
+          Link="libvlc\win-x64\plugins\audio_filter\libsamplerate_plugin.dll"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- v4.10.0: the OpenSubtitles key. It isn't in the public source: a build without the
+       file works, and just doesn't offer Find subtitles online. -->
+  <ItemGroup Condition="Exists('ThirdParty\opensubtitles.key')">
+    <EmbeddedResource Include="ThirdParty\opensubtitles.key" LogicalName="OpenSubtitlesKey" />
+  </ItemGroup>
+
+  <!-- Installers, old publishes and the test tools live here: none of it is part of the app. -->
+  <ItemGroup>
+    <Compile Remove="dist\**" />
+  </ItemGroup>
+
+  <!-- v4.10.0: VLC's licences ask for these to travel with the app. About opens the file. -->
+  <ItemGroup>
+    <None Update="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!--

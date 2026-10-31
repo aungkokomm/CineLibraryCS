@@ -60,7 +60,7 @@ public sealed partial class WatchedGonePage : Page
 
     private void OnArchiveChanged()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.Post(() =>
         {
             Refresh();
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);

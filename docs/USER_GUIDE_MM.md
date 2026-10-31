@@ -63,7 +63,7 @@
 ## CineLibrary စတင်အသုံးမပြုသေးခင် စနစ်တကျ ပြင်ဆင်ပါ
 
 >CineLibrary သည် **ဖတ်ရုံသာ** ဖြစ်သည် — Scraper မဟုတ်ပါ။ 
-သင့်ရုပ်ရှင်ဖိုင်တွဲများကို [MediaElch](https://www.kvibes.de/mediaelch/) (သို့) [CineLibraryEssentials](https://github.com/aungkokomm/CineLibraryEssentials) 
+သင့်ရုပ်ရှင်ဖိုင်တွဲများကို [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) 
 ဖြင့် ကြိုတင် Scrape ပြုလုပ်ထားရပါမည်။ 
 ရုပ်ရှင်တစ်ကားစီ ကိုယ်စီ ဖိုင်တွဲထဲတွင် `.nfo` ဖိုင်နှင့် poster ပုံများ ရှိနှင့်ပြီးသား ဖြစ်ရပါမည်။ 
 
@@ -86,7 +86,7 @@ H:\Movies\
 **သင့် မူဗီဖိုင်များ အထက်ပါအတိုင်း ဖိုင်နာမည် မတည့်၊ မူဗီတခု ဖိုင်တခု အစီအစဉ်တကျ မရှိနေပါက 
 သင့် Movie file နာမည်များ တည့်မတ်စေရန်နှင့် Folder📂 တခုချင်းစီတွင် အထာတကျ စီပေးရန်
 [CineLibraryEssentials](https://github.com/aungkokomm/CineLibraryEssentials)
-ကို အသုံးပြု ရှင်းလင်းပြင်ဆင်ပြီးမှ (သို့မဟုတ်) **MediaElch** ဖြင့် အရင် Scrape ပြုလုပ် ပြီးမှသာ...
+ကို အသုံးပြု ရှင်းလင်းပြင်ဆင်ပြီး အရင် Scrape ပြုလုပ် ပြီးမှသာ...
 `.nfo` ဖိုင်များ ရှိမှသာ CineLibrary ကိုအသုံးပြုပါရန် အကြံပြုပါသည်။**
 
 လိုအပ်ချက်များ —
@@ -126,7 +126,7 @@ CineLibrary သည် သင်ညွှန်းသည့် Drieve/Folder သ�
   Library ထဲ ရောက်ပြီးသားများကို နောက်တစ်ကြိမ် Update လုပ်ပြီးနောက် missing အဖြစ် ပြပါမည်။ Drive ပေါ်ရှိ
   **Review N…** ဖြင့် ဖယ်ရှားနိုင်ပါသည်။
 - **Drive အမည်ပြင်ဆင်ပါ။** Drive entry ကို right-click နှိပ်၍ အမည်ပြောင်းနိုင်သည် (ဥပမာ *"Seagate Red 5TB — ရုပ်ရှင်များ"*)။
-- **MediaElch ဖြင့် ပြန် scrape ပြုလုပ်ပြီးနောက်** drive entry ပေါ်တွင် **Rescan** နှိပ်ပါ။ ဖိုင်အသစ်နှင့် ပြောင်းလဲမှုများ CineLibrary ကောက်ယူမည်။
+- **CineLibrary Essentials ဖြင့် ပြန် scrape ပြုလုပ်ပြီးနောက်** drive entry ပေါ်တွင် **Rescan** နှိပ်ပါ။ ဖိုင်အသစ်နှင့် ပြောင်းလဲမှုများ CineLibrary ကောက်ယူမည်။
 - **Drive ဖျက်ခြင်း** — သင့်ရုပ်ရှင်ဖိုင်များ မပျက်ပါ၊ CineLibrary ၏ catalog မှတ်တမ်းထဲမှသာ ပယ်ဖျက်သည်။ မူလ Drive ထဲရှိ ဖိုင်များ ပတကိအတိုင်း ရှိနေပါမည်။ 
 
 Scan ပြီးနောက် Sidebar မှ **All Movies** နှိပ်ပါ။
@@ -207,7 +207,7 @@ Sort dropdown တွင် ခေါင်းစဉ်၊ နှစ်၊ rating
 - **Watchlist 📋** — နောက်မှကြည့်မည်ဟု စီစဉ်သည်။ Sidebar ၏ **To Watch** တွင် badge counter ဖြင့် ပြပေးထားပါမည်။
 
 ဤ flag များသည် **CineLibrary** တွင်သာ သိမ်းသည် — `.nfo` ဖိုင်ထဲ မရေးပါ။ 
-MediaElch ဖြင့် ပြန် scrape လုပ်ခဲ့သည်ရှိသော် မထိခိုက်စေရန် ကြိုတင်ကာကွယ်ထားခြင်း ဖြစ်ပါသည်။
+CineLibrary Essentials ဖြင့် ပြန် scrape လုပ်ခဲ့သည်ရှိသော် မထိခိုက်စေရန် ကြိုတင်ကာကွယ်ထားခြင်း ဖြစ်ပါသည်။
 
 ---
 
@@ -223,7 +223,7 @@ Show တခုအား `tvshow.nfo`** ဖြင့် မှတ်သားလ�
 စနစ်တကျ Scrape လုပ်ထားပါက folder တိုင်းတွင် `tvshow.nfo` ပါဝင်ပါမည်။
 `tvshow.nfo` ပါဝင်သော Folder တိုင်းကို TV Show အဖြစ် သတ်မှတ်ပါသည်။ 
 ၎င်း folder ထဲရှိ `SxxExx` ပါသော video ဖိုင်များ (matching `.nfo` နှင့်) ကို
-episode အဖြစ် ဖတ်သည် — **MediaElch** (သို့မဟုတ်) **CineLibrary Essentials** တို့မှ ထုတ်ပေးသော
+episode အဖြစ် ဖတ်သည် — **CineLibrary Essentials** မှ ထုတ်ပေးသော
 ပုံစံအတိုင်း —
 
 ```
@@ -435,7 +435,7 @@ app ထဲကနေပင် တောင်းဆိုသည့်အခါ �
 - `.nfo` တွင် **TMDb id** ရှိပြီးသားဆိုလျှင် ၎င်းဖြင့် တိုက်ရိုက် ကိုက်ညီစစ်သည် (ချက်ချင်း)၊
   မရှိလျှင် မှန်ကန်သည့်ကားကို အတည်ပြုရန် picker ငယ်တစ်ခု ပြသသည်။
 - **ပျောက်နေသည့်အရာများကိုသာ** ဖြည့်သည် — poster၊ plot၊ ခုနှစ်၊ ကြာချိန်၊ သရုပ်ဆောင် စသည်။
-  **ရှိပြီးသားအရာများကို မထိပါ** — သင့် MediaElch data နှင့် ကိုယ်တိုင် ပြင်ထားသမျှ ဘေးကင်းသည်။
+  **ရှိပြီးသားအရာများကို မထိပါ** — သင့် scraped data နှင့် ကိုယ်တိုင် ပြင်ထားသမျှ ဘေးကင်းသည်။
 - သရုပ်ဆောင်ဓာတ်ပုံနှင့် artwork ကို app ထဲ ချက်ချင်း cache လုပ်ပြီး details ဝင်းဒိုး နေရာတွင်ပင်
   ပြန် refresh ဖြစ်သည်။
 
@@ -811,11 +811,11 @@ CineLibrary ၏ catalog ဒေတာအားလုံး exe ဘေးရှိ
 
 ### ထည့်သွင်းသော ရုပ်ရှင် မပေါ်ဘူး
 
-ထို drive ပေါ်တွင် **Rescan** နှိပ်ပါ။ CineLibrary သည် `.nfo` ဖိုင်ရှိသော ဖိုင်တွဲများကိုသာ catalog ပြုလုပ်သည်၊ MediaElch ဖြင့် မ scrape ရသေးလျှင် မပေါ်ပါ။
+ထို drive ပေါ်တွင် **Rescan** နှိပ်ပါ။ CineLibrary သည် `.nfo` ဖိုင်ရှိသော ဖိုင်တွဲများကိုသာ catalog ပြုလုပ်သည်၊ CineLibrary Essentials ဖြင့် မ scrape ရသေးလျှင် မပေါ်ပါ။
 
 ### Poster ပုံများ မပေါ်ဘူး သို့မဟုတ် မှားနေတယ်
 
-CineLibrary သည် MediaElch ၏ convention အတိုင်း `poster.jpg` (သို့မဟုတ် `folder.jpg`၊ `.nfo` နှင့်အတူ ရှိသော အကြီးဆုံးပုံ) ဖတ်သည်။ MediaElch ဖြင့် ပြန် scrape ပြုလုပ်ပြီး CineLibrary တွင် ထို drive ကို ပြန် rescan ပါ။
+CineLibrary သည် Kodi ၏ convention အတိုင်း `poster.jpg` (သို့မဟုတ် `folder.jpg`၊ `.nfo` နှင့်အတူ ရှိသော အကြီးဆုံးပုံ) ဖတ်သည်။ CineLibrary Essentials ဖြင့် ပြန် scrape ပြုလုပ်ပြီး CineLibrary တွင် ထို drive ကို ပြန် rescan ပါ။
 
 ### Drive ချိတ်ထားသော်လည်း OFFLINE ပြနေတယ်
 

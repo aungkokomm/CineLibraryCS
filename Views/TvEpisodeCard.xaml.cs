@@ -89,14 +89,26 @@ public sealed partial class TvEpisodeCard : UserControl
     private void OnEpPropChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (Episode == null) return;
+        if (e.PropertyName is nameof(TvEpisodeItem.IsWatched) or nameof(TvEpisodeItem.ResumeMs)) ApplyResume(Episode);
         if (e.PropertyName == nameof(TvEpisodeItem.IsWatched))
             ApplyWatchedVisual(Episode.IsWatched);
         else if (e.PropertyName == nameof(TvEpisodeItem.IsFavorite))
             ApplyFavoriteVisual(Episode.IsFavorite);
     }
 
+    /// <summary>v4.10.0: the line along the picture's foot, while it's part-way.</summary>
+    private void ApplyResume(TvEpisodeItem ep)
+    {
+        var shown = ep.ResumeProgress > 0 && !ep.IsWatched;
+        ResumeLine.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        if (!shown) return;
+        ResumeDone.Width = new GridLength(ep.ResumeProgress, GridUnitType.Star);
+        ResumeRest.Width = new GridLength(1 - ep.ResumeProgress, GridUnitType.Star);
+    }
+
     private void Populate(TvEpisodeItem ep)
     {
+        ApplyResume(ep);
         NumberText.Text = ep.Episode.ToString();
         TitleText.Text = ep.Title;
         PlotText.Text = ep.Plot ?? "";

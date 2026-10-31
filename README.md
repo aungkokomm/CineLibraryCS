@@ -2,7 +2,7 @@
 
 # 🎬 CineLibrary
 
-**A fast, native Windows catalog for your MediaElch-scraped movies & TV shows.**
+**A fast, native Windows app to browse, manage and play your movies & TV shows.**
 
 Browse, search, and play across any number of external drives - offline, portable, no telemetry.
 
@@ -30,11 +30,11 @@ Browse, search, and play across any number of external drives - offline, portabl
 
 ## What is CineLibrary?
 
-CineLibrary is a native Windows app (C# + WinUI 3) that turns your already-organized movie and TV folders into a clean, fast, browsable catalog - posters, rich details, search, and playback - across as many external drives as you own.
+CineLibrary turns your movie and TV folders into a beautiful library you can browse, manage and play, across as many external drives as you own. The built-in player remembers where you stopped, your audio and your subtitles.
 
-Unplug a drive and its titles don't vanish; they fade to **offline** (posters and metadata intact) and wake up when you plug it back in. It's **free and open-source**, runs **portably** from any folder, and asks for nothing - no account, no subscription, no telemetry.
+Unplug a drive and its titles stay visible, ready for when it comes back. It's free and open source, runs from any folder, and needs no account.
 
-CineLibrary is a **reader, not a scraper**: it expects folders that already carry the standard Kodi-style `.nfo` metadata and poster/fanart images (the kind [MediaElch](https://mediaelch.github.io/mediaelch-doc/) or [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) produce). That focus is what keeps it fast and non-destructive. When a title comes in only **partly scraped**, you can now **fetch just the missing details from TMDb on demand** - a deliberate, per-movie action, not a bulk scraper - and optionally write them back to the drive. It also goes online when you click **Update IMDb ratings**, and to ask TMDb which episodes of a show you're missing (you can turn that off in Settings). Everything else stays fully offline.
+It reads standard Kodi-style `.nfo` files and artwork. Folders not ready yet? [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) renames, organizes and scrapes them for you.
 
 ---
 
@@ -56,29 +56,39 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 ## ✨ Highlights
 
+- **▶️ A built-in player** - films and episodes play right inside the app, and it remembers where you stopped, your audio and your subtitles. Prefer your own player? VLC, MPC-HC, PotPlayer or mpv work too.
+- **⏯️ Continue Watching** - everything you've started, films and shows together, grouped into This week, This month and Earlier.
 - **📺 Movies & TV shows** - full show pages with seasons, episodes, IMDb and TMDb ratings, the aired episodes you're missing, per-episode watched/favorite/notes, and "▶ Play next unwatched."
-- **🔁 Made for CineLibrary Essentials** - shows everything Essentials writes (editions, every studio, tags, both ratings), and **Reload from .nfo** picks up an edit at once.
-- **💾 Multi-drive, offline-aware** - index any number of external drives; offline ones stay visible with posters intact.
-- **🔎 Fast search & filters** - title, actor, director, year; filter by genre, decade, rating, collection, tags, watched status.
-- **🏷️ Your own organization** - favorites, watchlist, notes, free-form tags, and custom lists.
-- **🧭 Discovery** - Continue Watching, Recently Watched, Recently Added, On This Day, and a filter-aware Surprise Me.
-- **🎬 Watched & Gone** - a *memory keeper* for films you watched then deleted: the poster, your notes, tags and history stay as a record, isolated from your library so you never re-download by mistake. **Add watched movie** also logs ones you saw *elsewhere* - at the cinema, on streaming, or a friend's copy (looked up on TMDb).
-- **🩹 Fetch missing info from TMDB** - a partly-scraped movie? Fill just the blanks (poster, plot, cast, year, …) on demand from any detail window. **Fill-only** - your existing MediaElch data is never overwritten.
-- **⭐ IMDb ratings for your whole library** - one click on the Drives page gets every title's IMDb rating and votes (finding missing IMDb ids on TMDb), makes it the main ★, and writes it into each `.nfo` (only the ratings), now or when an unplugged drive comes back.
-- **🔄 Fetched art goes onto your drives** - after a fetch, the poster, fanart and cast photos are copied into the movie's or show's folder (`.actors\` too, only missing files, **never** rewriting your `.nfo`); a drive that isn't connected gets them when you plug it in. **Sync to drive** does a whole drive at once, and a Settings switch turns the automatic copy off.
-- **🧹 Find duplicates (Dupes).** Spots movies you have more than once and recommends which copy to keep, with reclaimable-space totals. Your dubbed and multi-language copies are left alone (recognised as kept on purpose). Non-destructive: it points you to the files, you decide.
-- **💾 Backup & restore** - export all personal state (favorites, notes, lists, tags, history) to one portable JSON file.
-- **🪪 State travels with the drive** - watched/favorite/notes/tags live next to each title, so they survive a drive move to another PC.
-- **⚙️ Settings** - Light/Dark/System theme, optional card shadows, reduce-motion, and your own video player (VLC, MPC-HC, PotPlayer, mpv…).
+- **💾 Multi-drive, offline-aware** - index any number of external drives; offline ones stay visible with posters intact, and your watched state, favorites and notes travel with each drive.
+- **🏷️ Your own organization** - favorites, watchlist, notes, free-form tags and custom lists, with fast search and filters by genre, decade, rating, collection and watched status.
+- **🧭 Discovery** - Recently Watched, Recently Added, On This Day, a filter-aware Surprise Me, and **Watched & Gone**, a memory keeper for films you watched then deleted.
+- **🩹 Fill the gaps** - fetch a partly-scraped title's missing info from TMDB, get IMDb ratings for your whole library in one click, and copy fetched art onto your drives. Fill-only: your existing data is never overwritten.
+- **🧹 Keep it tidy** - find duplicates with reclaimable-space totals, and back up all your personal state to one portable file.
 - **🚀 Native & quick** - cold start under a second; smooth scrolling through thousands of posters.
 
 > Full per-version notes live on the [**Releases**](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
 ---
 
-## 📋 Before you start
+## ⬇️ Download & install
 
-> ⚠️ **CineLibrary reads metadata - it does not create it.** Your movie and TV folders must already be organized and scraped (each title in its own folder with a `.nfo` file and poster). If they aren't yet, use **[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials)** or **[MediaElch](https://mediaelch.github.io/mediaelch-doc/)** first - otherwise CineLibrary will have nothing to show.
+1. Grab the latest **[portable installer](https://github.com/aungkokomm/CineLibraryCS/releases/latest)** - `CineLibrary-vX.Y.Z-Portable-Setup.exe`.
+2. Run it and pick any folder - Desktop, external drive, USB stick. CineLibrary is fully portable; its data lives in `CineLibrary-Data\` right next to the exe.
+
+Move the whole folder to another PC anytime - your library comes with it.
+
+**Requirements:** Windows 10 (build 19041) or Windows 11 · 64-bit.
+
+📖 New here? The **[User Guide](docs/USER_GUIDE.md)** takes you from a fresh install to thousands of cataloged titles in about five minutes.
+📖 မြန်မာဘာသာ - **[မြန်မာ လက်စွဲ](docs/USER_GUIDE_MM.md)**။
+
+---
+
+## 🚀 Getting started
+
+1. **Get your folders ready.** **[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials)** renames, organizes and scrapes them in a few clicks, and CineLibrary shows everything it writes. Folders already have Kodi-style `.nfo` files and artwork? You're ready.
+2. **Add them.** In CineLibrary, open **Drives** → **Add folder**. It reads the `.nfo` files, caches the artwork and keeps a local index.
+3. **Browse, play, unplug.** Disconnect a drive and its titles stay, marked **OFFLINE**, with posters and details intact.
 
 <details>
 <summary><b>Expected folder layout (click to expand)</b></summary>
@@ -115,40 +125,6 @@ H:\TV\Dark\
 
 </details>
 
-**Requirements:** Windows 10 (build 19041) or Windows 11 · 64-bit.
-
----
-
-## ⬇️ Download & install
-
-1. Grab the latest **[portable installer](https://github.com/aungkokomm/CineLibraryCS/releases/latest)** - `CineLibrary-vX.Y.Z-Portable-Setup.exe`.
-2. Run it and pick any folder - Desktop, external drive, USB stick. CineLibrary is fully portable; its data lives in `CineLibrary-Data\` right next to the exe.
-3. Launch **CineLibrary** → open **Drives** → **Add folder**, point it at your movie/TV root, and let it scan.
-
-Move the whole folder to another PC anytime - your library comes with it.
-
-📖 New here? The **[User Guide](docs/USER_GUIDE.md)** takes you from a fresh install to thousands of cataloged titles in about five minutes.
-📖 မြန်မာဘာသာ - **[မြန်မာ လက်စွဲ](docs/USER_GUIDE_MM.md)**။
-
----
-
-## 🧩 Companion app - CineLibrary Essentials
-
-Folders not tidy yet? **[CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials)** renames, organizes, and scrapes rich Kodi/Plex/Jellyfin-ready metadata in a few clicks. The recommended flow:
-
-1. **Tidy & scrape** with CineLibrary Essentials (or MediaElch).
-2. **Point CineLibrary** at the cleaned folders.
-3. **Browse, search, and watch.**
-
----
-
-## ⚙️ How it works
-
-1. Scrape each folder with MediaElch / CineLibrary Essentials (Kodi-style `.nfo` + `poster.jpg` / `fanart.jpg`).
-2. Launch CineLibrary → **Drives** → **Add folder**.
-3. CineLibrary reads the `.nfo` files, caches the artwork, and writes everything to a local SQLite index.
-4. Disconnect the drive - titles still appear (marked **OFFLINE**) with posters and metadata intact.
-
 ---
 
 ## 🛠️ Build from source
@@ -182,5 +158,16 @@ The SQLite database and cached artwork live there. Back it up to carry your favo
 
 CineLibrary is **free and open-source** software, released under the MIT License.
 
+The built-in player uses [LibVLC](https://www.videolan.org/vlc/libvlc.html) and [LibVLCSharp](https://code.videolan.org/videolan/LibVLCSharp) by VideoLAN and the VLC authors, under the LGPL, with FFmpeg, FreeType and other libraries. Their licences and source links are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+
+IMDb ratings come from [Agregarr](https://agregarr.org/docs/imdb-ratings/)'s free ratings service.
+
 It will always remain free - no subscriptions, no paywalls, no telemetry. Built for myself, shared with you.
+
+---
+
+## 🙌 Contributors
+
+- **[jo-el414](https://github.com/jo-el414)** - daily tester; the bug reports, screenshots and ideas have shaped much of this app.
+
 <p align="center"><sub>MIT licensed · © 2026 Aung Ko Ko · <a href="https://aungkokomm.github.io/">more of my apps</a></sub></p>

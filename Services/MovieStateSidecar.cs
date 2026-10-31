@@ -37,6 +37,9 @@ public static class MovieStateSidecar
         [JsonPropertyName("lists")]         public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]          public List<string> Tags { get; set; } = new();
         [JsonPropertyName("note")]          public string? Note { get; set; }
+        // v4.10.0: where it stopped, and the audio and subtitles chosen for it
+        [JsonPropertyName("resumeMs")]      public long? ResumeMs { get; set; }
+        [JsonPropertyName("tracks")]        public TrackChoice? Tracks { get; set; }
         /// <summary>v3.4 — TMDB-fetched metadata (only written for movies whose
         /// info was filled in CineLibrary), so a rescan can recover it without
         /// rewriting the user's NFO. Null for state-only sidecars.</summary>
@@ -51,6 +54,8 @@ public static class MovieStateSidecar
             !string.IsNullOrWhiteSpace(Note) ||
             Lists.Count > 0 ||
             Tags.Count > 0 ||
+            (ResumeMs ?? 0) > 0 ||
+            Tracks != null ||
             Meta != null;
     }
 
@@ -165,7 +170,7 @@ public static class MovieStateSidecar
         using var c = db.GetConnection().CreateCommand();
         c.CommandText = @"
             SELECT volume_serial, folder_rel_path, is_watched, is_favorite,
-                   is_watchlist, last_played_at, note
+                   is_watchlist, last_played_at, note, resume_ms
               FROM movies WHERE id=@id";
         c.Parameters.AddWithValue("@id", movieId);
         using var r = c.ExecuteReader();
@@ -183,9 +188,11 @@ public static class MovieStateSidecar
             Watchlist        = r.GetInt32(4) == 1,
             LastPlayedUnix   = r.IsDBNull(5) ? null : r.GetInt64(5),
             Note             = r.IsDBNull(6) ? null : r.GetString(6),
+            ResumeMs         = r.IsDBNull(7) || r.GetInt64(7) == 0 ? null : r.GetInt64(7),
         };
         state.Lists = db.GetUserListNamesForMovie(movieId);
         state.Tags = db.GetTagNamesForMovie(movieId);
+        state.Tracks = db.GetSavedTracks('m', movieId);
         return (folderAbs, state);
     }
 
@@ -326,6 +333,10 @@ public static class MovieStateSidecar
         upd.Parameters.AddWithValue("@n",  (object?)newNote ?? DBNull.Value);
         upd.Parameters.AddWithValue("@id", movieId);
         upd.ExecuteNonQuery();
+
+        // v4.10.0: where it stopped and its tracks; what's saved here stays
+        if (s.ResumeMs is > 0) DatabaseService.RestoreResume(conn, tx, movieId, s.ResumeMs.Value);
+        if (s.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 'm', movieId, s.Tracks);
 
         // Lists — additive. Each list name in the sidecar gets resolved
         // (or created) and the movie added to it.

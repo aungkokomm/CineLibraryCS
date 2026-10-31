@@ -28,6 +28,14 @@
                         <Image x:Name="ThumbImage" Stretch="UniformToFill"/>
                         <TextBlock x:Name="ThumbPlaceholder" Text="🎬" FontSize="22"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <!-- v4.10.0: how far it was watched -->
+                                <Grid x:Name="ResumeLine" Height="3" VerticalAlignment="Bottom" Background="#99000000" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="ResumeDone"/>
+                                        <ColumnDefinition x:Name="ResumeRest"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Background="{StaticResource BrandPurpleBrush}"/>
+                                </Grid>
                     </Grid>
                 </Border>
 

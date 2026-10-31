@@ -24,6 +24,13 @@ public static class UiSettings
     private const string KeyPlayerPath = "ui_playerPath"; // v3.6.0: "" = Windows default
     private const string KeyMissingEpisodes = "tv_checkMissingEpisodes"; // v4.6.0
     private const string KeySaveFetched = "drive_saveFetched";            // v4.6.0
+    private const string KeyBuiltInPlayer = "ui_builtInPlayer";           // v4.10.0
+    private const string KeyPlayerVolume = "ui_playerVolume";             // v4.10.0
+    private const string KeyPlayerTimeMode = "ui_playerTimeMode";         // v4.10.0
+    private const string KeyPreferredAudio = "ui_preferredAudio";         // v4.10.0
+    private const string KeyPreferredSubtitles = "ui_preferredSubtitles"; // v4.10.0
+    private const string KeyPauseScreen = "ui_pauseScreen";               // v4.10.0
+    private const string KeyFindSubtitlesOnline = "ui_findSubtitlesOnline";   // v4.10.0
 
     /// <summary>How much Windows Mica material shows behind the window.
     /// Off = flat solid (also best on weak GPUs); Subtle / Strong control how
@@ -58,6 +65,27 @@ public static class UiSettings
     /// Empty = whatever Windows opens video files with. See VideoPlayer.</summary>
     public static string PlayerPath { get; private set; } = "";
 
+    /// <summary>v4.10.0: Play opens videos in CineLibrary's own player, which resumes
+    /// where you stopped and marks them watched near the end. Off = the program
+    /// above. Default on.</summary>
+    public static bool UseBuiltInPlayer { get; private set; } = true;
+
+    /// <summary>v4.10.0: the built-in player's volume (0-100), kept from film to film.</summary>
+    public static int PlayerVolume { get; private set; } = 100;
+
+    /// <summary>v4.10.0: beside the seek bar: 0 the length, 1 the time left, 2 when it ends.</summary>
+    public static int PlayerTimeMode { get; private set; }
+
+    /// <summary>v4.10.0: a language (VLC's name for it), "" = as in the file.</summary>
+    public static string PreferredAudio { get; private set; } = "";
+
+    /// <summary>v4.10.0: as PreferredAudio; "Off" = no subtitles.</summary>
+    public static string PreferredSubtitles { get; private set; } = "";
+
+    /// <summary>v4.10.0: the item's details over the picture a few seconds into a pause.</summary>
+    public static bool PauseScreen { get; private set; } = true;
+    public static bool FindSubtitlesOnline { get; private set; }
+
     /// <summary>v4.6.0: a show page asks TMDb which aired episodes aren't on
     /// disk (the one thing CineLibrary goes online for by itself). Default on.</summary>
     public static bool CheckMissingEpisodes { get; private set; } = true;
@@ -79,6 +107,13 @@ public static class UiSettings
         QualityTags    = AppState.Instance.GetPref(KeyQualityTags,    "true") == "true";
         StandInPosters = AppState.Instance.GetPref(KeyStandInPosters, "true") == "true";
         PlayerPath   = AppState.Instance.GetPref(KeyPlayerPath,   "");
+        UseBuiltInPlayer = AppState.Instance.GetPref(KeyBuiltInPlayer, "true") == "true";
+        PlayerVolume = int.TryParse(AppState.Instance.GetPref(KeyPlayerVolume, "100"), out var volume) ? Math.Clamp(volume, 0, 100) : 100;
+        PlayerTimeMode = int.TryParse(AppState.Instance.GetPref(KeyPlayerTimeMode, "0"), out var timeMode) ? Math.Clamp(timeMode, 0, 2) : 0;
+        PreferredAudio = AppState.Instance.GetPref(KeyPreferredAudio, "");
+        PreferredSubtitles = AppState.Instance.GetPref(KeyPreferredSubtitles, "");
+        PauseScreen = AppState.Instance.GetPref(KeyPauseScreen, "true") == "true";
+        FindSubtitlesOnline = AppState.Instance.GetPref(KeyFindSubtitlesOnline, "false") == "true";
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
 
@@ -147,6 +182,51 @@ public static class UiSettings
     {
         PlayerPath = value;
         AppState.Instance.SetPref(KeyPlayerPath, value);
+    }
+
+    /// <summary>No Changed event: it applies to the next Play.</summary>
+    public static void SetUseBuiltInPlayer(bool value)
+    {
+        UseBuiltInPlayer = value;
+        AppState.Instance.SetPref(KeyBuiltInPlayer, value ? "true" : "false");
+    }
+
+    public static void SetPlayerVolume(int value)
+    {
+        value = Math.Clamp(value, 0, 100);
+        if (PlayerVolume == value) return;
+        PlayerVolume = value;
+        AppState.Instance.SetPref(KeyPlayerVolume, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static void SetPlayerTimeMode(int value)
+    {
+        PlayerTimeMode = value;
+        AppState.Instance.SetPref(KeyPlayerTimeMode, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static void SetPreferredAudio(string value)
+    {
+        PreferredAudio = value;
+        AppState.Instance.SetPref(KeyPreferredAudio, value);
+    }
+
+    public static void SetPreferredSubtitles(string value)
+    {
+        PreferredSubtitles = value;
+        AppState.Instance.SetPref(KeyPreferredSubtitles, value);
+    }
+
+    public static void SetFindSubtitlesOnline(bool value)
+    {
+        FindSubtitlesOnline = value;
+        AppState.Instance.SetPref(KeyFindSubtitlesOnline, value ? "true" : "false");
+    }
+
+    public static void SetPauseScreen(bool value)
+    {
+        PauseScreen = value;
+        AppState.Instance.SetPref(KeyPauseScreen, value ? "true" : "false");
     }
 
     /// <summary>No Changed event: it applies the next time a show page opens.</summary>
