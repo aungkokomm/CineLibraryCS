@@ -444,7 +444,7 @@
                            Foreground="{ThemeResource TextBrush}"
                            FontWeight="SemiBold" FontSize="13"
                            VerticalAlignment="Center" Margin="4,0,4,0"/>
-                <Button x:Name="SelAddToListBtn" Content="📑 Add to list ▾"
+                <Button x:Name="SelAddToListBtn"
                         Background="{StaticResource BrandPurpleBrush}"
                         Foreground="White" BorderThickness="0"
                         CornerRadius="8" Padding="12,6" FontSize="12">
@@ -454,19 +454,16 @@
                     </Button.Flyout>
                 </Button>
                 <Button x:Name="SelWatchedBtn" Click="OnSelToggleWatched"
-                        Content="✓ Watched"
                         Background="{ThemeResource CardBrush}"
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"
                         CornerRadius="8" Padding="10,6" FontSize="12"/>
                 <Button x:Name="SelWatchlistBtn" Click="OnSelToggleWatchlist"
-                        Content="📌 To Watch"
                         Background="{ThemeResource CardBrush}"
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"
                         CornerRadius="8" Padding="10,6" FontSize="12"/>
                 <Button x:Name="SelFavBtn" Click="OnSelToggleFav"
-                        Content="♥ Favorite"
                         Background="{ThemeResource CardBrush}"
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"

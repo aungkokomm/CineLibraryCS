@@ -48,6 +48,9 @@ public sealed partial class MovieDetailDialog : Window
             if (WholeGrid?.Invoke(grid!) is { } whole) _ = UseWholeGridAsync(whole);
         }
         InitializeComponent();
+        TrailerBtn.Content = ActionLabel.Trailer();
+        FolderBtn.Content = ActionLabel.OpenFolder();
+        ListsBtn.Content = ActionLabel.AddToList();
 
         // Custom titlebar drag region + Mica
         ExtendsContentIntoTitleBar = true;
@@ -296,9 +299,9 @@ public sealed partial class MovieDetailDialog : Window
         PlayBtn.IsEnabled = m.Playable;
         TrailerBtn.Visibility = TrailerUri(m.Trailer) != null ? Visibility.Visible : Visibility.Collapsed;
         FolderBtn.IsEnabled = m.IsOnline;
-        FavBtn.Content = m.IsFavorite ? "♥ Favorited" : "♡ Favorite";
-        WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
-        WatchlistBtn.Content = m.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
+        FavBtn.Content = ActionLabel.Favorite(m.IsFavorite);
+        WatchedBtn.Content = ActionLabel.Watched(m.IsWatched);
+        WatchlistBtn.Content = ActionLabel.ToWatch(m.IsWatchlist);
 
 
         // Notes
@@ -819,8 +822,8 @@ public sealed partial class MovieDetailDialog : Window
         bool canNext = (at >= 0 ? at : _browseIndex) + 1 < _browseIds.Count;
         PrevMovieBtn.IsEnabled = StickyPrevBtn.IsEnabled = canPrev;
         NextMovieBtn.IsEnabled = StickyNextBtn.IsEnabled = canNext;
-        PrevMovieBtn.Opacity = canPrev ? 1 : 0.4;   // the round style has no disabled look
-        NextMovieBtn.Opacity = canNext ? 1 : 0.4;
+        PrevMovieBtn.Opacity = StickyPrevBtn.Opacity = canPrev ? 1 : 0.4;   // the round style has no disabled look
+        NextMovieBtn.Opacity = StickyNextBtn.Opacity = canNext ? 1 : 0.4;
     }
 
     // Puts back everything PopulateUi only ever switches on, so nothing of the
@@ -835,7 +838,7 @@ public sealed partial class MovieDetailDialog : Window
                      OriginalTitle, TaglineWrap, PlotSection, PlotDivider, DirectorField, WriterField,
                      StudioLabel, StudioText, StudioLinks, CastSection, CastDivider, CastShowAllBtn, TrailerBtn,
                      CollectionSection, DirectorSection, FileInfoPanel, FiRuntimeBlock, FiReleaseBlock,
-                     FiMpaaBlock, FiCountryBlock, FiSizeBlock, FiDurBlock, FiContainerBlock, FiLangBlock,
+                     FiMpaaBlock, FiCountryBlock, FiSizeBlock, FiDurBlock, FiContainerBlock, FiPlaysBlock, FiLangBlock,
                      FiSubsBlock, AddTagBox,
                  })
             e.Visibility = Visibility.Collapsed;
@@ -1249,6 +1252,14 @@ public sealed partial class MovieDetailDialog : Window
             any = true;
         }
         FileInfoPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        ShowPlays(m.PlayCount);
+    }
+
+    private void ShowPlays(int count)
+    {
+        if (count <= 0) return;
+        FiPlays.Text = count == 1 ? "1 time" : $"{count} times";
+        FiPlaysBlock.Visibility = FileInfoPanel.Visibility = Visibility.Visible;
     }
 
     private static string FormatBytes(long b)
@@ -1407,9 +1418,11 @@ public sealed partial class MovieDetailDialog : Window
             await VideoPlayer.PlayAsync(videoPath, new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), (_, watched) =>
             {
                 // v4.10.0: the built-in player marks it watched near the end
-                if (!watched || _closed) return;
+                if (_closed) return;
+                ShowPlays(AppState.Instance.Db.GetPlayCount(movie.Id));
+                if (!watched) return;
                 movie.IsWatched = true;
-                WatchedBtn.Content = "✓ Watched";
+                WatchedBtn.Content = ActionLabel.Watched(true);
                 WatchlistChanged?.Invoke(this, EventArgs.Empty);
             });
         }
@@ -1428,7 +1441,7 @@ public sealed partial class MovieDetailDialog : Window
         if (_movie == null) return;
         AppState.Instance.Db.ToggleFavorite(_movie.Id);
         _movie.IsFavorite = !_movie.IsFavorite;
-        FavBtn.Content = _movie.IsFavorite ? "♥ Favorited" : "♡ Favorite";
+        FavBtn.Content = ActionLabel.Favorite(_movie.IsFavorite);
     }
 
          private void OnToggleWatched(object sender, RoutedEventArgs e)
@@ -1436,7 +1449,7 @@ public sealed partial class MovieDetailDialog : Window
              if (_movie == null) return;
              AppState.Instance.Db.ToggleWatched(_movie.Id);
              _movie.IsWatched = !_movie.IsWatched;
-             WatchedBtn.Content = _movie.IsWatched ? "✓ Watched" : "○ Mark Watched";
+             WatchedBtn.Content = ActionLabel.Watched(_movie.IsWatched);
          }
 
          private void OnToggleWatchlist(object sender, RoutedEventArgs e)
@@ -1444,7 +1457,7 @@ public sealed partial class MovieDetailDialog : Window
              if (_movie == null) return;
              AppState.Instance.Db.SetWatchlist(_movie.Id, !_movie.IsWatchlist);
              _movie.IsWatchlist = !_movie.IsWatchlist;
-             WatchlistBtn.Content = _movie.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
+             WatchlistBtn.Content = ActionLabel.ToWatch(_movie.IsWatchlist);
              WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
 

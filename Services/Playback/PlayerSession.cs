@@ -16,7 +16,7 @@ internal sealed record NextUp(string Path, string Title, string Label, object? T
 /// </summary>
 internal sealed class PlayerSession
 {
-    private const int SeekStep = 10_000, BigSeekStep = 60_000, VolumeStep = 5, UpNextSeconds = 10;
+    private const int SeekStep = 10_000, ForwardStep = 30_000, BigSeekStep = 60_000, VolumeStep = 5, UpNextSeconds = 10;
     private const int SubtitleStepMs = 100;
     private const int NormalSpeed = 2, FitZoom = 0, FillZoom = 1;
     private static readonly float[] Speeds = [0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f];
@@ -96,6 +96,7 @@ internal sealed class PlayerSession
         Player = new MediaPlayer(vlc) { EnableMouseInput = false, EnableKeyInput = false, Hwnd = window.Hwnd };
         _media = NewMedia(path, startMs, choice);
         _controls = new PlayerControls(window.Hwnd);
+        _controls.SetFile(path);
 
         _hide = Timer(3000, HideBar);
         _tick = Timer(250, Refresh, repeating: true);
@@ -122,7 +123,7 @@ internal sealed class PlayerSession
 
         _controls.PlayPause += TogglePause;
         _controls.Back += () => SeekBy(-SeekStep);
-        _controls.Forward += () => SeekBy(SeekStep);
+        _controls.Forward += () => SeekBy(ForwardStep);
         _controls.Mute += ToggleMute;
         _controls.FullScreen += ToggleFullScreen;
         _controls.CloseClicked += () => _ = CloseAsync();
@@ -353,6 +354,7 @@ internal sealed class PlayerSession
         _choicePending = true;
         _title = next.Title;
         _path = next.Path;
+        _controls.SetFile(next.Path);
         var old = _media;
         _media = NewMedia(next.Path, next.StartMs, next.Choice);
         Tag = next.Tag;

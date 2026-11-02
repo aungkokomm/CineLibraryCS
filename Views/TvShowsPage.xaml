@@ -225,7 +225,7 @@
                                                         Background="{StaticResource BrandPurpleBrush}" Foreground="White"
                                                         BorderThickness="0" CornerRadius="8" Padding="16,7"
                                                         FontWeight="SemiBold"/>
-                                                <Button x:Name="ShowFolderBtn" Content="📂 Open Folder" Click="OnOpenShowFolder"
+                                                <Button x:Name="ShowFolderBtn" Click="OnOpenShowFolder"
                                                         Background="#22FFFFFF" Foreground="White"
                                                         BorderThickness="0" CornerRadius="8" Padding="14,7"/>
                                                 <Button x:Name="ShowFavBtn" Click="OnToggleShowFavorite"
@@ -234,7 +234,7 @@
                                                 <Button x:Name="ShowWatchlistBtn" Click="OnToggleShowWatchlist"
                                                         Background="#22FFFFFF" Foreground="White"
                                                         BorderThickness="0" CornerRadius="8" Padding="14,7"/>
-                                                <Button x:Name="ShowListsBtn" Content="📑 Add to list"
+                                                <Button x:Name="ShowListsBtn"
                                                         Background="#22FFFFFF" Foreground="White"
                                                         BorderThickness="0" CornerRadius="8" Padding="14,7">
                                                     <Button.Flyout>
@@ -250,9 +250,7 @@
                                                 <!-- v4.3.0 (#17) -->
                                                 <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
                                                         Background="#22FFFFFF" Foreground="White"
-                                                        BorderThickness="0" CornerRadius="8" Padding="12,7">
-                                                    <TextBlock x:Name="ShowNoteBtnText" Text="📝 Add note"/>
-                                                </Button>
+                                                        BorderThickness="0" CornerRadius="8" Padding="12,7"/>
                                                 <Button x:Name="FetchShowTmdbBtn" Click="OnFetchShowMissing"
                                                         Background="#22FFFFFF" Foreground="White"
                                                         BorderThickness="0" CornerRadius="8" Padding="12,7"

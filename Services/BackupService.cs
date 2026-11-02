@@ -68,6 +68,7 @@ public static class BackupService
         [JsonPropertyName("lists")]          public List<string> Lists { get; set; } = new();
         [JsonPropertyName("tags")]           public List<string> Tags { get; set; } = new();
         [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }           // v4.10.0
+        [JsonPropertyName("playCount")]      public int? PlayCount { get; set; }           // 5.1.0
         [JsonPropertyName("tracks")]         public TrackChoice? Tracks { get; set; }      // v4.10.0
     }
 
@@ -155,13 +156,14 @@ public static class BackupService
             c.CommandText = @"
                 SELECT id, volume_serial, folder_rel_path, title,
                        is_watched, is_favorite, is_watchlist, last_played_at, note,
-                       archived_at, resume_ms
+                       archived_at, resume_ms, play_count
                   FROM movies
                  WHERE is_watched=1 OR is_favorite=1 OR is_watchlist=1
                     OR last_played_at>0
                     OR (note IS NOT NULL AND TRIM(note) != '')
                     OR archived_at IS NOT NULL
                     OR resume_ms>0
+                    OR play_count>0
                     OR EXISTS (SELECT 1 FROM track_choices t WHERE t.kind='m' AND t.id = movies.id)
                     OR EXISTS (SELECT 1 FROM movie_tags mt WHERE mt.movie_id = movies.id)
                     OR EXISTS (SELECT 1 FROM user_list_movies ulm WHERE ulm.movie_id = movies.id)";
@@ -183,6 +185,7 @@ public static class BackupService
                     Note = r.IsDBNull(8) ? null : r.GetString(8),
                     Archived = !r.IsDBNull(9),
                     ResumeMs = r.IsDBNull(10) || r.GetInt64(10) == 0 ? null : r.GetInt64(10),
+                    PlayCount = r.IsDBNull(11) || r.GetInt32(11) == 0 ? null : r.GetInt32(11),
                 };
                 b.Movies.Add(entry);
                 movieIndex[id] = entry;
@@ -582,6 +585,7 @@ public static class BackupService
 
         if (e.ResumeMs is > 0) DatabaseService.RestoreResume(conn, tx, movieId, e.ResumeMs.Value);
         if (e.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 'm', movieId, e.Tracks);
+        DatabaseService.RaisePlayCount(conn, tx, movieId, e.PlayCount ?? 0);
 
         foreach (var listName in e.Lists.Distinct(StringComparer.OrdinalIgnoreCase))
         {

@@ -164,7 +164,13 @@ internal static class BuiltInPlayer
         if (length > 0 && position >= length * 0.9)
         {
             db.SetResumeMs(episode, item.Id, 0);
-            if (!episode) return db.SetMovieWatched(item.Id);
+            if (!episode)
+            {
+                db.AddPlay(item.Id);
+                var newly = db.SetMovieWatched(item.Id);
+                AppState.Instance.SavePlaybackState(false, item.Id);   // watched before: nothing else writes the count
+                return newly;
+            }
             if (db.IsEpisodeWatched(item.Id)) return false;
             db.SetEpisodeWatched(item.Id, true);
             return true;

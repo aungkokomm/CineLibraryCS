@@ -421,6 +421,8 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         if (!cols.Contains("archived_at"))      Exec("ALTER TABLE movies ADD COLUMN archived_at INTEGER");
         // v4.10.0 — where the built-in player stopped (ms); 0 = from the start
         if (!cols.Contains("resume_ms"))        Exec("ALTER TABLE movies ADD COLUMN resume_ms INTEGER DEFAULT 0");
+        // 5.1.0 (#25): times played, from the .nfo and the built-in player
+        if (!cols.Contains("play_count"))       Exec("ALTER TABLE movies ADD COLUMN play_count INTEGER DEFAULT 0");
         // v4.10.0: the audio and subtitles chosen in the player, for a movie ('m') or a whole show ('s')
         Exec(@"CREATE TABLE IF NOT EXISTS track_choices (
                  kind TEXT NOT NULL, id INTEGER NOT NULL,
@@ -2214,7 +2216,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.video_width, m.video_height, m.video_codec, m.video_aspect, m.hdr_type,
                    m.audio_codec, m.audio_channels, m.audio_languages, m.subtitle_languages,
                    m.duration_seconds, m.container_ext, m.file_size_bytes,
-                   m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating
+                   m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating, m.play_count
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -2277,6 +2279,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Studios           = SplitLines(r.IsDBNull(40) ? null : r.GetString(40)),
                 Countries         = SplitLines(r.IsDBNull(41) ? null : r.GetString(41)),
                 UserRating        = r.IsDBNull(42) ? null : r.GetDouble(42),
+                PlayCount         = r.IsDBNull(43) ? 0 : r.GetInt32(43),
             };
             // Rows from before v4.6.0 (or filled from TMDb) only have the first
             if (movie.Studios.Count == 0 && movie.Studio != null) movie.Studios.Add(movie.Studio);
@@ -4800,6 +4803,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
              OR (last_played_at IS NOT NULL AND last_played_at > 0)
              OR (note IS NOT NULL AND TRIM(note) != '')
              OR resume_ms > 0
+             OR play_count > 0
              OR EXISTS (SELECT 1 FROM track_choices t WHERE t.kind='m' AND t.id = movies.id)
              OR EXISTS (SELECT 1 FROM user_list_movies ulm
                           WHERE ulm.movie_id = movies.id))";
@@ -5569,6 +5573,37 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
 
     /// <summary>Where a movie stopped, from a backup or a state file: never over a place saved
     /// here, and not for a movie that has since been watched.</summary>
+    internal static void RaisePlayCount(SqliteConnection conn, SqliteTransaction tx, int movieId, int count)
+    {
+        // The highest number wins: an .nfo, a state file and a backup can all tell of the same plays
+        if (count <= 0) return;
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE movies SET play_count=@n WHERE id=@id AND COALESCE(play_count, 0)<@n";
+        cmd.Parameters.AddWithValue("@n", count);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>The built-in player reached the end of a film once more.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddPlay(int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET play_count=COALESCE(play_count, 0)+1 WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetPlayCount(int movieId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(play_count, 0) FROM movies WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
     internal static void RestoreResume(SqliteConnection conn, SqliteTransaction tx, int movieId, long ms)
     {
         using var cmd = conn.CreateCommand();

@@ -54,7 +54,9 @@ public record ParsedMovie(
     List<string> Countries,
     List<string> Tags,
     // v4.7.0: Kodi's <userrating> (1 to 10), set in CineLibrary Essentials' editor
-    double? UserRating = null
+    double? UserRating = null,
+    // 5.1.0 (#25): Kodi's <playcount>
+    int? PlayCount = null
 );
 
 // ── TV Shows (v2.8) ──────────────────────────────────────────────────────
@@ -338,7 +340,8 @@ public static class NfoParser
                 Studios: MergeLists(ReadList(root, "studio")),
                 Countries: MergeLists(ReadList(root, "country")),
                 Tags: MergeLists(ReadList(root, "tag")),
-                UserRating: UserRating(root)
+                UserRating: UserRating(root),
+                PlayCount: TryInt(Get(root, "playcount"))
             );
         }
         catch

@@ -204,7 +204,7 @@ Sort dropdown တွင် ခေါင်းစဉ်၊ နှစ်၊ rating
 
 - **Watched ✓** — ကြည့်ပြီးဟု မှတ်သည်။ Watched / Unwatched filter နှင့် Statistics စာမျက်နှာတွင် ပြပေးထားပါမည်။
 - **Favorite ⭐** — Sidebar ၏ **Favorites** view တွင် ပြပေးထားပါမည်။
-- **To Watch 📋** — နောက်မှကြည့်မည်ဟု စီစဉ်သည်။ Sidebar ၏ **To Watch** တွင် badge counter ဖြင့် ပြပေးထားပါမည်။
+- **To Watch 📌** — နောက်မှကြည့်မည်ဟု စီစဉ်သည်။ Sidebar ၏ **To Watch** တွင် badge counter ဖြင့် ပြပေးထားပါမည်။
 
 ဤ flag များသည် **CineLibrary** တွင်သာ သိမ်းသည် — `.nfo` ဖိုင်ထဲ မရေးပါ။ 
 CineLibrary Essentials ဖြင့် ပြန် scrape လုပ်ခဲ့သည်ရှိသော် မထိခိုက်စေရန် ကြိုတင်ကာကွယ်ထားခြင်း ဖြစ်ပါသည်။
@@ -254,7 +254,7 @@ Show တစ်ခုနှိပ်လျှင် ၎င်း၏ စာမျ�
 
 - **Header** — poster, plot, နှစ် · rating · status, watched roll-up
   ("12/62 watched")၊ genre chips, **cast strip**, **☆ Favorite** /
-  **📋 To Watch** ခလုတ်များ။ v4.6.0 မှစ၍ original title၊ tagline၊
+  **📌 To Watch** ခလုတ်များ။ v4.6.0 မှစ၍ original title၊ tagline၊
   episode တစ်ခု၏ ကြာချိန်၊ IMDb နှင့် TMDb rating (vote အရေအတွက်နှင့်)၊
   **Created by**၊ studio/network အားလုံးနှင့် နိုင်ငံ တို့ကိုလည်း ပြသပါသည်။
 - **ပျောက်နေသော episode များ** - Show တွင် TMDb id ရှိပြီး အင်တာနက်

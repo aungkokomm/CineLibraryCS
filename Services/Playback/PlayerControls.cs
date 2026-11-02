@@ -20,18 +20,23 @@ namespace CineLibraryCS.Services.Playback;
 /// </summary>
 internal sealed class PlayerControls : Window
 {
-    private const double BarHeight = 56, RowHeight = 48, ThumbWidth = 18;   // DIPs
-    private const string PlayGlyph = "\uE768", PauseGlyph = "\uE769", VolumeGlyph = "\uE767", MuteGlyph = "\uE74F",
+    private const double SeekHeight = 36, ButtonsHeight = 58, RowHeight = 48, ThumbWidth = 18, PlaySize = 52;   // DIPs
+    // DIPs: under these the buttons can't stay in the middle, then the volume slider goes, then the 10 second skips
+    private const double CentredFrom = 892, VolumeFrom = 580, SkipsFrom = 468;
+    private const string PlayGlyph = "\uF5B0", PauseGlyph = "\uF8AE", VolumeGlyph = "\uE767", MuteGlyph = "\uE74F",
                          FullScreenGlyph = "\uE740", BackToWindowGlyph = "\uE73F";
 
     private readonly FontIcon _play = Icon(PlayGlyph), _mute = Icon(VolumeGlyph), _fullScreen = Icon(FullScreenGlyph);
-    private readonly TextBlock _time = Label(), _length = Label(), _rowLabel = Label();
+    private readonly TextBlock _time = Label(), _length = Label(), _rowLabel = Label(), _ends = Label(), _file = Label();
     private readonly Slider _seek = new() { Minimum = 0, Maximum = 1, IsThumbToolTipEnabled = false };
     private readonly Slider _volume = new() { Minimum = 0, Maximum = 100, Width = 96, IsThumbToolTipEnabled = false };
     private readonly Grid _row = new() { Height = RowHeight, Padding = new Thickness(16, 0, 16, 0), Visibility = Visibility.Collapsed };
     private readonly StackPanel _rowItems = new() { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
     private readonly Canvas _ticks = new() { IsHitTestVisible = false };
-    private readonly Button _previous, _next;
+    private readonly Button _previous, _next, _back, _forward;
+    private readonly Grid _volumeArea;
+    private readonly StackPanel _info = new() { Margin = new Thickness(8, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly ColumnDefinition _infoColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
     private bool _updating, _dragging;
     private int _wheel;
     private int _timeMode = UiSettings.PlayerTimeMode;
@@ -84,7 +89,8 @@ internal sealed class PlayerControls : Window
             RequestedTheme = ElementTheme.Dark,
         };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(BarHeight) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(SeekHeight) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(ButtonsHeight) });
 
         _row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -101,22 +107,24 @@ internal sealed class PlayerControls : Window
         });
         root.Children.Add(_row);
 
-        var bar = new Grid { Padding = new Thickness(8, 0, 8, 0) };
-        Grid.SetRow(bar, 1);
-        root.Children.Add(bar);
-        foreach (var width in new[] { 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 })
-            bar.ColumnDefinitions.Add(new ColumnDefinition { Width = width == 1 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
+        // 5.1.0 (#25): black glass, after Windows Media Player 11: a soft shine along the top, darker below
+        var glass = new Border
+        {
+            Background = Glass((46, 255, 255, 255, 0), (12, 255, 255, 255, 0.45), (0, 0, 0, 0, 0.5), (90, 0, 0, 0, 1)),
+            BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(60, 255, 255, 255)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+        };
+        Grid.SetRow(glass, 1);
+        Grid.SetRowSpan(glass, 2);
+        root.Children.Add(glass);
 
-        // Previous and next (episode, or chapter): hidden when there's none
-        _previous = IconButton(Icon("\uE892"), "Previous (P)", () => Previous?.Invoke());
-        _next = IconButton(Icon("\uE893"), "Next (N)", () => Next?.Invoke());
-        _previous.Visibility = _next.Visibility = Visibility.Collapsed;
-        Add(bar, 0, _previous);
-        Add(bar, 1, IconButton(_play, "Play or pause (Space)", () => PlayPause?.Invoke()));
-        Add(bar, 2, _next);
-        Add(bar, 3, IconButton(Icon("\uEB9E"), "Back 10 seconds (Left)", () => Back?.Invoke()));
-        Add(bar, 4, IconButton(Icon("\uEB9D"), "Forward 10 seconds (Right)", () => Forward?.Invoke()));
-        Add(bar, 5, _time);
+        // Two lines, the seek bar with its times and under it the buttons
+        var seekRow = new Grid { Padding = new Thickness(16, 0, 8, 0) };
+        Grid.SetRow(seekRow, 1);
+        root.Children.Add(seekRow);
+        foreach (var width in new[] { 0, 1, 0 })
+            seekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = width == 1 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
+        Add(seekRow, 0, _time);
         _seek.Margin = new Thickness(12, 0, 12, 0);
         var seekArea = WheelArea(_seek, notches => SeekWheel?.Invoke(notches));
         _ticks.Margin = _seek.Margin;
@@ -125,7 +133,7 @@ internal sealed class PlayerControls : Window
         seekArea.PointerExited += (_, _) => SeekHover?.Invoke(null, 0);
         _seek.SizeChanged += (_, _) => DrawTicks();
         _ticks.SizeChanged += (_, _) => DrawTicks();
-        Add(bar, 6, seekArea);
+        Add(seekRow, 1, seekArea);
         // The length, the time left or when it ends: a click goes to the next one
         var lengthButton = new Button
         {
@@ -144,14 +152,51 @@ internal sealed class PlayerControls : Window
             _timeMode = (_timeMode + 1) % 3;
             UiSettings.SetPlayerTimeMode(_timeMode);
         };
-        Add(bar, 7, lengthButton);
-        Add(bar, 8, IconButton(Icon("\uE8D6"), "Audio", () => Audio?.Invoke()));
-        Add(bar, 9, IconButton(Icon("\uED1E"), "Subtitles", () => Subtitles?.Invoke()));
-        Add(bar, 10, IconButton(_mute, "Mute (M)", () => Mute?.Invoke()));
+        Add(seekRow, 2, lengthButton);
+
+        var bar = new Grid { Padding = new Thickness(8, 0, 8, 0) };
+        Grid.SetRow(bar, 2);
+        root.Children.Add(bar);
+        bar.ColumnDefinitions.Add(_infoColumn);
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // When it ends and what's playing
+        _ends.Text = _file.Text = "";
+        _file.FontSize = 11;
+        _file.Opacity = 0.7;
+        _file.TextTrimming = TextTrimming.CharacterEllipsis;
+        _info.Children.Add(_ends);
+        _info.Children.Add(_file);
+        Add(bar, 0, _info);
+
+        // Previous and next (episode, or chapter): hidden when there's none
+        _previous = IconButton(Icon("\uE892"), "Previous (P)", () => Previous?.Invoke());
+        _next = IconButton(Icon("\uE893"), "Next (N)", () => Next?.Invoke());
+        _previous.Visibility = _next.Visibility = Visibility.Collapsed;
+        _back = IconButton(Icon("\uED3C", 22), "Back 10 seconds (Left)", () => Back?.Invoke());
+        _forward = IconButton(Icon("\uED3D", 22), "Forward 30 seconds", () => Forward?.Invoke());
+        var transport = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(6, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+        foreach (var button in new[] { _previous, _back, PlayButton(), _forward, _next }) transport.Children.Add(button);
+        var middle = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        middle.Children.Add(Capsule());
+        middle.Children.Add(transport);
+        Add(bar, 1, middle);
+
+        var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         _volume.Margin = new Thickness(4, 0, 12, 0);
-        Add(bar, 11, WheelArea(_volume, notches => VolumeWheel?.Invoke(notches)));
-        Add(bar, 12, IconButton(_fullScreen, "Full screen (F, double-click)", () => FullScreen?.Invoke()));
-        Add(bar, 13, IconButton(Icon("\uE711"), "Close (Esc)", () => CloseClicked?.Invoke()));
+        _volumeArea = WheelArea(_volume, notches => VolumeWheel?.Invoke(notches));
+        foreach (var part in new FrameworkElement[]
+        {
+            IconButton(Icon("\uE8D6"), "Audio", () => Audio?.Invoke()),
+            IconButton(Icon("\uED1E"), "Subtitles", () => Subtitles?.Invoke()),
+            IconButton(_mute, "Mute (M)", () => Mute?.Invoke()),
+            _volumeArea,
+            IconButton(_fullScreen, "Full screen (F, double-click)", () => FullScreen?.Invoke()),
+            IconButton(Icon("\uE711"), "Close (Esc)", () => CloseClicked?.Invoke()),
+        })
+            right.Children.Add(part);
+        Add(bar, 2, right);
 
         foreach (var slider in new[] { _seek, _volume })
         {
@@ -216,11 +261,22 @@ internal sealed class PlayerControls : Window
     /// <summary>Puts the controls along the bottom of the given screen rectangle (physical pixels).</summary>
     public void Place(int left, int bottom, int width, double scale)
     {
-        var height = (int)Math.Round((BarHeight + (Row.Length > 0 ? RowHeight : 0)) * scale);
+        var height = (int)Math.Round((SeekHeight + ButtonsHeight + (Row.Length > 0 ? RowHeight : 0)) * scale);
         var position = AppWindow.Position;
         var size = AppWindow.Size;
         if (position.X == left && position.Y == bottom - height && size.Width == width && size.Height == height) return;
+        Fit(width / scale);
         AppWindow.MoveAndResize(new RectInt32(left, bottom - height, width, height));
+    }
+
+    // A narrow window leaves things out, so what stays is never clipped
+    private void Fit(double room)
+    {
+        var centred = room >= CentredFrom;
+        _infoColumn.Width = centred ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        _info.Visibility = centred ? Visibility.Visible : Visibility.Collapsed;
+        _volumeArea.Visibility = room >= VolumeFrom ? Visibility.Visible : Visibility.Collapsed;
+        _back.Visibility = _forward.Visibility = room >= SkipsFrom ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void SetShown(bool shown)
@@ -288,16 +344,20 @@ internal sealed class PlayerControls : Window
         _updating = false;
         _time.Text = Format(timeMs);
         var left = Math.Max(0, lengthMs - timeMs);
+        var ends = "Ends " + DateTime.Now.AddMilliseconds(left).ToString("t");
+        _ends.Text = lengthMs > 0 ? ends : "";
         _length.Text = _timeMode switch
         {
             1 => "-" + Format(left),
-            2 => "Ends " + DateTime.Now.AddMilliseconds(left).ToString("t"),
+            2 => ends,
             _ => Format(lengthMs),
         };
         _play.Glyph = playing ? PauseGlyph : PlayGlyph;
         _mute.Glyph = muted ? MuteGlyph : VolumeGlyph;
         _fullScreen.Glyph = fullScreen ? BackToWindowGlyph : FullScreenGlyph;
     }
+
+    public void SetFile(string path) => _file.Text = System.IO.Path.GetFileName(path);
 
     public static string Format(long ms)
     {
@@ -336,7 +396,7 @@ internal sealed class PlayerControls : Window
         SeekHover?.Invoke(share * _seek.Maximum, AppWindow.Position.X + (int)(e.GetCurrentPoint(null).Position.X * scale));
     }
 
-    private static FontIcon Icon(string glyph) => new() { Glyph = glyph, FontSize = 16 };
+    private static FontIcon Icon(string glyph, double size = 16) => new() { Glyph = glyph, FontSize = size };
 
     private static TextBlock Label() => new()
     {
@@ -346,7 +406,7 @@ internal sealed class PlayerControls : Window
         FontSize = 13,
     };
 
-    private static Button IconButton(FontIcon icon, string tip, Action click)
+    private static Button IconButton(FrameworkElement icon, string tip, Action click)
     {
         // Never focused: a click must not take the keys away from the player
         var b = new Button
@@ -355,6 +415,7 @@ internal sealed class PlayerControls : Window
             Width = 40,
             Height = 40,
             Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(20),
             Background = new SolidColorBrush(Colors.Transparent),
             BorderThickness = new Thickness(0),
             VerticalAlignment = VerticalAlignment.Center,
@@ -366,7 +427,62 @@ internal sealed class PlayerControls : Window
         return b;
     }
 
-    /// <summary>The slider in a cell that takes the wheel over the whole height of the bar.</summary>
+    private static LinearGradientBrush Glass(params (byte A, byte R, byte G, byte B, double At)[] stops)
+    {
+        var brush = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0.5, 0), EndPoint = new Windows.Foundation.Point(0.5, 1) };
+        foreach (var stop in stops) brush.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(stop.A, stop.R, stop.G, stop.B), Offset = stop.At });
+        return brush;
+    }
+
+    // The glass the buttons sit on; Play stands out of it
+    private static Grid Capsule()
+    {
+        var capsule = new Grid { Height = 38, VerticalAlignment = VerticalAlignment.Center };
+        capsule.Children.Add(new Border
+        {
+            CornerRadius = new CornerRadius(19),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Glass((150, 255, 255, 255, 0), (50, 255, 255, 255, 1)),
+            Background = Glass((255, 62, 58, 84, 0), (255, 30, 27, 42, 0.5), (255, 12, 10, 20, 0.51), (255, 36, 30, 54, 1)),
+        });
+        capsule.Children.Add(new Border
+        {
+            Height = 16,
+            Margin = new Thickness(4, 2, 4, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new CornerRadius(15, 15, 4, 4),
+            Background = Glass((60, 255, 255, 255, 0), (6, 255, 255, 255, 1)),
+        });
+        return capsule;
+    }
+
+    // The rim is the button's own background, so it can light up under the mouse; the theme's purple
+    private Button PlayButton()
+    {
+        var face = new Grid { Width = PlaySize - 3, Height = PlaySize - 3 };
+        face.Children.Add(new Ellipse { Fill = Glass((255, 48, 40, 76, 0), (255, 14, 10, 28, 0.5), (255, 88, 58, 190, 1)) });
+        face.Children.Add(new Ellipse
+        {
+            Width = PlaySize - 13,
+            Height = (PlaySize - 3) / 2,
+            Margin = new Thickness(0, 2, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            Fill = Glass((150, 255, 255, 255, 0), (12, 255, 255, 255, 1)),
+        });
+        _play.Foreground = new SolidColorBrush(Colors.White);
+        _play.FontSize = 20;
+        face.Children.Add(_play);
+
+        var b = IconButton(face, "Play or pause (Space)", () => PlayPause?.Invoke());
+        b.Width = b.Height = PlaySize;
+        b.CornerRadius = new CornerRadius(PlaySize / 2);
+        b.Background = Glass((255, 214, 200, 255, 0), (255, 109, 79, 208, 0.55), (255, 167, 139, 250, 1));
+        b.Resources["ButtonBackgroundPointerOver"] = Glass((255, 244, 238, 255, 0), (255, 150, 120, 245, 0.55), (255, 214, 200, 255, 1));
+        b.Resources["ButtonBackgroundPressed"] = Glass((255, 140, 118, 200, 0), (255, 70, 48, 150, 0.55), (255, 109, 79, 208, 1));
+        return b;
+    }
+
+    /// <summary>The slider in a cell that takes the wheel over the whole height of its line.</summary>
     private Grid WheelArea(Slider slider, Action<int> turned)
     {
         var area = new Grid { Background = new SolidColorBrush(Colors.Transparent) };

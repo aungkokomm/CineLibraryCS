@@ -36,6 +36,10 @@ public sealed partial class LibraryPage : Page
         _vm = new LibraryViewModel();
 
         InitializeComponent();
+        SelAddToListBtn.Content = ActionLabel.AddToList("Add to list ▾");
+        SelWatchedBtn.Content = ActionLabel.Watched(true);
+        SelWatchlistBtn.Content = ActionLabel.ToWatch(true);
+        SelFavBtn.Content = ActionLabel.Favorite(false);
 
         // Assign ItemsSource once — ObservableCollection handles all future updates
         GridRepeater.ItemsSource = _vm.Movies;

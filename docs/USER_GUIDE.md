@@ -299,7 +299,7 @@ favorite keeps its ♥ on the card.
 - **Watched ✓** — mark a movie as seen. Affects the Watched / Unwatched
   filters and the Statistics page.
 - **Favorite ♥** — pin to the **Favorites** view in the sidebar.
-- **To Watch 📋** — queue for later. Shows on the **To Watch** page with a
+- **To Watch 📌** — queue for later. Shows on the **To Watch** page with a
   badge counter on the sidebar item.
 
 These flags are local to your CineLibrary install — they don't write
@@ -405,7 +405,7 @@ Click a show to open its page:
   **Created by**, the studios and networks, the country, and
   **Located on**: the show's drive, with a green dot and its letter while
   it's connected, as in the movie details window. Then the buttons:
-  **📂 Open Folder**, **♡ Favorite**, **📋 To Watch** and **Add to list**,
+  **📂 Open Folder**, **♡ Favorite**, **📌 To Watch** and **Add to list**,
   and under them **📝 Add note**, **Fetch missing info from TMDB** (see
   [Filling in missing details](#filling-in-missing-details-tmdb)) and
   **Reload from .nfo**, with your tags beside them. Open Folder and
@@ -993,6 +993,7 @@ the `.nfo`. It looks something like this:
   "watched": true,
   "favorite": true,
   "lastPlayedUnix": 1747576800,
+  "playCount": 3,
   "lists": ["All Time Great"]
 }
 ```

@@ -205,7 +205,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xE74C;" FontSize="15"
+                                    <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xE718;" FontSize="15"
                                               FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
                                               VerticalAlignment="Center"/>
                                     <TextBlock Text="To Watch" VerticalAlignment="Center"/>

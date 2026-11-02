@@ -36,6 +36,8 @@ public sealed partial class TvShowsPage : Page
     public TvShowsPage()
     {
         InitializeComponent();
+        ShowFolderBtn.Content = ActionLabel.OpenFolder();
+        ShowListsBtn.Content = ActionLabel.AddToList();
         ShowsRepeater.ItemsSource = _shows;
         ShowsRepeater.Tapped += OnShowsTapped;
         // v4.9.0 (#25): a show sent to Watched & Gone (or restored) leaves the grid at once
@@ -122,7 +124,7 @@ public sealed partial class TvShowsPage : Page
         });
         var favBtn = new Button
         {
-            Content = d.IsFavorite ? "♥ Favorited" : "♡ Favorite",
+            Content = ActionLabel.Favorite(d.IsFavorite),
             Background = Rgb(0xFF, 0xFF, 0xFF, 0x22),
             Foreground = textBrush,
             BorderThickness = new Thickness(0),
@@ -137,7 +139,7 @@ public sealed partial class TvShowsPage : Page
             // auto-syncs the show's sidecar, no explicit write needed.
             AppState.Instance.Db.SetEpisodeFavorite(d.Id, d.IsFavorite);
             ep.IsFavorite = d.IsFavorite;  // pushes the badge update to the card
-            favBtn.Content = d.IsFavorite ? "♥ Favorited" : "♡ Favorite";
+            favBtn.Content = ActionLabel.Favorite(d.IsFavorite);
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         };
         Grid.SetColumn(favBtn, 1);
@@ -1007,8 +1009,8 @@ public sealed partial class TvShowsPage : Page
     private void UpdateShowButtons()
     {
         if (_detail == null) return;
-        ShowFavBtn.Content = _detail.IsFavorite ? "♥ Favorited" : "♡ Favorite";
-        ShowWatchlistBtn.Content = _detail.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
+        ShowFavBtn.Content = ActionLabel.Favorite(_detail.IsFavorite);
+        ShowWatchlistBtn.Content = ActionLabel.ToWatch(_detail.IsWatchlist);
     }
 
     // ── v4.3.0 (#17): the show's own note ──────────────────────────────────
@@ -1020,7 +1022,7 @@ public sealed partial class TvShowsPage : Page
         var has = !string.IsNullOrWhiteSpace(note);
         ShowNoteText.Text = has ? note : "";
         ShowNoteWrap.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
-        ShowNoteBtnText.Text = has ? "📝 Edit note" : "📝 Add note";
+        ShowNoteBtn.Content = ActionLabel.Note(has ? "Edit note" : "Add note");
     }
 
     private async void OnEditShowNote(object sender, RoutedEventArgs e)

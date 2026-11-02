@@ -273,6 +273,7 @@ public class ScannerService
                 // "DB wins where it has data, lists are additive" rule as the
                 // note importer. Recovers state after a drive-remove + re-add.
                 MovieStateSidecar.ImportIntoMovieRow(_db, conn, tx, rowId, folder);
+                DatabaseService.RaisePlayCount(conn, tx, rowId, parsed.PlayCount ?? 0);
             }
 
             tx.Commit();

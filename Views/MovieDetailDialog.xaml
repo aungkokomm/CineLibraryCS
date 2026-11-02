@@ -252,14 +252,14 @@
                             <TextBlock Text="▶ Play"/>
                         </Button>
                         <!-- v4.6.0: the trailer link from the .nfo -->
-                        <Button x:Name="TrailerBtn" Content="🎞 Trailer" Click="OnTrailer"
+                        <Button x:Name="TrailerBtn" Click="OnTrailer"
                                 Visibility="Collapsed"
                                 Background="{ThemeResource CardBrush}"
                                 Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}"
                                 CornerRadius="8" Padding="12,8"
                                 ToolTipService.ToolTip="Watch the trailer in your web browser"/>
-                        <Button x:Name="FolderBtn" Content="📂 Open Folder" Click="OnOpenFolder"
+                        <Button x:Name="FolderBtn" Click="OnOpenFolder"
                                 Background="{ThemeResource CardBrush}"
                                 Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}"
@@ -279,7 +279,7 @@
                                 Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}"
                                 CornerRadius="8" Padding="12,8"/>
-                        <Button x:Name="ListsBtn" Content="📑 Add to list"
+                        <Button x:Name="ListsBtn"
                                 Background="{ThemeResource CardBrush}"
                                 Foreground="{ThemeResource TextBrush}"
                                 BorderBrush="{ThemeResource BorderBrush}"
@@ -441,6 +441,14 @@
                                            CharacterSpacing="150" Opacity="0.65"
                                            Foreground="{ThemeResource MutedBrush}"/>
                                 <TextBlock x:Name="FiContainer" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextBrush}"/>
+                            </StackPanel>
+                            <!-- 5.1.0 (#25): from the .nfo, and each time the player reaches the end -->
+                            <StackPanel x:Name="FiPlaysBlock" Visibility="Collapsed">
+                                <TextBlock Text="PLAYED" FontSize="9" FontWeight="SemiBold"
+                                           CharacterSpacing="150" Opacity="0.65"
+                                           Foreground="{ThemeResource MutedBrush}"/>
+                                <TextBlock x:Name="FiPlays" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{ThemeResource TextBrush}"/>
                             </StackPanel>
                             <StackPanel x:Name="FiLangBlock" Visibility="Collapsed">
@@ -700,14 +708,14 @@
                 </Grid.ColumnDefinitions>
                 <!-- v4.8.0 (#25): back to the library, where the ✕ on the right was -->
                 <Button Grid.Column="0" Click="OnBackToLibrary" VerticalAlignment="Center"
-                        Background="Transparent" BorderThickness="0" CornerRadius="6"
-                        Padding="10,5" Margin="-10,0,8,0"
+                        Style="{StaticResource RowIconToggleStyle}" Width="Auto"
+                        Foreground="{ThemeResource TextBrush}" Margin="0,0,12,0"
                         AutomationProperties.Name="Back to library"
                         ToolTipService.ToolTip="Back to library (Esc)">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,0,14,0">
                         <FontIcon Glyph="&#xE76B;" FontSize="12"
                                   FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
-                        <TextBlock Text="Library"/>
+                        <TextBlock Text="Library" FontSize="13"/>
                     </StackPanel>
                 </Button>
                 <TextBlock x:Name="StickyTitle" Grid.Column="1"
@@ -717,16 +725,16 @@
                            TextTrimming="CharacterEllipsis"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <!-- v4.5.0: previous / next, as on the banner -->
-                    <StackPanel x:Name="StickyBrowseNav" Orientation="Horizontal" Visibility="Collapsed">
+                    <StackPanel x:Name="StickyBrowseNav" Orientation="Horizontal" Spacing="6" Visibility="Collapsed">
                         <Button x:Name="StickyPrevBtn" Click="OnPrevMovie"
-                                Background="Transparent" BorderThickness="0" CornerRadius="6" Padding="10,7"
+                                Style="{StaticResource RowIconToggleStyle}" Foreground="{ThemeResource TextBrush}"
                                 AutomationProperties.Name="Previous movie"
                                 ToolTipService.ToolTip="Previous movie (←)">
                             <FontIcon Glyph="&#xE76B;" FontSize="12"
                                       FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                         </Button>
                         <Button x:Name="StickyNextBtn" Click="OnNextMovie"
-                                Background="Transparent" BorderThickness="0" CornerRadius="6" Padding="10,7"
+                                Style="{StaticResource RowIconToggleStyle}" Foreground="{ThemeResource TextBrush}"
                                 AutomationProperties.Name="Next movie"
                                 ToolTipService.ToolTip="Next movie (→)">
                             <FontIcon Glyph="&#xE76C;" FontSize="12"

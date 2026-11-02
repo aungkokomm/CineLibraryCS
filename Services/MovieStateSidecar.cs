@@ -40,6 +40,8 @@ public static class MovieStateSidecar
         // v4.10.0: where it stopped, and the audio and subtitles chosen for it
         [JsonPropertyName("resumeMs")]      public long? ResumeMs { get; set; }
         [JsonPropertyName("tracks")]        public TrackChoice? Tracks { get; set; }
+        // 5.1.0: times played
+        [JsonPropertyName("playCount")]     public int? PlayCount { get; set; }
         /// <summary>v3.4 — TMDB-fetched metadata (only written for movies whose
         /// info was filled in CineLibrary), so a rescan can recover it without
         /// rewriting the user's NFO. Null for state-only sidecars.</summary>
@@ -56,6 +58,7 @@ public static class MovieStateSidecar
             Tags.Count > 0 ||
             (ResumeMs ?? 0) > 0 ||
             Tracks != null ||
+            (PlayCount ?? 0) > 0 ||
             Meta != null;
     }
 
@@ -170,7 +173,7 @@ public static class MovieStateSidecar
         using var c = db.GetConnection().CreateCommand();
         c.CommandText = @"
             SELECT volume_serial, folder_rel_path, is_watched, is_favorite,
-                   is_watchlist, last_played_at, note, resume_ms
+                   is_watchlist, last_played_at, note, resume_ms, play_count
               FROM movies WHERE id=@id";
         c.Parameters.AddWithValue("@id", movieId);
         using var r = c.ExecuteReader();
@@ -189,6 +192,7 @@ public static class MovieStateSidecar
             LastPlayedUnix   = r.IsDBNull(5) ? null : r.GetInt64(5),
             Note             = r.IsDBNull(6) ? null : r.GetString(6),
             ResumeMs         = r.IsDBNull(7) || r.GetInt64(7) == 0 ? null : r.GetInt64(7),
+            PlayCount        = r.IsDBNull(8) || r.GetInt32(8) == 0 ? null : r.GetInt32(8),
         };
         state.Lists = db.GetUserListNamesForMovie(movieId);
         state.Tags = db.GetTagNamesForMovie(movieId);
@@ -337,6 +341,7 @@ public static class MovieStateSidecar
         // v4.10.0: where it stopped and its tracks; what's saved here stays
         if (s.ResumeMs is > 0) DatabaseService.RestoreResume(conn, tx, movieId, s.ResumeMs.Value);
         if (s.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 'm', movieId, s.Tracks);
+        DatabaseService.RaisePlayCount(conn, tx, movieId, s.PlayCount ?? 0);
 
         // Lists — additive. Each list name in the sidecar gets resolved
         // (or created) and the movie added to it.
