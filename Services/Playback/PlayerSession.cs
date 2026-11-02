@@ -617,7 +617,7 @@ internal sealed class PlayerSession
         if (_menu is null or { Kind: "more" }) return;
         var r = _window.ClientOnScreen();
         var scale = _window.Scale;
-        _menu.ShowAt(r.Right - (int)Math.Round(PlayerControls.MenuAnchorFromRight * scale), _controls.Top - (int)Math.Round(8 * scale), scale);
+        _menu.ShowAt(r.Right - (int)Math.Round(_controls.MenuAnchorFromRight * scale), _controls.Top - (int)Math.Round(8 * scale), scale);
     }
 
     private void CloseMenu()
