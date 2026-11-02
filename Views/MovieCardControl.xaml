@@ -135,7 +135,7 @@
                                     VerticalAlignment="Top" HorizontalAlignment="Right">
                             <Button x:Name="WatchlistIconBtn" Click="OnWatchlistToggle"
                                     Style="{StaticResource CardIconToggleStyle}"
-                                    AutomationProperties.Name="Watchlist">
+                                    AutomationProperties.Name="To Watch">
                                 <FontIcon x:Name="WatchlistIcon" FontSize="14"
                                           FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                             </Button>

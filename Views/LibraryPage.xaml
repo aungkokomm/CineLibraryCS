@@ -460,7 +460,7 @@
                         BorderBrush="{ThemeResource BorderBrush}"
                         CornerRadius="8" Padding="10,6" FontSize="12"/>
                 <Button x:Name="SelWatchlistBtn" Click="OnSelToggleWatchlist"
-                        Content="📌 Watchlist"
+                        Content="📌 To Watch"
                         Background="{ThemeResource CardBrush}"
                         Foreground="{ThemeResource TextBrush}"
                         BorderBrush="{ThemeResource BorderBrush}"

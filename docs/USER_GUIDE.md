@@ -145,13 +145,13 @@ more columns, automatically.
 
 **Point at** a poster for its genres, **▶ Play** (when its drive is
 connected; otherwise the card says which drive it's on), **View
-Details**, and the Watchlist / Watched / Favorite icons in the corner.
+Details**, and the To Watch / Watched / Favorite icons in the corner.
 
 **Click** any poster to open the **movie detail** dialog. It opens
 maximized and shows cast, ratings from multiple sources (IMDb / TMDb /
 Rotten Tomatoes if your nfo has them), tech badges (resolution, codec,
 audio), file size and duration, and quick toggles for watched /
-favorite / watchlist. Press **Esc** to close, or use the close button
+favorite / To Watch. Press **Esc** to close, or use the close button
 in the sticky bar that appears as you scroll.
 
 The yellow **★** is the rating your `.nfo` marks as the main one
@@ -173,7 +173,7 @@ when its `.nfo` has a trailer link.
 
 The cast lists everyone in the movie's `.nfo`, in billing order, with
 photos from the movie folder's `.actors` folder (or fetched from TMDB).
-A very big cast shows its first 24; click **Show all** for the rest.
+A very big cast shows its first 24, and a low window one row; **Show all** brings the rest and **Show less** folds it back.
 
 Under the cast, a movie that's part of a collection shows **the rest of
 the collection** you own, in order, with a ✓ on the ones you've watched
@@ -293,13 +293,13 @@ last choice between sessions.
 
 Three personal flags, all toggle from the movie detail dialog, or from
 the round icons in the top corner of a movie card when you point at it
-(📌 Watchlist, ✓ Watched, ♥ Favorite: dim when off, bright when on). A
+(📌 To Watch, ✓ Watched, ♥ Favorite: dim when off, bright when on). A
 favorite keeps its ♥ on the card.
 
 - **Watched ✓** — mark a movie as seen. Affects the Watched / Unwatched
   filters and the Statistics page.
 - **Favorite ♥** — pin to the **Favorites** view in the sidebar.
-- **Watchlist 📋** — queue for later. Shows in **To Watch** with a
+- **To Watch 📋** — queue for later. Shows on the **To Watch** page with a
   badge counter on the sidebar item.
 
 These flags are local to your CineLibrary install — they don't write
@@ -375,14 +375,14 @@ many seasons, how much you've watched, and:
 - **▶ Play S01E04** plays the next episode straight away (the one ▶ Play
   next on the show page would start) and marks it watched. If the drive
   isn't connected, the card says where the next episode is instead.
-- The **📌** and **♥** icons in the top corner switch Watchlist and
+- The **📌** and **♥** icons in the top corner switch To Watch and
   Favorite on and off. They're dim when off and bright when on.
 - The **✓** between them marks the whole show watched, every episode of
   every season, after asking. It's green when you've watched them all;
   click it then to mark them all unwatched.
 
 **Right-click a show card** for the rest: ▶ Play the next episode, Open
-show, Watched, Favorite, Watchlist, 📑 Add to list, 📂 Open folder and
+show, Watched, Favorite, To Watch, 📑 Add to list, 📂 Open folder and
 Send to Watched & Gone (see *Watched & Gone*).
 
 A small grey dot in a card's corner means its drive isn't connected.
@@ -405,7 +405,7 @@ Click a show to open its page:
   **Created by**, the studios and networks, the country, and
   **Located on**: the show's drive, with a green dot and its letter while
   it's connected, as in the movie details window. Then the buttons:
-  **📂 Open Folder**, **♡ Favorite**, **📋 Watchlist** and **Add to list**,
+  **📂 Open Folder**, **♡ Favorite**, **📋 To Watch** and **Add to list**,
   and under them **📝 Add note**, **Fetch missing info from TMDB** (see
   [Filling in missing details](#filling-in-missing-details-tmdb)) and
   **Reload from .nfo**, with your tags beside them. Open Folder and
@@ -471,13 +471,13 @@ The Statistics page has a **TV shows** section once you have shows (see
 **Watched so far** card has an episodes ring next to the movies one.
 Episodes count in **Watched per month** too.
 
-### Favorite / Watchlist for shows
+### Favorite / To Watch for shows
 
-Favorite and Watchlist are **show-level** (you favorite *the show*,
+Favorite and To Watch are **show-level** (you favorite *the show*,
 not one episode), set from the buttons in the show header. Watched is
 **per-episode**.
 
-Favorite and watchlisted shows appear in a **TV shows** row at the top
+Favorite and on To Watch shows appear in a **TV shows** row at the top
 of **Favorites** and **To Watch**, above the movies; shows you're partway
 through appear the same way on **Continue Watching**, where each card
 says which episode is next ("Next: S01E04", the one ▶ Play next starts).
@@ -491,7 +491,7 @@ sidebar include these shows. The cards in this row take the page's
 
 ### Shows travel with the drive too
 
-Just like movies, a show's personal state (favorite / watchlist /
+Just like movies, a show's personal state (favorite / To Watch /
 note / per-episode watched) is mirrored into a `cinelibrary-state.json`
 in the show folder. Remove the drive and re-add it later — your
 progress comes right back. See *State that travels with your drives*.
@@ -500,7 +500,7 @@ progress comes right back. See *State that travels with your drives*.
 
 ## My Lists — group movies your way
 
-Built-in flags (Favorites / Watchlist) are just on/off. For everything
+Built-in flags (Favorites / To Watch) are just on/off. For everything
 in between — *"Marvel chronological"*, *"Date-night picks"*, *"Top 10
 of 2024"*, *"Movies I lent to Sai"* — make your own list under **MY
 LISTS** in the sidebar.
@@ -938,14 +938,14 @@ at a time. CineLibrary's multi-select fixes that.
 As soon as one or more cards are selected, a purple pill bar appears
 at the bottom of the library:
 
-> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ♥ Favorite · Fetch missing info · 🗑 Remove from list · ✕
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 To Watch · ♥ Favorite · Fetch missing info · 🗑 Remove from list · ✕
 
 - **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
   Picking one adds *every* selected movie to that list.
 - **Fetch missing info** (4.8.0) looks every selected movie up on TMDb
   and fills in only what's missing (see
   [Filling in missing details](#filling-in-missing-details-tmdb)).
-- **✓ Watched / 📌 Watchlist / ♥ Favorite** are smart toggles — if
+- **✓ Watched / 📌 To Watch / ♥ Favorite** are smart toggles — if
   *any* selected movie doesn't yet have the flag, the action sets it
   on all of them; if every selected movie already has it, the action
   removes it from all of them.
@@ -962,7 +962,7 @@ card onto a sidebar entry**:
 
 - Drop on a **user list** → adds the whole selection to that list.
 - Drop on **Favorites** → favorites everything in the selection.
-- Drop on **To Watch** → adds everything to your watchlist.
+- Drop on **To Watch** → adds everything to To Watch.
 
 The target row lights up purple while you hover over it. If you drag
 a card that isn't part of the current selection, only that one card
@@ -973,7 +973,7 @@ isn't disturbed).
 
 ## State that travels with your drives
 
-Your watched marks, favorites, watchlist, list memberships, and notes
+Your watched marks, favorites, To Watch, list memberships, and notes
 are personal — they're the only things CineLibrary can't rebuild for
 you by re-reading a `.nfo`. Losing them when you remove and re-add a
 drive would be no fun, so as of **v2.7.0** they ride along **with the
@@ -982,7 +982,7 @@ drive itself**.
 ### How it works
 
 For every movie that has any personal state (watched, favorited,
-watchlisted, played at least once, sitting in one of your lists, or
+on To Watch, played at least once, sitting in one of your lists, or
 carrying a note), CineLibrary writes a tiny file called
 **`cinelibrary-state.json`** into that movie's folder, right next to
 the `.nfo`. It looks something like this:
@@ -1070,7 +1070,7 @@ needs on the next change or sync.
 
 The sidecars give you per-drive resilience. **Backup & Export → Backup
 or restore…** under **TOOLS** in the sidebar gives you whole-library resilience: one JSON
-file covers every favorite, watchlist entry, note, list, tag, watched
+file covers every favorite, To Watch entry, note, list, tag, watched
 flag, last-played time, per-episode favorite/note, and watch-history
 event.
 
@@ -1100,7 +1100,7 @@ Backup imports are **additive — your DB wins on conflicts**:
 
 - Re-importing the same file is a no-op.
 - A movie marked watched in either the DB or the backup ends up
-  watched. Same for favorite and watchlist.
+  watched. Same for favorite and To Watch.
 - Notes that are non-empty in the DB are preserved; otherwise the
   backup note fills in.
 - `last_played_at` becomes the most recent of the two values.
@@ -1266,7 +1266,7 @@ open a show.
 | `Ctrl+F`         | Focus the search box (alternate)             |
 | `Esc`            | Clear search, then clear multi-select        |
 | `F`              | Toggle favorite on the current selection     |
-| `W`              | Toggle watchlist on the current selection    |
+| `W`              | Toggle To Watch on the current selection    |
 | `Delete`         | Remove selection from the current list view  |
 | `Ctrl+A`         | Select every card currently visible          |
 | `Ctrl+click`     | Toggle a single card into the selection      |
@@ -1308,7 +1308,7 @@ The two formats:
   inline. Useful for sharing your catalog with someone who doesn't
   have CineLibrary installed.
 
-To export only your watchlist, open *To Watch* first, then choose
+To export only your To Watch, open *To Watch* first, then choose
 **Export** › **This view**.
 
 ---

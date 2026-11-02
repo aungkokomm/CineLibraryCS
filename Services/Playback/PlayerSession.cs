@@ -37,6 +37,10 @@ internal sealed class PlayerSession
     private PlayerPause? _pause;
     private TrackChoice? _choice;
     private bool _choicePending = true;
+    // 5.1.0 (#25): subtitle files beside the video, and which of VLC's tracks each became
+    private IReadOnlyList<string> _subtitleFiles = [];
+    private readonly Dictionary<int, string> _fileTracks = [];
+    private readonly Queue<(string File, int[] Before)> _addingFiles = new();
     private string _title;
     private bool _chapters;
     private ChapterDescription[]? _chapterList;
@@ -175,6 +179,7 @@ internal sealed class PlayerSession
     private Media NewMedia(string path, long startMs, TrackChoice? choice)
     {
         var media = new Media(_vlc, path, FromType.FromPath);
+        media.AddOption(":sub-autodetect-path=.\\none");   // VLC ignores an empty one; those folders are listed by SubtitleFiles, by name
         if (startMs > 0) media.AddOption(":start-time=" + (startMs / 1000.0).ToString("0.###", CultureInfo.InvariantCulture));
         // From the first sound, not a moment after the film started in another language
         if (choice?.Audio is { } audio) media.AddOption(":audio-language=" + audio);
@@ -185,17 +190,35 @@ internal sealed class PlayerSession
     private void ApplyChoice()
     {
         _choicePending = false;
+        _subtitleFiles = SubtitleFiles.Near(_path);
+        _fileTracks.Clear();
+        _addingFiles.Clear();
         Player.SetSpuDelay((_choice?.SubtitleDelayMs ?? 0) * 1000L);
-        if (_choice is not { } c) return;
-        if (c.Audio is { } audio && Pick(Player.AudioTrackDescription, audio, c.AudioIndex) is { } a && a != Player.AudioTrack)
+        var c = _choice;
+        if (c?.Audio is { } audio && Pick(Player.AudioTrackDescription, audio, c.AudioIndex) is { } a && a != Player.AudioTrack)
             Player.SetAudioTrack(a);
-        if (c.SubtitlesOff)
+        if (c?.SubtitlesOff == true)
         {
             if (Player.Spu != -1) Player.SetSpu(-1);
         }
-        else if (c.Subtitles is { } subtitles && Pick(Player.SpuDescription, subtitles, c.SubtitleIndex) is { } s && s != Player.Spu)
-            Player.SetSpu(s);
-        PlayerLog.Write($"tracks: audio {Player.AudioTrack}, subtitles {Player.Spu}, wanted {c}");
+        else if (c?.Subtitles is { } subtitles)
+        {
+            if (FileFor(subtitles, c.SubtitleIndex) is { } file) OpenSubtitleFile(file);
+            else if (Pick(Player.SpuDescription, subtitles, c.SubtitleIndex) is { } s && s != Player.Spu) Player.SetSpu(s);
+        }
+        else if (SubtitleFiles.NamedAfter(_subtitleFiles, _path) is { } own) OpenSubtitleFile(own);
+        PlayerLog.Write($"tracks: audio {Player.AudioTrack}, subtitles {Player.Spu}, {_subtitleFiles.Count} files, wanted {c}");
+    }
+
+    private static bool SameLanguage(string? name, string language) =>
+        string.Equals(PlayerMenu.Language(name), language, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The file a kept choice means, when it's past the tracks inside the video of that language.</summary>
+    private string? FileFor(string language, int index)
+    {
+        var inside = (Player.SpuDescription ?? []).Count(t => t.Id != -1 && SameLanguage(t.Name, language));
+        var files = _subtitleFiles.Where(f => SameLanguage(SubtitleFiles.Label(f), language)).ToList();
+        return index >= inside && files.Count > 0 ? files[Math.Min(index - inside, files.Count - 1)] : null;
     }
 
     private static int? Pick(TrackDescription[]? tracks, string language, int index)
@@ -412,9 +435,82 @@ internal sealed class PlayerSession
 
     private MenuSection Section(bool audio)
     {
-        var tracks = ((audio ? Player.AudioTrackDescription : Player.SpuDescription) ?? []).Select(t => (t.Id, t.Name ?? "")).ToList();
+        var tracks = Tracks(audio);
+        if (!audio)
+        {
+            var open = _fileTracks.Values.Concat(_addingFiles.Select(a => a.File)).ToHashSet();
+            tracks.AddRange(_subtitleFiles.Select((file, i) => (File: file, Row: (PlayerMenu.FirstFile - i, SubtitleFiles.Label(file))))
+                .Where(f => !open.Contains(f.File)).Select(f => f.Row));
+            tracks.Add((PlayerMenu.AddFile, "Add subtitle file..."));
+        }
         if (!audio && SubtitleSearch.Available && UiSettings.FindSubtitlesOnline) tracks.Add((PlayerMenu.FindOnline, "Find subtitles online"));
         return new MenuSection(audio ? "audio" : "subtitles", audio ? "Audio" : "Subtitles", tracks, audio ? Player.AudioTrack : Player.Spu);
+    }
+
+    /// <summary>A menu's tracks, a subtitle file by its own name and not VLC's "Track 3".</summary>
+    private List<(int Id, string Name)> Tracks(bool audio)
+    {
+        if (!audio) NoteAddedFiles();
+        return ((audio ? Player.AudioTrackDescription : Player.SpuDescription) ?? [])
+            .Select(t => (t.Id, !audio && _fileTracks.TryGetValue(t.Id, out var file) ? SubtitleFiles.Label(file) : t.Name ?? "")).ToList();
+    }
+
+    // VLC adds a file's track a moment later and doesn't say which it is
+    private void NoteAddedFiles()
+    {
+        while (_addingFiles.TryPeek(out var adding))
+        {
+            var fresh = (Player.SpuDescription ?? []).Select(t => t.Id)
+                .Where(id => id != -1 && !adding.Before.Contains(id) && !_fileTracks.ContainsKey(id)).ToList();
+            if (fresh.Count == 0) return;
+            _fileTracks[fresh[0]] = adding.File;
+            _addingFiles.Dequeue();
+        }
+    }
+
+    private bool OpenSubtitleFile(string file)
+    {
+        var before = (Player.SpuDescription ?? []).Select(t => t.Id).ToArray();
+        if (!Player.AddSlave(MediaSlaveType.Subtitle, new Uri(file).AbsoluteUri, true)) return false;
+        _addingFiles.Enqueue((file, before));
+        return true;
+    }
+
+    /// <summary>A subtitle file chosen in the menu or the file window: shown now, and kept for the next time.</summary>
+    private void UseSubtitleFile(string file)
+    {
+        CloseMenu();
+        _window.TakeFocus();
+        var language = PlayerMenu.Language(SubtitleFiles.Label(file));
+        var index = (Player.SpuDescription ?? []).Count(t => t.Id != -1 && !_fileTracks.ContainsKey(t.Id) && SameLanguage(t.Name, language))
+                  + _subtitleFiles.Where(f => SameLanguage(SubtitleFiles.Label(f), language)).TakeWhile(f => f != file).Count();
+        if (!OpenSubtitleFile(file))
+        {
+            ShowNote("Couldn't open those subtitles");
+            return;
+        }
+        ShowNote($"Subtitles: {language}");
+        KeepChoice((_choice ?? new TrackChoice(null, 0, null, 0, false, 0)) with { Subtitles = language, SubtitleIndex = index, SubtitlesOff = false });
+    }
+
+    private async void PickSubtitleFile()
+    {
+        CloseMenu();
+        var tag = Tag;
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker { ViewMode = Windows.Storage.Pickers.PickerViewMode.List };
+            foreach (var type in SubtitleFiles.Extensions) picker.FileTypeFilter.Add(type);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, _window.Hwnd);
+            var file = await picker.PickSingleFileAsync();
+            _window.TakeFocus();
+            if (file != null && !_closing && tag == Tag) UseSubtitleFile(file.Path);
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            PlayerLog.Write($"subtitle file window: {e.Message}");
+            ShowNote("Couldn't open the file window");
+        }
     }
 
     private void OpenMenu(string kind, MenuSection section)
@@ -430,8 +526,10 @@ internal sealed class PlayerSession
     {
         if (kind == "online") { AddSubtitles(_foundSubtitles[id]); return; }
         if (id == PlayerMenu.FindOnline) { FindSubtitles(); return; }
+        if (id == PlayerMenu.AddFile) { PickSubtitleFile(); return; }
+        if (id <= PlayerMenu.FirstFile) { UseSubtitleFile(_subtitleFiles[PlayerMenu.FirstFile - id]); return; }
         var audio = kind == "audio";
-        var tracks = (audio ? Player.AudioTrackDescription : Player.SpuDescription) ?? [];
+        var tracks = Tracks(audio);
         var done = audio ? Player.SetAudioTrack(id) : Player.SetSpu(id);
         PlayerLog.Write($"{kind} {id} chosen{(done ? "" : ", VLC refused")}");
         CloseMenu();

@@ -432,7 +432,7 @@ public sealed partial class TvShowCard : UserControl
         var fav = new ToggleMenuFlyoutItem { Text = "Favorite", IsChecked = s.IsFavorite };
         fav.Click += (_, _) => OnHoverFavorite(this, new RoutedEventArgs());
         menu.Items.Add(fav);
-        var watchlist = new ToggleMenuFlyoutItem { Text = "Watchlist", IsChecked = s.IsWatchlist };
+        var watchlist = new ToggleMenuFlyoutItem { Text = "To Watch", IsChecked = s.IsWatchlist };
         watchlist.Click += (_, _) => OnHoverWatchlist(this, new RoutedEventArgs());
         menu.Items.Add(watchlist);
         menu.Items.Add(new MenuFlyoutSeparator());

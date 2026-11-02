@@ -22,7 +22,7 @@
 > - **🔍 Search တွင် TV Shows** — search box သည် ရုပ်ရှင်နှင့်အတူ TV Show များကိုပါ ရှာပေးနိုင်ပါပြီ။
 > - **💾 Backup / Restore** — ကိုယ်ပိုင်ဒေတာ အားလုံးကို JSON file တစ်ခုထဲ၌ export လုပ်နိုင်/import လုပ်နိုင်သည်။
 > - **📤 List ကို image အဖြစ် Export** — list တစ်ခုကို poster grid PNG အဖြစ် ထုတ်ယူနိုင်သည်။
-> - **⌨️ Keyboard shortcuts တိုးချဲ့** — `/` search၊ `F` favorite၊ `W` watchlist၊ `Delete` list မှ ဖယ်ရှား။
+> - **⌨️ Keyboard shortcuts တိုးချဲ့** — `/` search၊ `F` favorite၊ `W` To Watch၊ `Delete` list မှ ဖယ်ရှား။
 > - **⚡ စွမ်းဆောင်ရည် တိုးတက်** — App တခုလုံး ပိုမို သွက်လက်မြန်ဆန်အောင် code quality နှင့် performance pass စစ်ဆေးပြုပြင်ထားပါသည်။
 >
 > **v2.8.0 အသစ်များ** — **TV Shows!** `tvshow.nfo` ပါသော folder များကို
@@ -204,7 +204,7 @@ Sort dropdown တွင် ခေါင်းစဉ်၊ နှစ်၊ rating
 
 - **Watched ✓** — ကြည့်ပြီးဟု မှတ်သည်။ Watched / Unwatched filter နှင့် Statistics စာမျက်နှာတွင် ပြပေးထားပါမည်။
 - **Favorite ⭐** — Sidebar ၏ **Favorites** view တွင် ပြပေးထားပါမည်။
-- **Watchlist 📋** — နောက်မှကြည့်မည်ဟု စီစဉ်သည်။ Sidebar ၏ **To Watch** တွင် badge counter ဖြင့် ပြပေးထားပါမည်။
+- **To Watch 📋** — နောက်မှကြည့်မည်ဟု စီစဉ်သည်။ Sidebar ၏ **To Watch** တွင် badge counter ဖြင့် ပြပေးထားပါမည်။
 
 ဤ flag များသည် **CineLibrary** တွင်သာ သိမ်းသည် — `.nfo` ဖိုင်ထဲ မရေးပါ။ 
 CineLibrary Essentials ဖြင့် ပြန် scrape လုပ်ခဲ့သည်ရှိသော် မထိခိုက်စေရန် ကြိုတင်ကာကွယ်ထားခြင်း ဖြစ်ပါသည်။
@@ -254,7 +254,7 @@ Show တစ်ခုနှိပ်လျှင် ၎င်း၏ စာမျ�
 
 - **Header** — poster, plot, နှစ် · rating · status, watched roll-up
   ("12/62 watched")၊ genre chips, **cast strip**, **☆ Favorite** /
-  **📋 Watchlist** ခလုတ်များ။ v4.6.0 မှစ၍ original title၊ tagline၊
+  **📋 To Watch** ခလုတ်များ။ v4.6.0 မှစ၍ original title၊ tagline၊
   episode တစ်ခု၏ ကြာချိန်၊ IMDb နှင့် TMDb rating (vote အရေအတွက်နှင့်)၊
   **Created by**၊ studio/network အားလုံးနှင့် နိုင်ငံ တို့ကိုလည်း ပြသပါသည်။
 - **ပျောက်နေသော episode များ** - Show တွင် TMDb id ရှိပြီး အင်တာနက်
@@ -284,14 +284,14 @@ Show တစ်ခုနှိပ်လျှင် ၎င်း၏ စာမျ�
 - Card ၏ **○ / ✓** toggle က မဖွင့်ဘဲ watched state ပြောင်းပါသည်။
 - Show ၏   progress roll-up ချက်ချင်း update ဖြစ်သည်။
 
-### Show အတွက် Favorite / Watchlist
+### Show အတွက် Favorite / To Watch
 
-Favorite နှင့် Watchlist က **Show-level** ဖြစ်သည် (episode တစ်ခုမဟုတ်)၊
+Favorite နှင့် To Watch က **Show-level** ဖြစ်သည် (episode တစ်ခုမဟုတ်)၊
 Show header ရှိ ခလုတ်များမှ ပြုလုပ်နိုင်ပါသည်။ Watched က **episode တစ်ခုစီ**။ အတွက်သာ ဖြစ်ပါသည်။ 
 
 ### Show များလည်း Drive နဲ့ အတူ သယ်သွားသည်
 
-ရုပ်ရှင်များကဲ့သို့ပင်၊ Show ၏ personal state (favorite / watchlist /
+ရုပ်ရှင်များကဲ့သို့ပင်၊ Show ၏ personal state (favorite / To Watch /
  / episode တစ်ခုစီ watched) ကို show folder ထဲ
 `cinelibrary-state.json` တွင် မှတ်ထားပေးပါသည်။ Drive ဖျက်ပြီး ပြန်ထည့်လျှင်
 progress ပြန်ပေါ်လာပါမည်။
@@ -300,7 +300,7 @@ progress ပြန်ပေါ်လာပါမည်။
 
 ## My Lists — ကိုယ်ပိုင် List များ ဖန်တီးခြင်း
 
-Favorites / Watchlist က ဖွင့်/ပိတ်ပဲ ရှိသည်။ 
+Favorites / To Watch က ဖွင့်/ပိတ်ပဲ ရှိသည်။ 
 "မိုးအေးအေးမှာ ကြည့်ရန် Drama ကားများ"၊
 "ပြန်ကြည့်ရန်"၊ 
 "ငါ အော်စကာပေးချင်တဲ့ ဓါတ်ရှင်များ" စသဖြင့် ကိုယ်ပိုင်
@@ -538,12 +538,12 @@ Explorer တွင် ကော်ပီတခုကို ဖျက်ပြီ
 Card တခု သို့ ထို့ထက်များသော card ရွေးထားလျှင် library ၏ အောက်ဘက်တွင်
 ခရမ်းရောင် pill bar တစ်ခု ပေါ်လာမည် —
 
-> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 Watchlist · ★ Favorite · 🗑 Remove from list · ✕
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 To Watch · ★ Favorite · 🗑 Remove from list · ✕
 <img width="516" height="39" alt="image" src="https://github.com/user-attachments/assets/4cb6bc64-a78f-464d-9de7-3e5927106187" />
 
 - **📑 Add to list ▾** — စာရင်းတစ်ခု ရွေးပါ။ ရွေးထားသော ရုပ်ရှင် **အားလုံး**
   ထို စာရင်းသို့ ထည့်ပါမည် (+ New list… လည်း ပါသည်)။
-- **✓ Watched / 📌 Watchlist / ★ Favorite** — smart toggle များ။ ရွေးထားသော
+- **✓ Watched / 📌 To Watch / ★ Favorite** — smart toggle များ။ ရွေးထားသော
   ရုပ်ရှင်များတွင် flag မရှိသူပါလျှင် အားလုံးကို ဖွင့်ပေးသည်၊ အားလုံး ရှိနေပြီးလျှင်
   အားလုံးကို ပိတ်ပေးသည်။
 - **🗑 Remove from list** — လက်ရှိ မိမိစာရင်းတစ်ခုကို ကြည့်နေချိန်တွင်သာ
@@ -559,7 +559,7 @@ Action bar မသုံးချင်လျှင် — ရွေးထား�
 
 - **My List** ပေါ်တွင် drop → ရွေးထားသော ရုပ်ရှင်အားလုံး စာရင်းသို့ ထည့်။
 - **Favorites** ပေါ်တွင် drop → အားလုံး ဖို Favorite။
-- **To Watch** ပေါ်တွင် drop → အားလုံး Watchlist သို့ ထည့်။
+- **To Watch** ပေါ်တွင် drop → အားလုံး To Watch သို့ ထည့်။
 
 Hover လုပ်နေစဉ် Target entry က ခရမ်းရောင် outline ပြသည်။ Selection ထဲ
 မပါသော card ကို drag လုပ်လျှင် ထို တစ်ခုသာ ထည့်ပါမည် — အရင်ရှိနေသော
@@ -569,14 +569,14 @@ selection ကို မထိခိုက်ပါ။
 
 ## Drive တွေနဲ့ အတူ သယ်သွားနိုင်တဲ့ Personal Data
 
-**v2.7.0** မှစတင်၍ — Watched / Favorite / Watchlist / List / Notes
+**v2.7.0** မှစတင်၍ — Watched / Favorite / To Watch / List / Notes
 များကို **CineLibrary ထဲမှာ ရော Movie folder ထဲမှာ ပါ** သိမ်းပါမည်။
 Drive ကို CineLibrary မှ ဖျက်လိုက်ပြီး နောက်တစ်ကြိမ် ပြန် Add လျှင်လည်း 
 အရင်မှတ်သားထားခဲ့သော Mark တွေ ပြန်ပေါ်လာပါမည်။
 
 ### ဘယ်လို အလုပ်လုပ်သလဲ?
 
-Personal data (Watched / Favorite / Watchlist / Played history /
+Personal data (Watched / Favorite / To Watch / Played history /
 ပါဝင်နေသော List / Note) ရှိသော ရုပ်ရှင် တစ်ကားစီ၏ folder ထဲတွင်
 **`cinelibrary-state.json`** ဆိုသော ဖိုင်ငယ်တစ်ခုကို ရေးပါသည် —
 `.nfo` ဖိုင်နှင့် တွဲထားပါသည်။ အပြင်အဆင် ဒီပုံစံ —
@@ -656,7 +656,7 @@ drive** ကို နှိပ်သည့်အခါမှသာ၊ ဖို�
 - စုစုပေါင်း runtime (ရက်/နာရီ)၊ ပျမ်းမျှ rating၊ ကြည့်ပြီးသည့် ရာခိုင်နှုန်း
 - ထိပ်တန်း ဒါရိုက်တာ၊ သရုပ်ဆောင်၊ genre — အရေအတွက်အလိုက်
 - ဆယ်စုနှစ်အလိုက် ခွဲခြမ်းခြင်း
-- Watchlist အရေအတွက်
+- To Watch အရေအတွက်
 
 ကြည့်ပြီး/မကြည့်ရသေး toggle လုပ်သည်နှင့် သို့မဟုတ် Drive အသစ်ထည့်သည်နှင့် ဂဏန်းများ ချက်ချင်း ပြောင်းသည်။
 
@@ -773,7 +773,7 @@ Search box ထဲ cursor ရှိနေချိန်တွင် navigation s
 - **CSV** — Excel / Numbers တွင် ဖွင့်နိုင်သော spreadsheet ပုံစံ၊ ရုပ်ရှင်တစ်ကားစီ တစ်ကြောင်းတည်း၊ ခေါင်းစဉ်၊ နှစ်၊ runtime၊ rating၊ genre၊ drive၊ ကြည့်ပြီးမပြီး၊ ဖိုင်လမ်းကြောင်း ပါသည်။
 - **HTML** — Poster thumbnail များ ပါသော self-contained HTML ဖိုင်တစ်ဖိုင်။ CineLibrary မရှိသော သူများနှင့် catalog မျှဝေရာတွင် အသုံးဝင်သည်။
 
-Export သည် လက်ရှိ filter ကို လိုက်နာသည် — Watchlist မှသာ ထုတ်ယူလိုလျှင် *Watchlist* ကို filter ပြုလုပ်ပြီးမှ Export နှိပ်ပါ။
+Export သည် လက်ရှိ filter ကို လိုက်နာသည် — To Watch မှသာ ထုတ်ယူလိုလျှင် *To Watch* ကို filter ပြုလုပ်ပြီးမှ Export နှိပ်ပါ။
 
 ---
 

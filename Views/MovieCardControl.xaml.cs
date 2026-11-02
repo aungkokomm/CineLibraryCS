@@ -782,7 +782,7 @@ public sealed partial class MovieCardControl : UserControl
 
         var watchlistItem = new ToggleMenuFlyoutItem
         {
-            Text = "Watchlist",
+            Text = "To Watch",
             IsChecked = Movie.IsWatchlist,
         };
         watchlistItem.Click += (_, _) => WatchlistToggleRequested?.Invoke(this, Movie);

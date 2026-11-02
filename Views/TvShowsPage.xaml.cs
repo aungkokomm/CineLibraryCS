@@ -1008,7 +1008,7 @@ public sealed partial class TvShowsPage : Page
     {
         if (_detail == null) return;
         ShowFavBtn.Content = _detail.IsFavorite ? "♥ Favorited" : "♡ Favorite";
-        ShowWatchlistBtn.Content = _detail.IsWatchlist ? "📌 In Watchlist" : "📋 Watchlist";
+        ShowWatchlistBtn.Content = _detail.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
     }
 
     // ── v4.3.0 (#17): the show's own note ──────────────────────────────────

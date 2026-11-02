@@ -276,7 +276,7 @@ public sealed partial class StatisticsPage : Page
             Grid.SetColumn(episodes, 1);
             rings.Children.Add(episodes);
         }
-        cards.Add(Card("Watched so far", s.Watchlist > 0 ? $"{s.Watchlist:N0} on your watchlist" : null, rings));
+        cards.Add(Card("Watched so far", s.Watchlist > 0 ? $"{s.Watchlist:N0} on your To Watch list" : null, rings));
         section.Children.Add(Flow(2, cards.ToArray()));
 
         if (s.RecentlyWatched.Count > 0)

@@ -6,6 +6,18 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.1.0] - unreleased
+
+### Added
+- The player's Subtitles menu lists the subtitle files in a Subs or Subtitles folder beside the video, and Add subtitle file... opens any other. What you choose is remembered.
+- Show less folds the cast back up after Show all.
+
+### Changed
+- The setting is now Play with CineLibrary Player, and says it's based on VLC and LibVLCSharp.
+- The pause screen's text is bigger, with more space between the lines, and grows with a big screen.
+- On the movie page Director, Writer and Studio match the other labels, and their names are bigger.
+- Watchlist is now To Watch everywhere.
+
 ## [5.0.0] - 2026-10-31
 
 ### Added

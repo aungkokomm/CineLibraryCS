@@ -72,7 +72,7 @@
                             VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Button x:Name="WatchlistBtn" Click="OnToggleWatchlist"
                             Style="{StaticResource RowIconToggleStyle}"
-                            AutomationProperties.Name="Watchlist">
+                            AutomationProperties.Name="To Watch">
                         <FontIcon x:Name="WatchlistIcon" FontSize="14"
                                   FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"/>
                     </Button>

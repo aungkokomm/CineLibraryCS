@@ -298,7 +298,7 @@ public sealed partial class MovieDetailDialog : Window
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = m.IsFavorite ? "♥ Favorited" : "♡ Favorite";
         WatchedBtn.Content = m.IsWatched ? "✓ Watched" : "○ Mark Watched";
-        WatchlistBtn.Content = m.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
+        WatchlistBtn.Content = m.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
 
 
         // Notes
@@ -363,7 +363,7 @@ public sealed partial class MovieDetailDialog : Window
         // them, where it showed the first)
         if (m.Studios.Count > 0)
         {
-            StudioLabel.Text = m.Studios.Count > 1 ? "Studios" : "Studio";
+            StudioLabel.Text = m.Studios.Count > 1 ? "STUDIOS" : "STUDIO";
             StudioLabel.Visibility = Visibility.Visible;
             StudioText.Visibility = Visibility.Collapsed;
             AddLinks(StudioLinks, m.Studios, s => NavigateAndClose(mw => mw.NavigateLibraryByStudio(s)));
@@ -683,8 +683,9 @@ public sealed partial class MovieDetailDialog : Window
 
     private void OnCastShowAll(object sender, RoutedEventArgs e)
     {
-        _castAll = true;
+        _castAll = !_castAll;
         ShowCast();
+        if (!_castAll) CastSection.StartBringIntoView();   // the page just got much shorter
     }
 
     /// <summary>
@@ -698,10 +699,10 @@ public sealed partial class MovieDetailDialog : Window
         var across = (int)Math.Max(1, Math.Floor(width / (CastGridLayout.MinItemWidth + CastGridLayout.MinColumnSpacing)));
         var most = ContentScroller.ActualHeight < LowWindow ? across : CastPreview;
         var shown = _castAll || _movie.Actors.Count <= most ? _movie.Actors : _movie.Actors.Take(most).ToList();
+        CastShowAllBtn.Content = _castAll ? "Show less" : $"Show all {_movie.Actors.Count}";
+        CastShowAllBtn.Visibility = _movie.Actors.Count > most ? Visibility.Visible : Visibility.Collapsed;
         if (CastRepeater.ItemsSource is System.Collections.IList now && now.Count == shown.Count) return;
         CastRepeater.ItemsSource = shown;
-        CastShowAllBtn.Content = $"Show all {_movie.Actors.Count}";
-        CastShowAllBtn.Visibility = shown.Count < _movie.Actors.Count ? Visibility.Visible : Visibility.Collapsed;
         _ = LoadCastThumbsAsync(shown.Where(a => a.ThumbBitmap == null).ToList(), _castFolderAbs);
     }
 
@@ -930,14 +931,14 @@ public sealed partial class MovieDetailDialog : Window
         for (int i = 0; i < names.Count; i++)
         {
             var name = names[i];
-            var link = new HyperlinkButton { Content = name, Padding = new Thickness(0), FontSize = 13 };
+            var link = new HyperlinkButton { Content = name, Padding = new Thickness(0), FontSize = 15 };
             link.Click += (_, _) => onClick(name);
             if (i == names.Count - 1) { panel.Children.Add(link); break; }
             var item = new StackPanel { Orientation = Orientation.Horizontal };
             item.Children.Add(link);
             item.Children.Add(new TextBlock
             {
-                Text = ",", FontSize = 13, VerticalAlignment = VerticalAlignment.Center,
+                Text = ",", FontSize = 15, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
             });
             panel.Children.Add(item);
@@ -1443,7 +1444,7 @@ public sealed partial class MovieDetailDialog : Window
              if (_movie == null) return;
              AppState.Instance.Db.SetWatchlist(_movie.Id, !_movie.IsWatchlist);
              _movie.IsWatchlist = !_movie.IsWatchlist;
-             WatchlistBtn.Content = _movie.IsWatchlist ? "📌 In Watchlist" : "☐ Add to Watchlist";
+             WatchlistBtn.Content = _movie.IsWatchlist ? "📌 To Watch" : "☐ To Watch";
              WatchlistChanged?.Invoke(this, EventArgs.Empty);
          }
 

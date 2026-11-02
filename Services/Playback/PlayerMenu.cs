@@ -29,7 +29,10 @@ internal sealed partial class PlayerMenu : Window
     private readonly StackPanel _list = new() { Padding = new Thickness(0, EdgeHeight / 2, 0, EdgeHeight / 2) };
     /// <summary>The row in the Subtitles menu that looks online, in the place of a track's id.</summary>
     public const int FindOnline = -2;
+    /// <summary>5.1.0 (#25): the row that opens a file window, and the first of the files listed, going down.</summary>
+    public const int AddFile = -3, FirstFile = -100;
     private double _height = EdgeHeight;
+    private bool _wide;
     private bool _closed;
 
     public IntPtr Hwnd { get; }
@@ -51,6 +54,7 @@ internal sealed partial class PlayerMenu : Window
             Padding = new Thickness(14, 6, 0, 0),
         });
         _height += HeaderHeight;
+        _wide = section.Tracks.Any(t => t.Id <= FirstFile);
         foreach (var (id, name) in section.Tracks) _list.Children.Add(Row(section, id, name));
         if (section.Tracks.Count == 0)
         {
@@ -95,10 +99,10 @@ internal sealed partial class PlayerMenu : Window
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        if (current || id == FindOnline)
+        if (current || id is FindOnline or AddFile)
             row.Children.Add(new FontIcon
             {
-                Glyph = current ? "\uE73E" : "\uE721",
+                Glyph = current ? "\uE73E" : id == AddFile ? "\uE8E5" : "\uE721",
                 FontSize = 12,
                 Foreground = current ? new SolidColorBrush(Check) : White(230),
                 VerticalAlignment = VerticalAlignment.Center,
@@ -176,7 +180,7 @@ internal sealed partial class PlayerMenu : Window
     private static SolidColorBrush White(byte alpha) => new(ColorHelper.FromArgb(alpha, 255, 255, 255));
 
     private (int Width, int Height) SizeAt(double scale) =>
-        ((int)Math.Round(Kind switch { "online" => OnlineWidth, "more" => MoreWidth, _ => Width } * scale), (int)Math.Round(Math.Min(_height, MaxHeight) * scale));
+        ((int)Math.Round(Kind switch { "online" => OnlineWidth, "more" => MoreWidth, _ => _wide ? OnlineWidth : Width } * scale), (int)Math.Round(Math.Min(_height, MaxHeight) * scale));
 
     /// <summary>Opens it with its bottom-right corner at the given point (physical pixels).</summary>
     public void ShowAt(int right, int bottom, double scale)

@@ -551,19 +551,19 @@
                             </Grid.RowDefinitions>
                             <!-- v4.5.0 (#24): Director where Genres was (they moved up), then Writer -->
                             <StackPanel Grid.Column="0" x:Name="DirectorField" Visibility="Collapsed" Spacing="4">
-                                <TextBlock Text="Director" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                                <TextBlock Text="DIRECTOR" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
                                 <controls:WrapPanel x:Name="DirectorLinks" HorizontalSpacing="4" VerticalSpacing="2"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" x:Name="WriterField" Visibility="Collapsed" Spacing="4">
-                                <TextBlock Text="Writer" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="WriterText" FontSize="13" Foreground="{ThemeResource TextBrush}"
+                                <TextBlock Text="WRITER" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
+                                <TextBlock x:Name="WriterText" FontSize="15" Foreground="{ThemeResource TextBrush}"
                                            TextWrapping="Wrap" Margin="0,1,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="4">
                                 <TextBlock x:Name="StudioLabel" Visibility="Collapsed"
-                                           Text="Studio" FontSize="11" Foreground="{ThemeResource MutedBrush}"/>
+                                           Text="STUDIO" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
                                 <TextBlock x:Name="StudioText" Visibility="Collapsed"
-                                           FontSize="13" Foreground="{ThemeResource TextBrush}"
+                                           FontSize="15" Foreground="{ThemeResource TextBrush}"
                                            TextWrapping="Wrap"/>
                                 <!-- v4.6.0: every studio, not just the first -->
                                 <controls:WrapPanel x:Name="StudioLinks" Visibility="Collapsed"

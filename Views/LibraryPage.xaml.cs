@@ -468,7 +468,7 @@ public sealed partial class LibraryPage : Page
         }
         SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         ShowSelectionToast(
-            $"{(anyOff ? "Added" : "Removed")} {changed.Count} {(anyOff ? "to" : "from")} watchlist",
+            $"{(anyOff ? "Added" : "Removed")} {changed.Count} {(anyOff ? "to" : "from")} To Watch",
             () => {
                 foreach (var m in changed)
                 {
@@ -1290,7 +1290,7 @@ public sealed partial class LibraryPage : Page
         if (_vm.FavoritesOnly)
             AddChip("Favorites", "♥",   () => DropFilter(() => _vm.FavoritesOnly = false));
         if (_vm.IsWatchlistOnly)
-            AddChip("Watchlist", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
+            AddChip("To Watch", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
         if (_vm.IsContinueWatching)
             AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
         if (_vm.IsRecentlyWatched)

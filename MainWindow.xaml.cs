@@ -124,7 +124,7 @@ public sealed partial class MainWindow : Window
         WireSidebarDropTarget(BtnWatchlist, ids =>
         {
             foreach (var mid in ids) AppState.Instance.Db.SetWatchlist(mid, true);
-            return $"Added {ids.Count} to watchlist";
+            return $"Added {ids.Count} to To Watch";
         });
 
         // v1.4.1 — Ctrl+? (Ctrl+Shift+/) shows keyboard shortcuts dialog
@@ -384,7 +384,7 @@ public sealed partial class MainWindow : Window
         // v4.10.0: CineLibrary's own player
         var builtInToggle = new ToggleSwitch
         {
-            Header = "Play in CineLibrary",
+            Header = "Play with CineLibrary Player",
             IsOn = UiSettings.UseBuiltInPlayer,
             OffContent = "Off", OnContent = "On",
         };
@@ -392,7 +392,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(builtInToggle);
         panel.Children.Add(new TextBlock
         {
-            Text = "Movies and episodes play in CineLibrary's own player. It starts where you stopped, marks them watched near the end and offers the next episode.",
+            Text = "Movies and episodes play in CineLibrary's own player, based on VLC and LibVLCSharp. It starts where you stopped, marks them watched near the end and offers the next episode.",
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         });
@@ -484,7 +484,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(defaultPlayer);
         panel.Children.Add(new TextBlock
         {
-            Text = "With Play in CineLibrary off, or for a file it can't play, Play opens videos in this program, for example VLC, MPC-HC, PotPlayer or mpv. With none chosen, Play uses whatever Windows opens video files with.",
+            Text = "With Play with CineLibrary Player off, or for a file it can't play, Play opens videos in this program, for example VLC, MPC-HC, PotPlayer or mpv. With none chosen, Play uses whatever Windows opens video files with.",
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
@@ -1881,7 +1881,7 @@ public sealed partial class MainWindow : Window
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(new TextBlock
         {
-            Text = "Save or restore everything personal — favorites, watchlist, notes, " +
+            Text = "Save or restore everything personal — favorites, To Watch, notes, " +
                    "lists, tags, watched flags, and watch history. The exported JSON file " +
                    "is portable: import it on another PC to merge your state in.",
             TextWrapping = TextWrapping.Wrap,
@@ -2187,7 +2187,7 @@ public sealed partial class MainWindow : Window
         AddRow("Ctrl + click", "Add / remove a single card");
         AddRow("Shift + click","Range-select from the last card");
         AddRow("F",            "Toggle favorite on the selection");
-        AddRow("W",            "Toggle watchlist on the selection");
+        AddRow("W",            "Toggle To Watch on the selection");
         AddRow("Delete",       "Remove selection from the current list");
 
         AddHeader("NAVIGATION");

@@ -20,11 +20,14 @@ internal sealed record PauseInfo(string Title, string Facts, string Plot, string
 internal sealed class PlayerPause : Window
 {
     private const double NarrowWidth = 760, ShortHeight = 460;   // DIPs: under these the poster leaves the text the room
-    private const double TextWidest = 640, RowMargin = 72, PosterRoom = 220 + 32;   // DIPs
+    private const double TextWidest = 700, RowMargin = 72, PosterRoom = 220 + 32;   // DIPs
+    // 5.1.0 (#25): it's read from across the room, so it grows on a big screen
+    private const double FullWidthFrom = 1280, FullHeightFrom = 720, MostSize = 1.4;
     private readonly Grid _root = new() { RequestedTheme = ElementTheme.Dark, Opacity = 0 };
     private readonly Border _poster = new() { Width = 220, Height = 330, CornerRadius = new CornerRadius(8), VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _left = Line(15, 1);
-    private readonly StackPanel _text = new() { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _left = Line(17, 1);
+    private readonly StackPanel _text = new() { Spacing = 12, VerticalAlignment = VerticalAlignment.Center };
+    private readonly ScaleTransform _size = new();
     private readonly bool _hasPoster;
 
     public IntPtr Hwnd { get; }
@@ -44,17 +47,18 @@ internal sealed class PlayerPause : Window
         dim.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(110, 0, 0, 0), Offset = 1 });
         _root.Background = dim;
 
-        var title = Line(32, 2);
+        var title = Line(36, 2);
         title.Text = info.Title;
         title.FontWeight = FontWeights.SemiBold;
-        var facts = Line(14, 1);
+        var facts = Line(16, 1);
         facts.Text = info.Facts;
         facts.Opacity = 0.75;
-        var plot = Line(15, 7);
+        var plot = Line(18, 7);
         plot.Text = info.Plot;
-        plot.LineHeight = 23;
-        var people = Line(13, 2);
+        plot.LineHeight = 27;
+        var people = Line(15, 3);
         people.Text = info.People;
+        people.LineHeight = 23;
         people.Opacity = 0.75;
 
         foreach (var line in new[] { title, facts, _left, plot, people })
@@ -68,13 +72,16 @@ internal sealed class PlayerPause : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing = 32,
-            Margin = new Thickness(RowMargin, 0, RowMargin, 96),   // the bottom clears the controls
+            Margin = new Thickness(RowMargin, 24, RowMargin, 96),   // the bottom clears the controls
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Left,
+            RenderTransform = _size,
+            RenderTransformOrigin = new Windows.Foundation.Point(0, 0.5),
         };
         row.Children.Add(_poster);
         row.Children.Add(_text);
-        _root.Children.Add(row);
+        // a low window shrinks it rather than clipping the title
+        _root.Children.Add(new Viewbox { Child = row, StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center });
 
         _root.Tapped += (_, _) => Clicked?.Invoke();
         _root.DoubleTapped += (_, _) => DoubleClicked?.Invoke();
@@ -108,8 +115,9 @@ internal sealed class PlayerPause : Window
         int width = area.Right - area.Left, height = area.Bottom - area.Top;
         var poster = _hasPoster && width / scale >= NarrowWidth && height / scale >= ShortHeight;
         _poster.Visibility = poster ? Visibility.Visible : Visibility.Collapsed;
+        _size.ScaleX = _size.ScaleY = Math.Clamp(Math.Min(width / FullWidthFrom, height / FullHeightFrom) / scale, 1, MostSize);
         // a horizontal StackPanel lets its children be as wide as they like, and clips them
-        _text.MaxWidth = Math.Clamp(width / scale - 2 * RowMargin - (poster ? PosterRoom : 0), 120, TextWidest);
+        _text.MaxWidth = Math.Clamp((width / scale - 2 * RowMargin) / _size.ScaleX - (poster ? PosterRoom : 0), 120, TextWidest);
         var at = AppWindow.Position;
         var size = AppWindow.Size;
         if (at.X != area.Left || at.Y != area.Top || size.Width != width || size.Height != height)

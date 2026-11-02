@@ -64,7 +64,7 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 - **⏯️ Continue Watching** - everything you've started, films and shows together, grouped into This week, This month and Earlier.
 - **📺 Movies & TV shows** - full show pages with seasons, episodes, IMDb and TMDb ratings, the aired episodes you're missing, per-episode watched/favorite/notes, and "▶ Play next unwatched."
 - **💾 Multi-drive, offline-aware** - index any number of external drives; offline ones stay visible with posters intact, and your watched state, favorites and notes travel with each drive.
-- **🏷️ Your own organization** - favorites, watchlist, notes, free-form tags and custom lists, with fast search and filters by genre, decade, rating, collection and watched status.
+- **🏷️ Your own organization** - favorites, To Watch, notes, free-form tags and custom lists, with fast search and filters by genre, decade, rating, collection and watched status.
 - **🧭 Discovery** - Recently Watched, Recently Added, On This Day, a filter-aware Surprise Me, and **Watched & Gone**, a memory keeper for films you watched then deleted.
 - **🩹 Fill the gaps** - fetch a partly-scraped title's missing info from TMDB, get IMDb ratings for your whole library in one click, and copy fetched art onto your drives. Fill-only: your existing data is never overwritten.
 - **🧹 Keep it tidy** - find duplicates with reclaimable-space totals, and back up all your personal state to one portable file.
