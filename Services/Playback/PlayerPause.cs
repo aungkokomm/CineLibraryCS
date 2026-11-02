@@ -72,7 +72,7 @@ internal sealed class PlayerPause : Window
         {
             Orientation = Orientation.Horizontal,
             Spacing = 32,
-            Margin = new Thickness(RowMargin, 24, RowMargin, 112),   // the bottom clears the controls
+            Margin = new Thickness(RowMargin, 24, RowMargin, 128),   // the bottom clears the controls
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Left,
             RenderTransform = _size,

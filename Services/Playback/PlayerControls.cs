@@ -1,10 +1,12 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Shapes;
 using Windows.Graphics;
 
@@ -20,7 +22,7 @@ namespace CineLibraryCS.Services.Playback;
 /// </summary>
 internal sealed class PlayerControls : Window
 {
-    private const double SeekHeight = 36, ButtonsHeight = 54, RowHeight = 48, ThumbWidth = 18, PlaySize = 44;   // DIPs
+    private const double FadeHeight = 20, SeekHeight = 36, ButtonsHeight = 54, RowHeight = 48, ThumbWidth = 14, PlaySize = 44;   // DIPs
     // DIPs: under these the end time and file go, then the volume slider, then the 10 and 30 second skips,
     // and last the capsule moves to the left, so it never covers Close
     private const double InfoFrom = 760, VolumeFrom = 600, SkipsFrom = 500, CentredFrom = 440;
@@ -38,6 +40,13 @@ internal sealed class PlayerControls : Window
     private readonly Grid _volumeArea;
     private readonly StackPanel _info = new() { Margin = new Thickness(8, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly ColumnDefinition _leftColumn = new() { Width = new GridLength(1, GridUnitType.Star) };
+    private readonly RowDefinition _fadeRow = new() { Height = new GridLength(FadeHeight) };
+    private readonly Grid _root = new() { RequestedTheme = ElementTheme.Dark, Opacity = 0 };
+    private readonly DispatcherQueueTimer _fadeOut;
+    private readonly Storyboard _pulse = new();
+    private Ellipse? _halo;
+    private Rectangle? _track, _done;
+    private bool _pulsing, _closed;
     private bool _updating, _dragging;
     private int _wheel;
     private int _timeMode = UiSettings.PlayerTimeMode;
@@ -83,15 +92,20 @@ internal sealed class PlayerControls : Window
 
     public PlayerControls(IntPtr owner)
     {
-        var root = new Grid
-        {
-            // Dark enough to keep the white controls readable over a white picture
-            Background = new SolidColorBrush(ColorHelper.FromArgb(150, 0, 0, 0)),
-            RequestedTheme = ElementTheme.Dark,
-        };
+        var root = _root;
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(_fadeRow);
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(SeekHeight) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(ButtonsHeight) });
+        // 5.1.0 (#25): it fades in and out
+        if (!UiSettings.ReduceMotion) root.OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromMilliseconds(150) };
+        _fadeOut = DispatcherQueue.CreateTimer();
+        _fadeOut.Interval = TimeSpan.FromMilliseconds(170);
+        _fadeOut.IsRepeating = false;
+        _fadeOut.Tick += (_, _) => { if (!_closed && _root.Opacity == 0) AppWindow.Hide(); };
+        Closed += (_, _) => { _closed = true; _fadeOut.Stop(); _pulse.Stop(); };
+        // Dark enough to keep the white controls readable over a white picture
+        _row.Background = new SolidColorBrush(ColorHelper.FromArgb(150, 0, 0, 0));
 
         _row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -108,20 +122,18 @@ internal sealed class PlayerControls : Window
         });
         root.Children.Add(_row);
 
-        // 5.1.0 (#25): black glass, after Windows Media Player 11: a soft shine along the top, darker below
-        var glass = new Border
-        {
-            Background = Glass((46, 255, 255, 255, 0), (12, 255, 255, 255, 0.45), (0, 0, 0, 0, 0.5), (90, 0, 0, 0, 1)),
-            BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(60, 255, 255, 255)),
-            BorderThickness = new Thickness(0, 1, 0, 0),
-        };
-        Grid.SetRow(glass, 1);
+        // The picture fades into the bar (closed while the row above is open), then dark glass
+        var fade = new Border { Background = Glass((0, 0, 0, 0, 0), (150, 0, 0, 0, 1)) };
+        Grid.SetRow(fade, 1);
+        root.Children.Add(fade);
+        var glass = new Border { Background = Glass((150, 0, 0, 0, 0), (205, 0, 0, 0, 1)) };
+        Grid.SetRow(glass, 2);
         Grid.SetRowSpan(glass, 2);
         root.Children.Add(glass);
 
         // Two lines, the seek bar with its times and under it the buttons
         var seekRow = new Grid { Padding = new Thickness(16, 0, 8, 0) };
-        Grid.SetRow(seekRow, 1);
+        Grid.SetRow(seekRow, 2);
         root.Children.Add(seekRow);
         foreach (var width in new[] { 0, 1, 0 })
             seekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = width == 1 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto });
@@ -131,7 +143,12 @@ internal sealed class PlayerControls : Window
         _ticks.Margin = _seek.Margin;
         seekArea.Children.Insert(0, _ticks);
         seekArea.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnSeekPointer), true);
-        seekArea.PointerExited += (_, _) => SeekHover?.Invoke(null, 0);
+        seekArea.PointerExited += (_, _) => { SeekHover?.Invoke(null, 0); SetTrack(false); };
+        _seek.Loaded += (_, _) =>
+        {
+            _track = Part<Rectangle>(_seek, "HorizontalTrackRect");
+            _done = Part<Rectangle>(_seek, "HorizontalDecreaseRect");
+        };
         _seek.SizeChanged += (_, _) => DrawTicks();
         _ticks.SizeChanged += (_, _) => DrawTicks();
         Add(seekRow, 1, seekArea);
@@ -156,7 +173,7 @@ internal sealed class PlayerControls : Window
         Add(seekRow, 2, lengthButton);
 
         var bar = new Grid { Padding = new Thickness(8, 0, 8, 0) };
-        Grid.SetRow(bar, 2);
+        Grid.SetRow(bar, 3);
         root.Children.Add(bar);
         bar.ColumnDefinitions.Add(_leftColumn);
         bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -216,6 +233,7 @@ internal sealed class PlayerControls : Window
 
         foreach (var slider in new[] { _seek, _volume })
         {
+            Knob(slider);
             slider.VerticalAlignment = VerticalAlignment.Center;
             slider.AllowFocusOnInteraction = false;
             slider.IsTabStop = false;
@@ -277,7 +295,7 @@ internal sealed class PlayerControls : Window
     /// <summary>Puts the controls along the bottom of the given screen rectangle (physical pixels).</summary>
     public void Place(int left, int bottom, int width, double scale)
     {
-        var height = (int)Math.Round((SeekHeight + ButtonsHeight + (Row.Length > 0 ? RowHeight : 0)) * scale);
+        var height = (int)Math.Round(((Row.Length > 0 ? RowHeight : FadeHeight) + SeekHeight + ButtonsHeight) * scale);
         var position = AppWindow.Position;
         var size = AppWindow.Size;
         if (position.X == left && position.Y == bottom - height && size.Width == width && size.Height == height) return;
@@ -296,9 +314,18 @@ internal sealed class PlayerControls : Window
 
     public void SetShown(bool shown)
     {
-        if (shown == AppWindow.IsVisible) return;
-        if (shown) AppWindow.Show(false);
-        else AppWindow.Hide();
+        if (shown)
+        {
+            _fadeOut.Stop();   // a fade out on its way is called off
+            if (!AppWindow.IsVisible) AppWindow.Show(false);
+            _root.Opacity = 1;
+            return;
+        }
+        if (!AppWindow.IsVisible || _root.Opacity == 0) return;
+        _root.Opacity = 0;
+        SetTrack(false);
+        if (UiSettings.ReduceMotion) AppWindow.Hide();
+        else _fadeOut.Start();   // hidden once it has faded
     }
 
     /// <summary>Opens the row above the bar: a label and buttons (an accent one is the chosen
@@ -323,6 +350,7 @@ internal sealed class PlayerControls : Window
             _rowItems.Children.Add(b);
         }
         _row.Visibility = Visibility.Visible;
+        _fadeRow.Height = new GridLength(0);
         Moved?.Invoke();
     }
 
@@ -359,6 +387,7 @@ internal sealed class PlayerControls : Window
         if (Row.Length == 0) return;
         Row = "";
         _row.Visibility = Visibility.Collapsed;
+        _fadeRow.Height = new GridLength(FadeHeight);
         _rowItems.Children.Clear();
         Moved?.Invoke();
     }
@@ -381,6 +410,7 @@ internal sealed class PlayerControls : Window
             _ => Format(lengthMs),
         };
         _play.Glyph = playing ? PauseGlyph : PlayGlyph;
+        Pulse(!playing);
         _mute.Glyph = muted ? MuteGlyph : VolumeGlyph;
         _fullScreen.Glyph = fullScreen ? BackToWindowGlyph : FullScreenGlyph;
     }
@@ -417,6 +447,7 @@ internal sealed class PlayerControls : Window
 
     private void OnSeekPointer(object sender, PointerRoutedEventArgs e)
     {
+        SetTrack(true);
         // The thumb's middle travels the track, so its ends are half a thumb in
         var x = e.GetCurrentPoint(_seek).Position.X;
         var share = Math.Clamp((x - ThumbWidth / 2) / Math.Max(1, _seek.ActualWidth - ThumbWidth), 0, 1);
@@ -469,14 +500,63 @@ internal sealed class PlayerControls : Window
         return brush;
     }
 
-    // A button on the capsule: smaller, its icon in the theme's light purple
+    // A button on the capsule: smaller, its icon in the theme's light purple, a purple glow under the mouse
     private static Button CapsuleButton(FontIcon icon, string tip, Action click)
     {
         icon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 214, 202, 255));
         var b = IconButton(icon, tip, click);
         b.Width = b.Height = 36;
         b.CornerRadius = new CornerRadius(18);
+        b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (120, 167, 139, 250, 0), (0, 167, 139, 250, 1));
+        b.Resources["ButtonBackgroundPressed"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (60, 167, 139, 250, 0), (0, 167, 139, 250, 1));
+        b.Resources["ButtonBackgroundDisabled"] = new SolidColorBrush(Colors.Transparent);
         return b;
+    }
+
+    // Small glass knobs in the theme's purple, a thin seek bar
+    private static void Knob(Slider slider)
+    {
+        slider.Resources["SliderTrackThemeHeight"] = 3.0;
+        slider.Resources["SliderHorizontalThumbWidth"] = ThumbWidth;
+        slider.Resources["SliderHorizontalThumbHeight"] = ThumbWidth;
+        slider.Resources["SliderInnerThumbWidth"] = 6.0;
+        slider.Resources["SliderInnerThumbHeight"] = 6.0;
+        slider.Resources["SliderOuterThumbBackground"] = Radial(new Windows.Foundation.Point(0.4, 0.3), 0.75,
+            (255, 246, 242, 255, 0), (255, 196, 181, 253, 0.35), (255, 124, 92, 232, 0.8), (255, 76, 52, 170, 1));
+        foreach (var key in new[] { "SliderThumbBackground", "SliderThumbBackgroundPointerOver", "SliderThumbBackgroundPressed" })
+            slider.Resources[key] = new SolidColorBrush(ColorHelper.FromArgb(150, 255, 255, 255));
+    }
+
+    // The seek bar grows under the mouse
+    private void SetTrack(bool thick)
+    {
+        if (_track is null || _done is null) return;
+        _track.Height = _done.Height = thick ? 6 : 3;
+    }
+
+    private static T? Part<T>(DependencyObject parent, string name) where T : FrameworkElement
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T found && found.Name == name) return found;
+            if (Part<T>(child, name) is { } deeper) return deeper;
+        }
+        return null;
+    }
+
+    // While paused, Play glows slowly brighter and dimmer
+    private void Pulse(bool on)
+    {
+        if (on == _pulsing || _halo is null) return;
+        _pulsing = on;
+        if (!on)
+        {
+            _pulse.Stop();
+            _halo.Opacity = 0;
+        }
+        else if (UiSettings.ReduceMotion) _halo.Opacity = 0.6;
+        else _pulse.Begin();
     }
 
     private static Border Separator() => new()
@@ -543,7 +623,31 @@ internal sealed class PlayerControls : Window
         _play.FontSize = 18;
         ball.Children.Add(_play);
 
-        var b = IconButton(ball, "Play or pause (Space)", () => PlayPause?.Invoke());
+        _halo = new Ellipse
+        {
+            Width = PlaySize + 8,
+            Height = PlaySize + 8,
+            Opacity = 0,
+            IsHitTestVisible = false,
+            Fill = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (210, 167, 139, 250, 0.7), (0, 167, 139, 250, 1)),
+        };
+        var glow = new DoubleAnimation
+        {
+            From = 0.15,
+            To = 0.95,
+            Duration = new Duration(TimeSpan.FromSeconds(1.4)),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        Storyboard.SetTarget(glow, _halo);
+        Storyboard.SetTargetProperty(glow, "Opacity");
+        _pulse.Children.Add(glow);
+        var face = new Grid { Width = PlaySize + 8, Height = PlaySize + 8 };
+        face.Children.Add(_halo);
+        face.Children.Add(ball);
+
+        var b = IconButton(face, "Play or pause (Space)", () => PlayPause?.Invoke());
         b.Width = b.Height = PlaySize + 8;
         b.CornerRadius = new CornerRadius((PlaySize + 8) / 2);
         b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (170, 167, 139, 250, 0.7), (0, 167, 139, 250, 1));

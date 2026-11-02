@@ -6,16 +6,15 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
-## [5.1.0] - unreleased
+## [5.1.0] - 2026-11-02
 
 ### Added
 - The player's Subtitles menu lists the subtitle files in a Subs or Subtitles folder beside the video, and Add subtitle file... opens any other. What you choose is remembered.
 - Show less folds the cast back up after Show all.
-
 - The movie page shows how many times a film was played, from its .nfo and from each time the player reaches the end. The count is kept in cinelibrary-state.json.
 
 ### Changed
-- The player's controls are on two lines: the seek bar with its times, and the buttons under it, centred, on one glossy glass capsule with a purple glass Play in the middle, Previous and Next always beside it, and buttons to go back 10 seconds and forward 30.
+- The player's controls are on two lines: the seek bar with its times, and the buttons under it, centred, on one glossy glass capsule with a purple glass Play in the middle, Previous and Next always beside it, and buttons to go back 10 seconds and forward 30. The bar fades in and out, the picture fades into it, the seek bar is thin and grows under the mouse, the buttons glow under the mouse and Play glows slowly while paused.
 - To Watch, Watched and Favorite have one icon each everywhere, the ones on the cards, and the action buttons use the same set.
 - The setting is now Play with CineLibrary Player, and says it's based on VLC and LibVLCSharp.
 - The pause screen's text is bigger, with more space between the lines, and grows with a big screen.
