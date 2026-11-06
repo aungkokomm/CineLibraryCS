@@ -44,6 +44,16 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 <img width="960" alt="CineLibrary in dark theme: the All Movies poster grid, the sidebar and the title-bar search" src="docs/images/cinelibrary-library.png" />
 
+🖥️ **Fold the sidebar to a slim strip of icons** and the posters get the whole screen.
+
+<img width="960" alt="CineLibrary with the sidebar folded to a strip of icons, the All Movies poster grid filling the window" src="docs/images/cinelibrary-library-folded.png" />
+
+▶️ **Press Play and the film opens in CineLibrary's own player**, with a glossy purple control bar that fades away while you watch.
+
+<img width="960" alt="The CineLibrary player showing a scene from Sintel, with the purple control bar: the seek bar, Play between Previous and Next, skip back 10 and forward 30, volume and the time the film ends" src="docs/images/cinelibrary-player.png" />
+
+<sub>Player pictures on this page: *Sintel* © Blender Foundation, [durian.blender.org](https://durian.blender.org/), under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).</sub>
+
 ⏯️ **Continue Watching keeps everything you've started in one place**: films and shows together, grouped by when you last watched them, with how much is left.
 
 <img width="960" alt="The Continue Watching page: films and TV shows together under This week and This month, each with how much is left" src="docs/images/cinelibrary-continue-watching.png" />
@@ -58,9 +68,27 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 ---
 
+## 🎬 The player
+
+Films and episodes play in CineLibrary's own window. It's built on VLC's playback engine, cut down to only the parts a player needs, so it stays light and smooth while nearly any file still plays, with hardware decoding.
+
+- **Picks up where you stopped**, with the audio and subtitle tracks you chose last time.
+- **Subtitles from your folders** - files next to the video, or in a `Subs` or `Subtitles` folder, appear in the Subtitles menu with their language. **Add subtitle file...** picks any other.
+- **Skip back 10 seconds or forward 30**, jump between a film's chapters, and go straight on to the next episode.
+- **Pause and see what you're watching** - the title, plot, director and cast fade in over the picture.
+- **Play counts** - a film you watch to the end counts as played, and its page shows how many times. Counts in your `.nfo` files are read too.
+- **Mouse and keyboard** - the wheel changes the volume, Space pauses, the arrows seek and change the volume, F goes full screen, and G and H move the subtitles earlier or later.
+- **Your own player instead** - turn off **Play with CineLibrary Player** in Settings and VLC, MPC-HC, PotPlayer or mpv opens your films.
+
+<img width="960" alt="The player paused on Sintel: the title, year, length, genres, plot, director and cast over the picture" src="docs/images/cinelibrary-pause.png" />
+
+<img width="960" alt="The player's Subtitles menu: the film's own tracks, the subtitle files from its Subs folder with their languages, and Add subtitle file" src="docs/images/cinelibrary-subtitles.png" />
+
+---
+
 ## ✨ Highlights
 
-- **▶️ A built-in player** - films and episodes play right inside the app, and it remembers where you stopped, your audio and your subtitles. Prefer your own player? VLC, MPC-HC, PotPlayer or mpv work too.
+- **▶️ A built-in player** - films and episodes play right inside the app and pick up where you stopped. [More about the player](#-the-player).
 - **⏯️ Continue Watching** - everything you've started, films and shows together, grouped into This week, This month and Earlier.
 - **📺 Movies & TV shows** - full show pages with seasons, episodes, IMDb and TMDb ratings, the aired episodes you're missing, per-episode watched/favorite/notes, and "▶ Play next unwatched."
 - **💾 Multi-drive, offline-aware** - index any number of external drives; offline ones stay visible with posters intact, and your watched state, favorites and notes travel with each drive.
