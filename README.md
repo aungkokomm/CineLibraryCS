@@ -72,8 +72,9 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 Films and episodes play in CineLibrary's own window. It's built on VLC's playback engine, cut down to only the parts a player needs, so it stays light and smooth while nearly any file still plays, with hardware decoding.
 
+- **Opens in full screen** - or over the CineLibrary window, if you turn off **Open the player in full screen** in Settings.
 - **Picks up where you stopped**, with the audio and subtitle tracks you chose last time.
-- **Subtitles from your folders** - files next to the video, or in a `Subs` or `Subtitles` folder, appear in the Subtitles menu with their language. **Add subtitle file...** picks any other.
+- **Subtitles from your folders** - files next to the video, or in a `Sub`, `Subs` or `Subtitles` folder, appear in the Subtitles menu with their language. **Add subtitle file...** picks any other.
 - **Skip back 10 seconds or forward 30**, jump between a film's chapters, and go straight on to the next episode.
 - **Pause and see what you're watching** - the title, plot, director and cast fade in over the picture.
 - **Play counts** - a film you watch to the end counts as played, and its page shows how many times. Counts in your `.nfo` files are read too.

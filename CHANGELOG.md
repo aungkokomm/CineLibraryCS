@@ -6,6 +6,15 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.2.0] - 2026-11-06
+
+### Added
+- The player opens in full screen. Turn off Open the player in full screen in Settings to have it open over the CineLibrary window instead; F or a double-click still switches between the two.
+- The Subtitles menu also lists the subtitle files in a Sub folder beside the video, as well as Subs and Subtitles.
+
+### Fixed
+- In a small player window, a wide Subtitles menu no longer goes past the left edge of the video.
+
 ## [5.1.0] - 2026-11-02
 
 ### Added
