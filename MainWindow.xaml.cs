@@ -396,6 +396,21 @@ public sealed partial class MainWindow : Window
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         });
+        // v5.2.0
+        var fullScreenToggle = new ToggleSwitch
+        {
+            Header = "Open the player in full screen",
+            IsOn = UiSettings.PlayerFullScreen,
+            OffContent = "Off", OnContent = "On",
+        };
+        fullScreenToggle.Toggled += (_, _) => UiSettings.SetPlayerFullScreen(fullScreenToggle.IsOn);
+        panel.Children.Add(fullScreenToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Off, the player opens over the CineLibrary window. Either way, F or a double-click switches between full screen and a window.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
         panel.Children.Add(PlayerLanguageBox("Audio language", UiSettings.PreferredAudio, UiSettings.SetPreferredAudio, off: false));
         panel.Children.Add(PlayerLanguageBox("Subtitle language", UiSettings.PreferredSubtitles, UiSettings.SetPreferredSubtitles, off: true));
         panel.Children.Add(new TextBlock

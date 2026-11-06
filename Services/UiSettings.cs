@@ -30,6 +30,7 @@ public static class UiSettings
     private const string KeyPreferredAudio = "ui_preferredAudio";         // v4.10.0
     private const string KeyPreferredSubtitles = "ui_preferredSubtitles"; // v4.10.0
     private const string KeyPauseScreen = "ui_pauseScreen";               // v4.10.0
+    private const string KeyPlayerFullScreen = "ui_playerFullScreen";     // v5.2.0
     private const string KeyFindSubtitlesOnline = "ui_findSubtitlesOnline";   // v4.10.0
 
     /// <summary>How much Windows Mica material shows behind the window.
@@ -84,6 +85,9 @@ public static class UiSettings
 
     /// <summary>v4.10.0: the item's details over the picture a few seconds into a pause.</summary>
     public static bool PauseScreen { get; private set; } = true;
+
+    /// <summary>v5.2.0: the player fills the screen when it opens. Default on.</summary>
+    public static bool PlayerFullScreen { get; private set; } = true;
     public static bool FindSubtitlesOnline { get; private set; }
 
     /// <summary>v4.6.0: a show page asks TMDb which aired episodes aren't on
@@ -113,6 +117,7 @@ public static class UiSettings
         PreferredAudio = AppState.Instance.GetPref(KeyPreferredAudio, "");
         PreferredSubtitles = AppState.Instance.GetPref(KeyPreferredSubtitles, "");
         PauseScreen = AppState.Instance.GetPref(KeyPauseScreen, "true") == "true";
+        PlayerFullScreen = AppState.Instance.GetPref(KeyPlayerFullScreen, "true") == "true";
         FindSubtitlesOnline = AppState.Instance.GetPref(KeyFindSubtitlesOnline, "false") == "true";
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
@@ -227,6 +232,12 @@ public static class UiSettings
     {
         PauseScreen = value;
         AppState.Instance.SetPref(KeyPauseScreen, value ? "true" : "false");
+    }
+
+    public static void SetPlayerFullScreen(bool value)
+    {
+        PlayerFullScreen = value;
+        AppState.Instance.SetPref(KeyPlayerFullScreen, value ? "true" : "false");
     }
 
     /// <summary>No Changed event: it applies the next time a show page opens.</summary>

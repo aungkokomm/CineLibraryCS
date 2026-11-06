@@ -72,6 +72,9 @@ internal sealed class PlayerWindow
     /// <summary>For off-screen tests: show without taking the focus from the user's window.</summary>
     internal static bool NoActivate { get; set; }
 
+    /// <summary>For off-screen tests: the area full screen fills, in place of the monitor.</summary>
+    internal static RECT? TestScreen { get; set; }
+
     /// <summary>Maximized covers a maximized owner exactly.</summary>
     public void Show(bool maximized) => ShowWindow(Hwnd, NoActivate ? SwShowNoActivate : maximized ? SwShowMaximized : SwShow);
 
@@ -136,8 +139,8 @@ internal sealed class PlayerWindow
             GetMonitorInfo(MonitorFromWindow(Hwnd, MonitorDefaultToNearest), ref info);
             IsFullScreen = true;
             SetWindowLongPtr(Hwnd, GwlStyle, (IntPtr)(style & ~(long)FrameStyle));
-            var m = info.rcMonitor;
-            SetWindowPos(Hwnd, HwndTop, m.Left, m.Top, m.Right - m.Left, m.Bottom - m.Top, SwpNoOwnerZOrder | SwpFrameChanged);
+            var m = TestScreen ?? info.rcMonitor;
+            SetWindowPos(Hwnd, HwndTop, m.Left, m.Top, m.Right - m.Left, m.Bottom - m.Top, SwpNoOwnerZOrder | SwpFrameChanged | (NoActivate ? SwpNoActivate : 0));
         }
         else
         {

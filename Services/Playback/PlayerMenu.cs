@@ -182,12 +182,14 @@ internal sealed partial class PlayerMenu : Window
     private (int Width, int Height) SizeAt(double scale) =>
         ((int)Math.Round(Kind switch { "online" => OnlineWidth, "more" => MoreWidth, _ => _wide ? OnlineWidth : Width } * scale), (int)Math.Round(Math.Min(_height, MaxHeight) * scale));
 
-    /// <summary>Opens it with its bottom-right corner at the given point (physical pixels).</summary>
-    public void ShowAt(int right, int bottom, double scale)
+    /// <summary>Opens it with its bottom-right corner at the given point, kept inside the video
+    /// (physical pixels): a wide one would pass the left edge of a small window.</summary>
+    public void ShowAt(int right, int bottom, PlayerWindow.RECT video, double scale)
     {
         if (_closed) return;   // a closed window can't be moved: Windows refuses ("The parameter is incorrect")
         var (width, height) = SizeAt(scale);
-        AppWindow.MoveAndResize(new RectInt32(right - width, bottom - height, width, height));
+        var left = Math.Clamp(right - width, video.Left, Math.Max(video.Left, video.Right - width));
+        AppWindow.MoveAndResize(new RectInt32(left, bottom - height, width, height));
         AppWindow.Show(false);
         _root.Opacity = 1;
     }

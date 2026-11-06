@@ -168,6 +168,8 @@ internal sealed class PlayerSession
         PlayerLog.Start($"open {path} | {width}x{height} at scale {window.Scale}{(maximized ? ", maximized" : "")} | from {PlayerControls.Format(startMs)}");
         var session = new PlayerSession(vlc, window, path, title, tag, startMs, volume, choice);
         window.Show(maximized);
+        // Once shown: going back to a window restores the place it had then
+        if (UiSettings.PlayerFullScreen) session.ToggleFullScreen();
         beforePlay?.Invoke(session.Player);
         session.Player.Play(session._media);
         session._health.Start();
@@ -617,7 +619,7 @@ internal sealed class PlayerSession
         if (_menu is null or { Kind: "more" }) return;
         var r = _window.ClientOnScreen();
         var scale = _window.Scale;
-        _menu.ShowAt(r.Right - (int)Math.Round(_controls.MenuAnchorFromRight * scale), _controls.Top - (int)Math.Round(8 * scale), scale);
+        _menu.ShowAt(r.Right - (int)Math.Round(_controls.MenuAnchorFromRight * scale), _controls.Top - (int)Math.Round(8 * scale), r, scale);
     }
 
     private void CloseMenu()

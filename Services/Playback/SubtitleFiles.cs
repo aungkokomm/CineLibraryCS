@@ -12,7 +12,7 @@ namespace CineLibraryCS.Services.Playback;
 internal static partial class SubtitleFiles
 {
     public static readonly string[] Extensions = [".srt", ".ass", ".ssa", ".vtt", ".sub", ".idx"];
-    private static readonly string[] Folders = ["Subs", "Subtitles"];
+    private static readonly string[] Folders = ["Subs", "Subtitles", "Sub"];   // v5.2.0: Sub too
     private static readonly string[] Videos = [".mkv", ".mp4", ".avi", ".m4v", ".mov", ".wmv", ".ts", ".m2ts", ".mpg", ".mpeg", ".webm"];
 
     public static List<string> Near(string video)
