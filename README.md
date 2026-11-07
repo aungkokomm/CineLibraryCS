@@ -70,7 +70,7 @@ Your whole collection at a glance: the sidebar, the search, and every filter and
 
 ## 🎬 The player
 
-Films and episodes play in CineLibrary's own window. It's built on VLC's playback engine, cut down to only the parts a player needs, so it stays light and smooth while nearly any file still plays, with hardware decoding.
+Films and TV episodes play in CineLibrary's own highly customized, lightweight player, built on VLC's playback engine. Carefully trimmed of unnecessary components such as streaming, recording and visualization, it's optimized for CineLibrary's local playback experience while retaining broad format support and hardware decoding.
 
 - **Opens in full screen** - or over the CineLibrary window, if you turn off **Open the player in full screen** in Settings.
 - **Picks up where you stopped**, with the audio and subtitle tracks you chose last time.
