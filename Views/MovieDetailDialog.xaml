@@ -65,6 +65,40 @@
 
         <!-- Scroll area + sticky action bar overlay (v2.3) -->
         <Grid Grid.Row="1">
+            <!-- 5.3.0: the fan art behind the whole header, edge to edge (was a 340 px strip). It ends below
+                 the buttons and fades into the page there (BackdropFade, set from code), and moves with the
+                 scrolling (a composition expression, so it never lags). Dark in both themes, as what's on it. -->
+            <Grid x:Name="Backdrop" VerticalAlignment="Top" Height="600" IsHitTestVisible="False" Background="#14141F">
+                <Image x:Name="HeroImage" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+                <!-- darker where the poster and the title are, the picture clearer to the right -->
+                <Border>
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                            <GradientStop Offset="0"    Color="#E0000000"/>
+                            <GradientStop Offset="0.45" Color="#A6000000"/>
+                            <GradientStop Offset="1"    Color="#4D000000"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <!-- a little darker under the buttons at the top -->
+                <Border Height="140" VerticalAlignment="Top">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#80000000"/>
+                            <GradientStop Offset="1" Color="#00000000"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+                <!-- into the page: the window's own colour at the end (ApplyBackdropFade) -->
+                <Border Height="200" VerticalAlignment="Bottom">
+                    <Border.Background>
+                        <LinearGradientBrush x:Name="BackdropFade" StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Offset="0" Color="#0012121B"/>
+                            <GradientStop Offset="1" Color="#FF12121B"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+            </Grid>
             <ScrollViewer x:Name="ContentScroller" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled" Padding="24"
                           ViewChanged="OnContentScrolled" SizeChanged="OnContentScrollerSizeChanged">
@@ -72,35 +106,13 @@
                  or wide arrangement from the width (OnContentScrollerSizeChanged). -->
             <StackPanel x:Name="ContentStack" HorizontalAlignment="Stretch">
 
-                <!-- Hero fanart (v2.3 — taller, layered gradient, vignette, IMDb/TMDb pills) -->
-                <Border x:Name="HeroBorder" Height="340" CornerRadius="12"
-                        Background="{ThemeResource HeroBgBrush}"
-                        HorizontalAlignment="Stretch">
+                <!-- The top row over the fan art: back, previous / next, IMDb / TMDb (5.3.0: the picture is
+                     the Backdrop behind everything now) -->
+                <Border x:Name="HeroBorder" Height="42" RequestedTheme="Dark" HorizontalAlignment="Stretch">
                     <Grid>
-                        <Image x:Name="HeroImage" Stretch="UniformToFill"/>
-                        <!-- Vertical gradient — strong on the bottom so titles stay readable -->
-                        <Border>
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                    <GradientStop Offset="0"    Color="#33000000"/>
-                                    <GradientStop Offset="0.55" Color="#22000000"/>
-                                    <GradientStop Offset="1"    Color="#E6000000"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
-                        <!-- Horizontal vignette — subtle edge darkening -->
-                        <Border>
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                    <GradientStop Offset="0"    Color="#55000000"/>
-                                    <GradientStop Offset="0.5"  Color="#00000000"/>
-                                    <GradientStop Offset="1"    Color="#55000000"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
                         <!-- IMDb / TMDb badge pills, top-right -->
                         <StackPanel x:Name="ExternalLinksPanel" Orientation="Horizontal"
-                                    Spacing="6" Margin="14"
+                                    Spacing="6" Margin="14,0"
                                     HorizontalAlignment="Right" VerticalAlignment="Top">
                             <Button x:Name="ImdbLinkBtn" Visibility="Collapsed"
                                     Click="OnOpenImdb"
@@ -115,7 +127,7 @@
                                     Padding="8,3" FontSize="11" FontWeight="Bold"
                                     Content="TMDb"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14"
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,0"
                                     HorizontalAlignment="Left" VerticalAlignment="Top">
                             <!-- v4.8.0 (#25): back to the library, as from a page of the main window
                                  (also Esc and the mouse's back button) -->
@@ -157,7 +169,7 @@
                 </Border>
 
                 <!-- Poster + Meta row -->
-                <Grid x:Name="TopGrid" Margin="0,-120,0,0">
+                <Grid x:Name="TopGrid" Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -186,15 +198,15 @@
 
                     <!-- Meta -->
                     <StackPanel x:Name="MetaStack" Grid.Column="1" Spacing="10" VerticalAlignment="Top"
-                                Margin="0,140,0,0">
-                        <TextBlock x:Name="DetailTitle" FontSize="34" FontWeight="Bold"
+                                Margin="0,6,0,0">
+                        <TextBlock x:Name="DetailTitle" FontSize="34" FontWeight="Bold" RequestedTheme="Dark"
                                    Foreground="{ThemeResource TextBrush}"
                                    TextWrapping="Wrap" LineHeight="40"/>
-                        <TextBlock x:Name="OriginalTitle" FontSize="14" FontStyle="Italic"
+                        <TextBlock x:Name="OriginalTitle" FontSize="14" FontStyle="Italic" RequestedTheme="Dark"
                                    Foreground="{ThemeResource MutedBrush}" Visibility="Collapsed"
                                    TextWrapping="Wrap"/>
                         <!-- Tagline with a thin colored accent bar -->
-                        <Grid x:Name="TaglineWrap" Visibility="Collapsed" Margin="0,2,0,0">
+                        <Grid x:Name="TaglineWrap" Visibility="Collapsed" Margin="0,2,0,0" RequestedTheme="Dark">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="3"/>
                                 <ColumnDefinition Width="*"/>
@@ -206,12 +218,12 @@
                                        Foreground="{StaticResource BrandPurpleBrush}"
                                        TextWrapping="Wrap"/>
                         </Grid>
-                        <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0"/>
+                        <StackPanel x:Name="ChipsPanel" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" RequestedTheme="Dark"/>
                         <!-- v4.5.0 (#24): genres right under the rating / year / runtime line -->
-                        <controls:WrapPanel x:Name="GenreChips" HorizontalSpacing="6" VerticalSpacing="6"
+                        <controls:WrapPanel x:Name="GenreChips" HorizontalSpacing="6" VerticalSpacing="6" RequestedTheme="Dark"
                                             Visibility="Collapsed"/>
                         <!-- Tech badges (v5.3.0: the ratings beside them moved into the facts card) -->
-                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0"
+                        <StackPanel x:Name="TechRow" Orientation="Horizontal" Spacing="16" Margin="0,4,0,0" RequestedTheme="Dark"
                                     VerticalAlignment="Center">
                             <ItemsControl x:Name="TechBadges" VerticalAlignment="Center">
                                 <ItemsControl.ItemsPanel>
@@ -225,13 +237,13 @@
 
                     <!-- v4.2.0 (#14): genres, director, studio and file info, beside the
                          plot in a wide window -->
-                    <StackPanel x:Name="SideStack" Grid.Column="2" Margin="40,140,0,0"
+                    <StackPanel x:Name="SideStack" Grid.Column="2" Margin="40,6,0,0"
                                 VerticalAlignment="Top"/>
                 </Grid>
 
                 <!-- Location, actions, lists and tags: under the poster, or beside it
                      in a wide window (v4.2.0) -->
-                <StackPanel x:Name="ActionsBlock">
+                <StackPanel x:Name="ActionsBlock" RequestedTheme="Dark">
                     <!-- Drive location -->
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
                         <TextBlock Text="Located on:" FontSize="12"

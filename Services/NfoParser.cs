@@ -185,8 +185,24 @@ public static class NfoParser
         try
         {
             var doc = new XmlDocument();
-            doc.Load(nfoPath);
-            var root = doc.DocumentElement;
+            XmlElement? root;
+            var more = new List<XmlElement>();
+            try
+            {
+                doc.Load(nfoPath);
+                root = doc.DocumentElement;
+            }
+            catch (XmlException)
+            {
+                // 5.3.0: a double episode's .nfo as Kodi writes it, one <episodedetails> for each episode one after
+                // another (so not one XML document). The first gives the season and number, the titles are joined
+                var text = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(nfoPath), @"<\?xml[^>]*\?>", "");
+                doc.LoadXml("<episodes>" + text + "</episodes>");
+                var parts = SelectElements(doc.DocumentElement!, "episodedetails").ToList();
+                if (parts.Count < 2) return null;
+                root = parts[0];
+                more = parts.Skip(1).ToList();
+            }
             if (root == null) return null;
 
             var season = TryInt(Get(root, "season")) ?? fallbackSeason;
@@ -194,6 +210,8 @@ public static class NfoParser
             if (season == null || episode == null) return null;
 
             var title = Get(root, "title") ?? $"Episode {episode}";
+            if (more.Count > 0)
+                title = string.Join(" / ", more.Select(e => Get(e, "title")).Prepend(title).OfType<string>().Where(t => t.Length > 0).Distinct());
 
             var ratings = new List<ParsedRating>();
             int main = -1;
@@ -373,6 +391,7 @@ public static class NfoParser
             vaspect = GetChild(video, "aspect");
             hdr = GetChild(video, "hdrtype");
             dur = TryInt(GetChild(video, "durationinseconds"));
+            if (dur is < 60) dur = null;   // 5.3.0: some writers put 1; not a real length
             if (dur == null)
             {
                 var mins = TryInt(GetChild(video, "duration"));

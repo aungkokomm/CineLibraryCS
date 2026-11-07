@@ -17,9 +17,12 @@ internal sealed class PlayerLabel : Window
     private readonly TextBlock _text;
     private readonly double _height;
     private RectInt32 _shownRect;
+    // 5.3.0: once closed there's no AppWindow. A film ending with the mouse on the seek bar closed the time tip,
+    // then the bar's last "mouse left" hid it and crashed: a closed label now ignores being shown or hidden.
+    private bool _closed;
 
     public IntPtr Hwnd { get; }
-    public bool Shown => AppWindow.IsVisible;
+    public bool Shown => !_closed && AppWindow.IsVisible;
     public string Text => _text.Text;
 
     private PlayerLabel(IntPtr owner, double fontSize, double height, double padding, Brush background, double corner, bool semiBold)
@@ -39,6 +42,7 @@ internal sealed class PlayerLabel : Window
         Title = "CineLibrary player label";
         SystemBackdrop = new SeeThroughBackdrop();
         Hwnd = PlayerControls.MakeOverlay(this, owner, menu: false);
+        Closed += (_, _) => _closed = true;
     }
 
     /// <summary>What a key or the wheel just did, when the controls aren't up to show it.</summary>
@@ -64,6 +68,7 @@ internal sealed class PlayerLabel : Window
     /// </summary>
     public void ShowText(string text, double scale, Func<int, int, PointInt32> place, int minWidth = 0)
     {
+        if (_closed) return;
         _text.Text = text;
         _text.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         var width = Math.Max(minWidth, (int)Math.Ceiling(_text.DesiredSize.Width * scale));
@@ -80,6 +85,6 @@ internal sealed class PlayerLabel : Window
 
     public void HideText()
     {
-        if (AppWindow.IsVisible) AppWindow.Hide();
+        if (!_closed && AppWindow.IsVisible) AppWindow.Hide();
     }
 }

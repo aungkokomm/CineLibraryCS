@@ -171,7 +171,7 @@ public class TvEpisodeDetail
     {
         get
         {
-            if (!DurationSeconds.HasValue || DurationSeconds.Value <= 0) return "";
+            if (!DurationSeconds.HasValue || DurationSeconds.Value < 60) return "";   // 5.3.0: a bogus .nfo "1"
             var t = TimeSpan.FromSeconds(DurationSeconds.Value);
             return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes:D2}m" : $"{t.Minutes}m {t.Seconds:D2}s";
         }

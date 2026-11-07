@@ -38,8 +38,9 @@
                         </Grid>
                         <Image x:Name="ThumbImage" Stretch="UniformToFill"/>
 
-                        <!-- dim overlay when watched -->
-                        <Border x:Name="WatchedDim" Background="#88000000" Visibility="Collapsed"/>
+                        <!-- dim overlay when watched (5.3.0, #25: light, the picture stays clear; the green
+                             Watched button says it too. At 53% a watched season looked dark) -->
+                        <Border x:Name="WatchedDim" Background="#33000000" Visibility="Collapsed"/>
                                 <!-- v4.10.0: how far it was watched -->
                                 <Grid x:Name="ResumeLine" Height="4" VerticalAlignment="Bottom" Background="#99000000" Visibility="Collapsed">
                                     <Grid.ColumnDefinitions>

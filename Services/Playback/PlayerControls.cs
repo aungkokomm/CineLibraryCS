@@ -26,10 +26,19 @@ internal sealed class PlayerControls : Window
     // DIPs: under these the end time and file go, then the volume slider, then the 10 and 30 second skips,
     // and last the capsule moves to the left, so it never covers Close
     private const double InfoFrom = 760, VolumeFrom = 600, SkipsFrom = 500, CentredFrom = 440;
-    private const string PlayGlyph = "\uF5B0", PauseGlyph = "\uF8AE", VolumeGlyph = "\uE767", MuteGlyph = "\uE74F",
-                         FullScreenGlyph = "\uE740", BackToWindowGlyph = "\uE73F";
+    private const string VolumeGlyph = "\uE767", MuteGlyph = "\uE74F", FullScreenGlyph = "\uE740", BackToWindowGlyph = "\uE73F";
+    // 5.3.0: shapes in a 100 x 100 box, stretched to the size they're given: Play, Pause and the glass cap of a ball
+    private const string PlayPath = "M 30,28 C 30,23 35,20.5 39,23 L 75,45.5 C 79,48 79,52 75,54.5 L 39,77 C 35,79.5 30,77 30,72 Z";
+    private const string PausePath = "M 34,24 H 40 A 4,4 0 0 1 44,28 V 72 A 4,4 0 0 1 40,76 H 34 A 4,4 0 0 1 30,72 V 28 A 4,4 0 0 1 34,24 Z "
+                                   + "M 60,24 H 66 A 4,4 0 0 1 70,28 V 72 A 4,4 0 0 1 66,76 H 60 A 4,4 0 0 1 56,72 V 28 A 4,4 0 0 1 60,24 Z";
+    private const string CapPath = "M 9,47 C 11,22 30,9 50,9 C 70,9 89,22 91,47 C 91,51 88,52 84,50 C 74,45 63,43 50,43 C 37,43 26,45 16,50 C 12,52 9,51 9,47 Z";
 
-    private readonly FontIcon _play = Icon(PlayGlyph), _mute = Icon(VolumeGlyph), _fullScreen = Icon(FullScreenGlyph);
+    private readonly FontIcon _mute = Icon(VolumeGlyph), _fullScreen = Icon(FullScreenGlyph);
+    // 5.3.0: Play and Pause drawn glass-white with a soft shadow, on a glass ball that follows the button's state
+    private readonly Grid _playShape = Glyph(PlayPath, 16, 18, new Thickness(3, 0, 0, 0)), _pauseShape = Glyph(PausePath, 14, 16, new Thickness(0));
+    private Button? _playButton;
+    private Ellipse? _ballOutline, _ballEdge, _ballBody;
+    private Microsoft.UI.Xaml.Shapes.Path? _ballCap;
     private readonly TextBlock _time = Label(), _length = Label(), _rowLabel = Label(), _ends = Label(), _file = Label();
     private readonly Slider _seek = new() { Minimum = 0, Maximum = 1, IsThumbToolTipEnabled = false };
     private readonly Slider _volume = new() { Minimum = 0, Maximum = 100, Width = 96, IsThumbToolTipEnabled = false };
@@ -234,6 +243,8 @@ internal sealed class PlayerControls : Window
         foreach (var slider in new[] { _seek, _volume })
         {
             Knob(slider);
+            // 5.3.0: the handle a little glass ball, as Play
+            slider.Loaded += (_, _) => { if (Part<Microsoft.UI.Xaml.Controls.Primitives.Thumb>(slider, "HorizontalThumb") is { } thumb) thumb.Template = BallThumb.Value; };
             slider.VerticalAlignment = VerticalAlignment.Center;
             slider.AllowFocusOnInteraction = false;
             slider.IsTabStop = false;
@@ -409,7 +420,8 @@ internal sealed class PlayerControls : Window
             2 => ends,
             _ => Format(lengthMs),
         };
-        _play.Glyph = playing ? PauseGlyph : PlayGlyph;
+        _playShape.Visibility = playing ? Visibility.Collapsed : Visibility.Visible;
+        _pauseShape.Visibility = playing ? Visibility.Visible : Visibility.Collapsed;
         Pulse(!playing);
         _mute.Glyph = muted ? MuteGlyph : VolumeGlyph;
         _fullScreen.Glyph = fullScreen ? BackToWindowGlyph : FullScreenGlyph;
@@ -500,31 +512,97 @@ internal sealed class PlayerControls : Window
         return brush;
     }
 
-    // A button on the capsule: smaller, its icon in the theme's light purple, a purple glow under the mouse
+    // A button on the capsule: smaller, its icon in the theme's light purple; under the mouse a purple glow
+    // rises from its bottom edge (5.3.0), as on Windows Media Player's buttons
     private static Button CapsuleButton(FontIcon icon, string tip, Action click)
     {
         icon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 214, 202, 255));
         var b = IconButton(icon, tip, click);
         b.Width = b.Height = 36;
         b.CornerRadius = new CornerRadius(18);
-        b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (120, 167, 139, 250, 0), (0, 167, 139, 250, 1));
-        b.Resources["ButtonBackgroundPressed"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (60, 167, 139, 250, 0), (0, 167, 139, 250, 1));
+        b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 1), 0.75, (170, 214, 196, 255, 0), (90, 167, 139, 250, 0.45), (0, 167, 139, 250, 1));
+        b.Resources["ButtonBackgroundPressed"] = Radial(new Windows.Foundation.Point(0.5, 1), 0.75, (90, 214, 196, 255, 0), (45, 167, 139, 250, 0.45), (0, 167, 139, 250, 1));
         b.Resources["ButtonBackgroundDisabled"] = new SolidColorBrush(Colors.Transparent);
         return b;
     }
 
-    // Small glass knobs in the theme's purple, a thin seek bar
+    // Small knobs (glass balls, BallThumb), a thin seek bar
     private static void Knob(Slider slider)
     {
         slider.Resources["SliderTrackThemeHeight"] = 3.0;
         slider.Resources["SliderHorizontalThumbWidth"] = ThumbWidth;
         slider.Resources["SliderHorizontalThumbHeight"] = ThumbWidth;
-        slider.Resources["SliderInnerThumbWidth"] = 6.0;
-        slider.Resources["SliderInnerThumbHeight"] = 6.0;
-        slider.Resources["SliderOuterThumbBackground"] = Radial(new Windows.Foundation.Point(0.4, 0.3), 0.75,
-            (255, 246, 242, 255, 0), (255, 196, 181, 253, 0.35), (255, 124, 92, 232, 0.8), (255, 76, 52, 170, 1));
-        foreach (var key in new[] { "SliderThumbBackground", "SliderThumbBackgroundPointerOver", "SliderThumbBackgroundPressed" })
-            slider.Resources[key] = new SolidColorBrush(ColorHelper.FromArgb(150, 255, 255, 255));
+    }
+
+    /// <summary>5.3.0: a slider's handle as a little glass ball, layered as Play's (PlayButton).</summary>
+    private static readonly Lazy<ControlTemplate> BallThumb = new(() => (ControlTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load($$"""
+        <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" TargetType="Thumb">
+          <Grid>
+            <Ellipse Fill="#FF2B1673"/>
+            <Ellipse Margin="0.8">
+              <Ellipse.Fill>
+                <LinearGradientBrush StartPoint="0.5,1" EndPoint="0.5,0">
+                  <GradientStop Offset="0" Color="#FFF4ECFF"/>
+                  <GradientStop Offset="0.16" Color="#FFC4ACFF"/>
+                  <GradientStop Offset="0.32" Color="#FF9670F2"/>
+                  <GradientStop Offset="0.55" Color="#FF482C9E"/>
+                  <GradientStop Offset="1" Color="#FFAAA4BE"/>
+                </LinearGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Margin="1.8">
+              <Ellipse.Fill>
+                <RadialGradientBrush Center="0.5,1" GradientOrigin="0.5,1" RadiusX="1" RadiusY="1">
+                  <GradientStop Offset="0" Color="#FFE2CEFF"/>
+                  <GradientStop Offset="0.3" Color="#FFAA80F6"/>
+                  <GradientStop Offset="0.6" Color="#FF7042D8"/>
+                  <GradientStop Offset="1" Color="#FF2A1280"/>
+                </RadialGradientBrush>
+              </Ellipse.Fill>
+            </Ellipse>
+            <Path Stretch="Fill" VerticalAlignment="Top" Margin="2.4,1.6,2.4,0" Height="5.4" Data="{{CapPath}}">
+              <Path.Fill>
+                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                  <GradientStop Offset="0" Color="#D0FFFFFF"/>
+                  <GradientStop Offset="1" Color="#30DCD2FF"/>
+                </LinearGradientBrush>
+              </Path.Fill>
+            </Path>
+          </Grid>
+        </ControlTemplate>
+        """));
+
+    private static Geometry PathData(string data) => (Geometry)Microsoft.UI.Xaml.Markup.XamlBindingHelper.ConvertValue(typeof(Geometry), data);
+
+    /// <summary>5.3.0: a glass-white shape with a soft shadow under it (from the shape's own outline), as the
+    /// symbols on Windows Media Player's buttons. The cell holds the shadow, then the shape.</summary>
+    private static Grid Glyph(string data, double width, double height, Thickness margin)
+    {
+        var shape = new Microsoft.UI.Xaml.Shapes.Path
+        {
+            Data = PathData(data),
+            Stretch = Stretch.Uniform,
+            Width = width,
+            Height = height,
+            Fill = Glass((255, 255, 255, 255, 0), (255, 247, 244, 255, 0.45), (255, 233, 226, 250, 0.55), (255, 210, 200, 236, 1)),
+            Stroke = new SolidColorBrush(Colors.White),
+            StrokeThickness = 0.6,
+        };
+        var shadow = new Grid { Width = width, Height = height };
+        var cell = new Grid { Margin = margin, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+        cell.Children.Add(shadow);
+        cell.Children.Add(shape);
+        var compositor = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(shadow).Compositor;
+        var drop = compositor.CreateDropShadow();
+        drop.BlurRadius = 2.5f;
+        drop.Offset = new System.Numerics.Vector3(-0.6f, 1f, 0);
+        drop.Color = ColorHelper.FromArgb(150, 20, 0, 60);
+        drop.Mask = shape.GetAlphaMask();
+        var sprite = compositor.CreateSpriteVisual();
+        sprite.Size = new System.Numerics.Vector2((float)width, (float)height);
+        sprite.Shadow = drop;
+        Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetElementChildVisual(shadow, sprite);
+        return cell;
     }
 
     // The seek bar grows under the mouse
@@ -602,26 +680,28 @@ internal sealed class PlayerControls : Window
         return capsule;
     }
 
-    // A glass ball in the theme's purple, lit from below as in Windows Media Player 11, with no rim.
+    // A glass ball in the theme's purple, as Windows Media Player 11's (5.3.0): a dark outline, a rim lit
+    // from below, a body glowing up from the bottom and a glass cap. Its look follows the button (SetBall).
     // It sits in a slightly bigger button, whose background is the glow under the mouse.
     private Button PlayButton()
     {
         var ball = new Grid { Width = PlaySize, Height = PlaySize };
-        ball.Children.Add(new Ellipse
+        _ballOutline = new Ellipse();
+        _ballEdge = new Ellipse { Margin = new Thickness(1) };
+        _ballBody = new Ellipse { Margin = new Thickness(2.5) };
+        _ballCap = new Microsoft.UI.Xaml.Shapes.Path
         {
-            Fill = Radial(new Windows.Foundation.Point(0.5, 1), 0.95, (255, 199, 184, 255, 0), (255, 124, 92, 232, 0.4), (255, 52, 32, 128, 0.8), (255, 28, 16, 72, 1)),
-        });
-        ball.Children.Add(new Ellipse
-        {
-            Width = PlaySize * 0.74,
-            Height = PlaySize * 0.48,
-            Margin = new Thickness(0, 1.5, 0, 0),
+            Data = PathData(CapPath),
+            Stretch = Stretch.Fill,
+            Width = PlaySize * 0.8,
+            Height = PlaySize * 0.42,
+            Margin = new Thickness(0, PlaySize * 0.07, 0, 0),
             VerticalAlignment = VerticalAlignment.Top,
-            Fill = Glass((175, 255, 255, 255, 0), (10, 255, 255, 255, 1)),
-        });
-        _play.Foreground = new SolidColorBrush(Colors.White);
-        _play.FontSize = 18;
-        ball.Children.Add(_play);
+            Fill = Glass((200, 255, 255, 255, 0), (120, 236, 228, 255, 0.55), (40, 220, 210, 255, 1)),
+        };
+        _pauseShape.Visibility = Visibility.Collapsed;
+        foreach (var layer in new FrameworkElement[] { _ballOutline, _ballEdge, _ballBody, _ballCap, _playShape, _pauseShape }) ball.Children.Add(layer);
+        SetBall("Normal");
 
         _halo = new Ellipse
         {
@@ -652,7 +732,53 @@ internal sealed class PlayerControls : Window
         b.CornerRadius = new CornerRadius((PlaySize + 8) / 2);
         b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (170, 167, 139, 250, 0.7), (0, 167, 139, 250, 1));
         b.Resources["ButtonBackgroundPressed"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (90, 167, 139, 250, 0.7), (0, 167, 139, 250, 1));
+        // the button's own states (those that show its glow) give the ball its look
+        var watching = false;
+        b.Loaded += (_, _) =>
+        {
+            if (watching || VisualTreeHelper.GetChildrenCount(b) == 0 || VisualTreeHelper.GetChild(b, 0) is not FrameworkElement template) return;
+            if (VisualStateManager.GetVisualStateGroups(template).FirstOrDefault(g => g.Name == "CommonStates") is not { } states) return;
+            states.CurrentStateChanged += (_, e) => SetBall(e.NewState?.Name ?? "Normal");
+            watching = true;
+        };
+        _playButton = b;
         return b;
+    }
+
+    /// <summary>5.3.0: the ball's colours for the button's state (Normal, PointerOver, Pressed, Disabled):
+    /// brighter under the mouse, darker pressed, grey when it can't be used.</summary>
+    private void SetBall(string state)
+    {
+        if (_ballOutline is null || _ballEdge is null || _ballBody is null || _ballCap is null) return;
+        // the rim from the bottom up, the body from its glow at the bottom up to the top
+        static LinearGradientBrush Rim(params (byte R, byte G, byte B, double At)[] stops)
+        {
+            var brush = new LinearGradientBrush { StartPoint = new Windows.Foundation.Point(0.5, 1), EndPoint = new Windows.Foundation.Point(0.5, 0) };
+            foreach (var s in stops) brush.GradientStops.Add(new GradientStop { Color = ColorHelper.FromArgb(255, s.R, s.G, s.B), Offset = s.At });
+            return brush;
+        }
+        static RadialGradientBrush Body(params (byte R, byte G, byte B, double At)[] stops) =>
+            Radial(new Windows.Foundation.Point(0.5, 1), 1, stops.Select(s => ((byte)255, s.R, s.G, s.B, s.At)).ToArray());
+        var (outline, edge, body, cap) = state switch
+        {
+            "PointerOver" => (ColorHelper.FromArgb(255, 52, 32, 138),
+                Rim((255, 255, 255, 0), (222, 206, 255, 0.14), (178, 142, 255, 0.28), (96, 62, 192, 0.52), (112, 104, 150, 0.78), (176, 170, 198, 1)),
+                Body((242, 228, 255, 0), (196, 156, 255, 0.22), (136, 88, 236, 0.45), (82, 44, 190, 0.7), (48, 24, 140, 1)), 1.0),
+            "Pressed" => (ColorHelper.FromArgb(255, 34, 16, 96),
+                Rim((214, 198, 252, 0), (166, 138, 240, 0.14), (120, 86, 220, 0.28), (58, 34, 134, 0.52), (88, 80, 122, 0.78), (150, 144, 170, 1)),
+                Body((188, 160, 250, 0), (128, 86, 222, 0.22), (80, 40, 176, 0.45), (44, 20, 128, 0.7), (28, 12, 94, 1)), 0.75),
+            "Disabled" => (ColorHelper.FromArgb(255, 58, 58, 66),
+                Rim((230, 230, 234, 0), (190, 190, 198, 0.14), (150, 150, 160, 0.28), (84, 84, 94, 0.52), (104, 104, 114, 0.78), (160, 160, 170, 1)),
+                Body((186, 186, 186, 0), (140, 140, 140, 0.22), (98, 98, 98, 0.45), (64, 64, 64, 0.7), (42, 42, 42, 1)), 0.6),
+            _ => (ColorHelper.FromArgb(255, 43, 22, 115),
+                Rim((244, 236, 255, 0), (196, 172, 255, 0.14), (150, 112, 242, 0.28), (72, 44, 158, 0.52), (104, 96, 140, 0.78), (170, 164, 190, 1)),
+                Body((226, 206, 255, 0), (170, 128, 246, 0.22), (112, 66, 216, 0.45), (62, 30, 163, 0.7), (36, 16, 118, 1)), 1.0),
+        };
+        _ballOutline.Fill = new SolidColorBrush(outline);
+        _ballEdge.Fill = edge;
+        _ballBody.Fill = body;
+        _ballCap.Opacity = cap;
+        _playShape.Opacity = _pauseShape.Opacity = state == "Disabled" ? 0.5 : 1;
     }
 
     /// <summary>The slider in a cell that takes the wheel over the whole height of its line.</summary>

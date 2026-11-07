@@ -1366,18 +1366,19 @@ public sealed partial class LibraryPage : Page
         AddChip("Director", _vm.FilterDirector,  () => DropFilter(() => _vm.FilterDirector = null));
         AddChip("Studio",   _vm.FilterStudio,    () => DropFilter(() => _vm.FilterStudio = null));
         AddChip("Writer",   _vm.FilterWriter,    () => DropFilter(() => _vm.FilterWriter = null));
+        // 5.3.0 (#25): the sidebar's own icons, in its colours (were emoji)
         if (_vm.FavoritesOnly)
-            AddChip("Favorites", "♥",   () => DropFilter(() => _vm.FavoritesOnly = false));
+            AddChip("Favorites", "", () => DropFilter(() => _vm.FavoritesOnly = false), "NavLibraryIconBrush");
         if (_vm.IsWatchlistOnly)
-            AddChip("To Watch", "📌",  () => DropFilter(() => _vm.IsWatchlistOnly = false));
+            AddChip("To Watch", "",  () => DropFilter(() => _vm.IsWatchlistOnly = false), "NavLibraryIconBrush");
         if (_vm.IsContinueWatching)
-            AddChip("Continue", "▶",    () => DropFilter(() => _vm.IsContinueWatching = false));
+            AddChip("Continue", "",  () => DropFilter(() => _vm.IsContinueWatching = false), "NavLibraryIconBrush");
         if (_vm.IsRecentlyWatched)
-            AddChip("Recent", "🕓",     () => DropFilter(() => _vm.IsRecentlyWatched = false));
+            AddChip("Recent", "",    () => DropFilter(() => _vm.IsRecentlyWatched = false), "NavDiscoverIconBrush");
         if (_vm.IsRecentlyAdded)
-            AddChip("New", "🆕",        () => DropFilter(() => _vm.IsRecentlyAdded = false));
+            AddChip("New", "",       () => DropFilter(() => _vm.IsRecentlyAdded = false), "NavDiscoverIconBrush");
         if (_vm.HasNoteOnly)
-            AddChip("Notes", "📝",      () => DropFilter(() => _vm.HasNoteOnly = false));
+            AddChip("Notes", "",     () => DropFilter(() => _vm.HasNoteOnly = false), "NavLibraryIconBrush");
         if (_vm.FewCastOnly)
             AddChip("Cast", "one or none", () => DropFilter(() => _vm.FewCastOnly = false));
         if (_vm.TagId != null && !string.IsNullOrEmpty(_vm.TagName))
@@ -1413,7 +1414,8 @@ public sealed partial class LibraryPage : Page
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||
         _vm.UserListId != null || _vm.TagId != null || _vm.FilterAudio != null;
 
-    private void AddChip(string label, string? value, Action onClear)
+    /// <summary>A filter chip: "Label: value" and a ✕. With iconBrush the value is an icon glyph, drawn in that brush.</summary>
+    private void AddChip(string label, string? value, Action onClear, string? iconBrush = null)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
         var border = new Border
@@ -1432,13 +1434,21 @@ public sealed partial class LibraryPage : Page
             Text = label + ":",
             VerticalAlignment = VerticalAlignment.Center,
         });
-        sp.Children.Add(new TextBlock
-        {
-            FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
-            Text = value,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        if (iconBrush != null)
+            sp.Children.Add(new FontIcon
+            {
+                Glyph = value, FontSize = 13,
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get(iconBrush),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+        else
+            sp.Children.Add(new TextBlock
+            {
+                FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
+                Text = value,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
         var x = new Button
         {
             Content = "✕", FontSize = 10,

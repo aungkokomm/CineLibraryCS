@@ -51,6 +51,7 @@ public sealed partial class MovieDetailDialog : Window
         TrailerBtn.Content = ActionLabel.Trailer();
         FolderBtn.Content = ActionLabel.OpenFolder();
         ListsBtn.Content = ActionLabel.AddToList();
+        SetUpBackdrop();   // 5.3.0
 
         // Custom titlebar drag region + Mica
         ExtendsContentIntoTitleBar = true;
@@ -345,7 +346,7 @@ public sealed partial class MovieDetailDialog : Window
             ChipsPanel.Children.Add(ratingBorder);
         }
         if (m.Year.HasValue) AddChip(m.Year.ToString()!);
-        if (m.Runtime.HasValue) AddChip($"{m.Runtime} min");
+        if (m.Runtime is > 0) AddChip(MovieCardControl.RuntimeText(m.Runtime.Value));   // 5.3.0: "2h 17m", not "137 min"
         if (m.Mpaa != null) AddChip(m.Mpaa);
         // v4.6.0: Director's Cut, Extended, IMAX…; after the age rating (#25)
         if (m.Edition != null) AddChip(m.Edition, "#4C1D95");
@@ -455,6 +456,7 @@ public sealed partial class MovieDetailDialog : Window
         // v4.2.0: decoded for the bigger poster and the full-width banner (the
         // window opens maximised, so its width is about the banner's in pixels)
         LoadImageAsync(m.LocalPoster, PosterImage, PosterPlaceholder, 520);
+        ShowBackdrop(AppState.Instance.Db.GetCachedImagePath(m.LocalFanart) != null);
         LoadImageAsync(m.LocalFanart, HeroImage, null, Math.Clamp(AppWindow.Size.Width, 1920, 3840));
 
         // v3.4 — "Fetch missing info from TMDB" (and, later, Sync to drive).
@@ -1147,7 +1149,7 @@ public sealed partial class MovieDetailDialog : Window
             Add(DetailField.Ratings(m.AllRatings, m.UserRating));
 
         var film = new List<(string, string)>();
-        if (m.Runtime is > 0) film.Add(("Runtime", $"{m.Runtime.Value} min"));
+        if (m.Runtime is > 0) film.Add(("Runtime", MovieCardControl.RuntimeText(m.Runtime.Value)));
         if (!string.IsNullOrWhiteSpace(m.Premiered))
             film.Add(("Released", DateTime.TryParse(m.Premiered, out var dt) ? dt.ToString("MMM d, yyyy") : m.Premiered!));
         else if (m.Year.HasValue)
@@ -1159,8 +1161,9 @@ public sealed partial class MovieDetailDialog : Window
         if (film.Count > 0) Add(DetailField.Section(DetailField.Kind.Story, "About the film", film));
 
         var file = new List<(string, string)>();
-        if (m.DurationSeconds is > 0 && (m.Runtime is not > 0 || Math.Abs(m.Runtime.Value * 60 - m.DurationSeconds.Value) > 300))
-            file.Add(("Length", FormatDuration(m.DurationSeconds.Value)));
+        // 5.3.0: some .nfo writers put <durationinseconds>1</durationinseconds>; under a minute isn't a real length
+        if (m.DurationSeconds is >= 60 && (m.Runtime is not > 0 || Math.Abs(m.Runtime.Value * 60 - m.DurationSeconds.Value) > 300))
+            file.Add(("Length", MovieCardControl.RuntimeText((int)Math.Round(m.DurationSeconds.Value / 60.0))));
         if (m.FileSizeBytes is > 0) file.Add(("Size", FormatBytes(m.FileSizeBytes.Value)));
         if (!string.IsNullOrWhiteSpace(m.ContainerExt)) file.Add(("Type", m.ContainerExt.ToUpperInvariant()));
         // 5.3.0: by name, and as VLC read them from the file when it could; else the .nfo's
@@ -1186,14 +1189,6 @@ public sealed partial class MovieDetailDialog : Window
         return $"{b} B";
     }
 
-    private static string FormatDuration(int seconds)
-    {
-        var t = TimeSpan.FromSeconds(seconds);
-        return t.TotalHours >= 1
-            ? $"{(int)t.TotalHours}h {t.Minutes:D2}m"
-            : $"{t.Minutes}m {t.Seconds:D2}s";
-    }
-
     // v3.7.1: the content column gets an explicit width. With MaxWidth alone,
     // WinUI centred it by the width it asked for, so on a movie without fanart
     // (nothing asks for the full width) it was pushed right and cut off.
@@ -1204,9 +1199,6 @@ public sealed partial class MovieDetailDialog : Window
     {
         var inner = e.NewSize.Width - ContentScroller.Padding.Left - ContentScroller.Padding.Right;
         ContentStack.Width = Math.Max(0, inner);
-        // 4.10.0 (#25): in a low window it gives way, so the poster, Play and the plot show without
-        // scrolling. Not under 180: the poster rises 120 into it, up to the buttons on top of it.
-        HeroBorder.Height = Math.Max(180, Math.Min(Math.Clamp(inner / 3.2, 220, 460), e.NewSize.Height - 480));   // 1100 wide = the old 340
         ApplyLayout(e.NewSize.Width < 900 ? DetailLayout.Narrow
                   : e.NewSize.Width >= 1600 ? DetailLayout.Wide
                   : DetailLayout.Standard);
@@ -1293,10 +1285,57 @@ public sealed partial class MovieDetailDialog : Window
 
     private void OnContentScrolled(object sender, ScrollViewerViewChangedEventArgs e)
     {
-        // Bar appears once the user is past the hero block (its height follows the width)
-        StickyBar.Visibility = ContentScroller.VerticalOffset > HeroBorder.Height - 60
+        // Bar appears once Play has scrolled away (5.3.0; before, past the fan art strip)
+        StickyBar.Visibility = _playBottom > 0 && ContentScroller.VerticalOffset > _playBottom
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private double _playBottom;   // where Play ends in the scrolled content, for the sticky bar
+
+    /// <summary>
+    /// 5.3.0: no fan art, no dark backdrop: the title, chips and buttons in the window's own theme,
+    /// as before the backdrop (else a big dark block with nothing on it, in the light theme).
+    /// </summary>
+    private void ShowBackdrop(bool picture)
+    {
+        Backdrop.Visibility = picture ? Visibility.Visible : Visibility.Collapsed;
+        var theme = picture ? ElementTheme.Dark : ElementTheme.Default;
+        foreach (var e in new FrameworkElement[] { DetailTitle, OriginalTitle, TaglineWrap, ChipsPanel, GenreChips, TechRow, ActionsBlock })
+            e.RequestedTheme = theme;
+    }
+
+    /// <summary>
+    /// 5.3.0: the fan art behind the whole header. It moves with the scrolling by a composition
+    /// expression (frame for frame, where ViewChanged lags), ends just below the buttons wherever
+    /// the layout puts them, and fades into the window's own colour.
+    /// </summary>
+    private void SetUpBackdrop()
+    {
+        Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.SetIsTranslationEnabled(Backdrop, true);
+        var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(Backdrop);
+        var follow = visual.Compositor.CreateExpressionAnimation("scrolled.Translation.Y");
+        follow.SetReferenceParameter("scrolled", Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetScrollViewerManipulationPropertySet(ContentScroller));
+        visual.StartAnimation("Translation.Y", follow);
+        // The page is the half-transparent SidebarBrush over Mica; StickyBarBrush is what that looks like
+        var page = ThemeBrushes.Get("StickyBarBrush").Color;
+        BackdropFade.GradientStops[0].Color = Windows.UI.Color.FromArgb(0, page.R, page.G, page.B);
+        BackdropFade.GradientStops[1].Color = page;
+        ContentStack.LayoutUpdated += (_, _) => FitBackdrop();
+    }
+
+    private void FitBackdrop()
+    {
+        if (_closed || ActionsBlock.Parent is null || PlayBtn.ActualHeight <= 0) return;
+        try
+        {
+            var top = ContentScroller.Padding.Top;
+            var actionsEnd = ActionsBlock.TransformToVisual(ContentStack).TransformPoint(new Windows.Foundation.Point(0, ActionsBlock.ActualHeight)).Y;
+            var height = top + actionsEnd + 28;
+            if (Math.Abs(Backdrop.Height - height) > 1) Backdrop.Height = height;
+            _playBottom = top + PlayBtn.TransformToVisual(ContentStack).TransformPoint(new Windows.Foundation.Point(0, PlayBtn.ActualHeight)).Y;
+        }
+        catch (ArgumentException) { }   // between two layouts, as ApplyLayout moves the blocks
     }
 
     private void OnBackToLibrary(object sender, RoutedEventArgs e) => Close();

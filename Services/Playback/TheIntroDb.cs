@@ -70,7 +70,11 @@ internal static partial class TheIntroDb
         var episode = item.Kind == PlaybackKind.Episode;
         try
         {
-            if (db.GetSkipTimes(episode, item.Id) is { } kept) return kept.Times;   // asked once, never again
+            // asked once, never again. Except an episode kept with credits past its own version's end, from before
+            // that was checked (no kept time is like that since): asked once more, for the credits as below
+            if (db.GetSkipTimes(episode, item.Id) is { } kept
+                && !(episode && kept.Times is { Credits: long keptCredits, VersionLength: long keptVersion } && keptCredits >= keptVersion))
+                return kept.Times;
             if (DateTimeOffset.UtcNow < _waitUntil) return null;
             var (imdb, tmdb, season, number) = db.GetSkipLookup(episode, item.Id);
             var id = int.TryParse(tmdb, NumberStyles.None, CultureInfo.InvariantCulture, out var t) && t > 0 ? $"tmdb_id={t}"
@@ -92,6 +96,14 @@ internal static partial class TheIntroDb
             if (!response.IsSuccessStatusCode) return null;   // its own trouble: asked the next time it plays
             var times = Parse(await response.Content.ReadAsStringAsync());
             PlayerLog.Write($"TheIntroDB {id}{(episode ? $" S{season:D2}E{number:D2}" : "")}: {times}");
+            // An episode whose version has no credits (or a bad time): the version most people timed, as far
+            // from the end (credits run about as long in any cut, as a season learns them). Still this one lookup
+            if (episode && times is { Credits: null, VersionLength: long version } && length > 0
+                && await CreditsFromEndAsync(id, season, number) is long fromEnd && length - fromEnd < version)
+            {
+                times = times with { Credits = length - fromEnd };
+                PlayerLog.Write($"TheIntroDB: credits {fromEnd} ms from the end, as in its main version: {times.Credits}");
+            }
             return Keep(times);
 
             SkipTimes Keep(SkipTimes found)
@@ -105,6 +117,25 @@ internal static partial class TheIntroDb
                                     or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
         {
             PlayerLog.Write("TheIntroDB: " + e.Message);
+            return null;
+        }
+    }
+
+    /// <summary>How far from the end an episode's credits start in the version most people timed (asked
+    /// without a length): 10 s to 6 minutes, as a season learns them; null when it doesn't say.</summary>
+    private static async Task<long?> CreditsFromEndAsync(string id, int? season, int? number)
+    {
+        try
+        {
+            using var response = await Http.GetAsync($"https://api.theintrodb.org/v4/media?{id}&season={season}&episode={number}&details=true");
+            if (!response.IsSuccessStatusCode) return null;
+            var main = Parse(await response.Content.ReadAsStringAsync());
+            return main is { Credits: long credits, VersionLength: long version } && version - credits is >= 10_000 and <= 360_000
+                ? version - credits : null;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            PlayerLog.Write("TheIntroDB, main version: " + e.Message);
             return null;
         }
     }
@@ -130,6 +161,8 @@ internal static partial class TheIntroDb
         var intro = Runs("intro").FirstOrDefault(r => r.End is > 0);
         var recap = Runs("recap").FirstOrDefault(r => r.End is > 0);
         var credits = Runs("credits").FirstOrDefault(r => r.Start is > 0);
+        // credits past the end of their own version are a bad entry (one for a 52:59 cut said 55:56)
+        if (credits.Start >= Ms(root, "group_duration_ms")) credits = default;
         var previews = Runs("preview");
         long? after = credits.End is long end && !previews.Any(p => p.Start is long s && Math.Abs(s - end) < 5000) ? end : null;
         return new SkipTimes(intro.End is null ? null : intro.Start ?? 0, intro.End, recap.End is null ? null : recap.Start ?? 0, recap.End,

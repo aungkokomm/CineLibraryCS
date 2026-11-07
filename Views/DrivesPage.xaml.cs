@@ -213,6 +213,26 @@ public sealed partial class DrivesPage : Page
         catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
     }
 
+    // ── Scan one tracked folder (5.3.0, #25: one that's still growing, not the finished ones) ──
+
+    private async void OnScanFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is not Button btn || btn.Tag is not DriveRoot dr) return;
+            if (!AppState.Instance.Connected.TryGetValue(dr.VolumeSerial, out var letter))
+            {
+                await ShowInfoDialog("Drive offline", "This drive is not connected.");
+                return;
+            }
+            var drive = _drives.FirstOrDefault(d => d.VolumeSerial == dr.VolumeSerial);
+            var driveRoot = $"{letter}:\\";
+            var abs = string.IsNullOrEmpty(dr.RootPath) ? driveRoot : Path.Combine(driveRoot, dr.RootPath.Replace('/', '\\'));
+            await ScanDriveAsync(dr.VolumeSerial, letter, drive?.Label ?? dr.VolumeSerial, abs);
+        }
+        catch (Exception ex) { await ShowInfoDialog("Error", ex.Message); }
+    }
+
     // ── Update Database (rescan all tracked folders on this drive) ────────
 
     private async void OnUpdateDatabase(object sender, RoutedEventArgs e)
@@ -496,11 +516,12 @@ public sealed partial class DrivesPage : Page
 
     // ── Folder row hover-reveal (delete button) ───────────────────────────
 
+    // Scan (5.3.0) and Remove show on the folder under the mouse
     private static void SetFolderDeleteOpacity(object sender, double opacity)
     {
         if (sender is Grid g)
             foreach (var child in g.Children)
-                if (child is Button b) { b.Opacity = opacity; break; }
+                if (child is Button b) b.Opacity = opacity;
     }
 
     private void OnFolderPointerEntered(object sender, PointerRoutedEventArgs e)
