@@ -13,6 +13,8 @@
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
             <SolidColorBrush x:Key="SidebarBrush"    Color="#990F0F18"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
+            <!-- 5.3.0: the movie page's sticky header, solid: as the see-through one looked, without the page showing through -->
+            <SolidColorBrush x:Key="StickyBarBrush"  Color="#12121B"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#2A2A3A"/>
@@ -67,6 +69,8 @@
             <SolidColorBrush x:Key="BgBrush"         Color="#F6F6FA"/>
             <SolidColorBrush x:Key="SidebarBrush"    Color="#99E3E3EE"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CCE3E3EE"/>
+            <!-- 5.3.0: the movie page's sticky header, solid: as the see-through one looked, without the page showing through -->
+            <SolidColorBrush x:Key="StickyBarBrush"  Color="#E5E5F0"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#FFFFFF"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#EDEDFB"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#C6C6DC"/>
@@ -121,6 +125,8 @@
             <SolidColorBrush x:Key="BgBrush"         Color="#0A0A0C"/>
             <SolidColorBrush x:Key="SidebarBrush"    Color="#990F0F18"/>
             <SolidColorBrush x:Key="SidebarGlassBrush" Color="#CC0F0F18"/>
+            <!-- 5.3.0: the movie page's sticky header, solid: as the see-through one looked, without the page showing through -->
+            <SolidColorBrush x:Key="StickyBarBrush"  Color="#12121B"/>
             <SolidColorBrush x:Key="CardBrush"       Color="#14141F"/>
             <SolidColorBrush x:Key="CardHoverBrush"  Color="#1E1E2E"/>
             <SolidColorBrush x:Key="BorderBrush"     Color="#2A2A3A"/>

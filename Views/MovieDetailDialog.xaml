@@ -596,7 +596,7 @@
 
         <!-- Sticky action bar (v2.3) — appears once you scroll past the hero -->
         <Border x:Name="StickyBar" Visibility="Collapsed"
-                Background="{ThemeResource SidebarBrush}"
+                Background="{ThemeResource StickyBarBrush}"
                 BorderBrush="{ThemeResource BorderBrush}"
                 BorderThickness="0,0,0,1"
                 Height="52" VerticalAlignment="Top">
