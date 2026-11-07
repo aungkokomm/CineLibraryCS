@@ -138,6 +138,9 @@ public class TvEpisodeDetail
     public bool IsFavorite { get; set; }
     public string? Note { get; set; }
     public string VolumeSerial { get; set; } = "";
+    /// <summary>5.3.0: times played to the end, and when last played or marked watched (Unix seconds).</summary>
+    public int PlayCount { get; set; }
+    public long LastPlayed { get; set; }
 
     public string Code => $"S{Season:D2}E{Episode:D2}";
     public string AiredText => string.IsNullOrEmpty(Aired) ? "" : Aired;
@@ -215,4 +218,6 @@ public class TvShowDetail
     public double? UserRating { get; set; }
     public List<(string Source, double Value, int? Votes)> AllRatings { get; set; } = new();
     public List<string> NfoTags { get; set; } = new();
+    /// <summary>5.3.0: the episode played or marked watched last, and when (Unix seconds).</summary>
+    public (int Season, int Episode, long At)? LastWatched { get; set; }
 }

@@ -149,6 +149,14 @@ internal static class DetailField
         return Field(kind, label, grid, theme);
     }
 
+    /// <summary>5.3.0: languages by name, "hin,eng" as "Hindi · English" ("en" and "eng" once).</summary>
+    public static List<string> LanguageNames(string? codes) =>
+        (codes ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Services.Playback.SubtitleFiles.LanguageName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>5.3.0: a day from Unix seconds, as the release date reads: "Nov 5, 2026".</summary>
+    public static string Day(long unix) => DateTimeOffset.FromUnixTimeSeconds(unix).ToLocalTime().ToString("MMM d, yyyy");
+
     /// <summary>The IMDb and TMDb IDs. The badges on the banner open the pages; a click here copies the ID.</summary>
     public static StackPanel Ids(IReadOnlyList<(string Site, string Id)> ids, ElementTheme? theme = null)
     {

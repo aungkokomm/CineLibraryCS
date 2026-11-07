@@ -99,7 +99,9 @@ public record ParsedEpisode(
     string? Aired,
     double? Rating,
     int? Runtime,
-    ParsedStreamDetails? Stream
+    ParsedStreamDetails? Stream,
+    // 5.3.0: Kodi's <playcount>, as for movies
+    int? PlayCount = null
 );
 
 public static class NfoParser
@@ -212,7 +214,8 @@ public static class NfoParser
                 Aired: Get(root, "aired") ?? Get(root, "premiered"),
                 Rating: rating,
                 Runtime: TryInt(Get(root, "runtime")),
-                Stream: ParseStreamDetails(root)
+                Stream: ParseStreamDetails(root),
+                PlayCount: TryInt(Get(root, "playcount"))
             );
         }
         catch { return null; }

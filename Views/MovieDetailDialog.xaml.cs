@@ -212,11 +212,41 @@ public sealed partial class MovieDetailDialog : Window
         {
             PopulateUi(_movie);
             PopulateRelated(_movie, collection, byDirector);
+            _ = ReadFileLanguagesAsync(_movie);
         }
         catch (System.Runtime.InteropServices.COMException)
         {
             // Window was closed mid-populate — silently bail.
         }
+    }
+
+    /// <summary>
+    /// 5.3.0: the languages inside the film's file, read once for each file (known by its size) while
+    /// the page is open and the drive connected, then shown instead of the .nfo's when the tracks say.
+    /// </summary>
+    private async Task ReadFileLanguagesAsync(MovieDetail m)
+    {
+        if (!m.Playable || m.CurrentLetter == null || m.VideoFileRelPath == null) return;
+        if (m.FileLanguagesSize is long read && (m.FileSizeBytes is not long size || size == read)) return;
+        var path = Path.Combine($"{m.CurrentLetter}:\\", m.VideoFileRelPath.Replace('/', '\\'));
+        var found = await Task.Run(async () =>
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                var length = new FileInfo(path).Length;
+                if (await Services.Playback.FileLanguages.ReadAsync(path) is not { } languages) return null;
+                AppState.Instance.Db.SetFileLanguages(m.Id, languages.Audio, languages.Subtitles, length);
+                return ((string? Audio, string? Subtitles, long Size)?)(languages.Audio, languages.Subtitles, length);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+            {
+                return null;
+            }
+        });
+        if (found is not { } f || _closed) return;
+        (m.FileAudioLanguages, m.FileSubtitleLanguages, m.FileLanguagesSize) = (f.Audio, f.Subtitles, f.Size);
+        if (ReferenceEquals(_movie, m)) PopulateFacts(m);
     }
 
     private void PopulateUi(MovieDetail m)
@@ -1089,6 +1119,7 @@ public sealed partial class MovieDetailDialog : Window
         if (!string.IsNullOrWhiteSpace(m.Mpaa)) film.Add(("Rated", m.Mpaa!));
         // 5.1.0 (#25): from the .nfo, and each time the player reaches the end
         if (m.PlayCount > 0) film.Add(("Played", m.PlayCount == 1 ? "1 time" : $"{m.PlayCount} times"));
+        if (m.LastPlayed > 0) film.Add(("Last watched", DetailField.Day(m.LastPlayed)));   // 5.3.0: played or marked watched
         if (film.Count > 0) Add(DetailField.Section(DetailField.Kind.Story, "About the film", film));
 
         var file = new List<(string, string)>();
@@ -1096,12 +1127,11 @@ public sealed partial class MovieDetailDialog : Window
             file.Add(("Length", FormatDuration(m.DurationSeconds.Value)));
         if (m.FileSizeBytes is > 0) file.Add(("Size", FormatBytes(m.FileSizeBytes.Value)));
         if (!string.IsNullOrWhiteSpace(m.ContainerExt)) file.Add(("Type", m.ContainerExt.ToUpperInvariant()));
-        if (!string.IsNullOrWhiteSpace(m.AudioLanguages)) file.Add(("Audio", m.AudioLanguages.Replace(",", " · ")));
-        if (!string.IsNullOrWhiteSpace(m.SubtitleLanguages))
-        {
-            var subs = m.SubtitleLanguages.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            if (subs.Length > 0) file.Add(("Subtitles", subs.Length <= 3 ? string.Join(" · ", subs) : $"{subs.Length} tracks"));
-        }
+        // 5.3.0: by name, and as VLC read them from the file when it could; else the .nfo's
+        var audio = DetailField.LanguageNames(m.FileAudioLanguages ?? m.AudioLanguages);
+        if (audio.Count > 0) file.Add(("Audio", string.Join(" · ", audio)));
+        var subs = DetailField.LanguageNames(m.FileSubtitleLanguages ?? m.SubtitleLanguages);
+        if (subs.Count > 0) file.Add(("Subtitles", subs.Count <= 3 ? string.Join(" · ", subs) : $"{subs.Count} languages"));
         if (file.Count > 0) Add(DetailField.Section(DetailField.Kind.File, "The file", file));
 
         var ids = new List<(string, string)>();
@@ -1268,6 +1298,8 @@ public sealed partial class MovieDetailDialog : Window
             // the OS player takes over, so the row simply moves to the top of
             // the Continue Watching list and stays until the user marks it Watched.
             AppState.Instance.Db.MarkPlayed(_movie.Id);
+            _movie.LastPlayed = DateTimeOffset.UtcNow.ToUnixTimeSeconds();   // 5.3.0: Last watched
+            PopulateFacts(_movie);
             // Tell the host so its sidebar badge updates
             WatchlistChanged?.Invoke(this, EventArgs.Empty);
             var movie = _movie;
@@ -1309,6 +1341,7 @@ public sealed partial class MovieDetailDialog : Window
              AppState.Instance.Db.ToggleWatched(_movie.Id);
              _movie.IsWatched = !_movie.IsWatched;
              WatchedBtn.Content = ActionLabel.Watched(_movie.IsWatched);
+             if (_movie.IsWatched) { _movie.LastPlayed = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); PopulateFacts(_movie); }   // 5.3.0: Last watched
          }
 
          private void OnToggleWatchlist(object sender, RoutedEventArgs e)

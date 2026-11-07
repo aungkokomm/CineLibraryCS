@@ -78,6 +78,8 @@ internal sealed class PlayerSession
     public event Action? Closed;
     /// <summary>A track was chosen or the subtitles were moved: the item's tag and the choice to keep.</summary>
     public event Action<object?, TrackChoice>? ChoiceChanged;
+    /// <summary>5.3.0: once per item, when it plays: its tag, its file and the languages of the tracks inside it.</summary>
+    public event Action<object?, string, (string? Audio, string? Subtitles)>? LanguagesKnown;
     /// <summary>What the pause screen shows for an item; null shows none.</summary>
     public Func<object?, PauseInfo?>? FindPauseInfo { get; set; }
     /// <summary>What to look for subtitles online by; null goes by the title alone.</summary>
@@ -193,6 +195,9 @@ internal sealed class PlayerSession
     private void ApplyChoice()
     {
         _choicePending = false;
+        // What's inside the file, before a subtitle file is added
+        try { if (_media.Tracks is { Length: > 0 } tracks) LanguagesKnown?.Invoke(Tag, _path, FileLanguages.FromTracks(tracks)); }
+        catch (Exception e) when (e is VLCException or InvalidOperationException or ObjectDisposedException) { PlayerLog.Write("tracks: " + e.Message); }
         _subtitleFiles = SubtitleFiles.Near(_path);
         _fileTracks.Clear();
         _addingFiles.Clear();

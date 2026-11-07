@@ -599,7 +599,7 @@
                 Background="{ThemeResource SidebarBrush}"
                 BorderBrush="{ThemeResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Height="52" VerticalAlignment="Top" Opacity="0.96">
+                Height="52" VerticalAlignment="Top">
             <Grid Padding="20,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>

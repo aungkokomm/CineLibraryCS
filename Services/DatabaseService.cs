@@ -423,6 +423,10 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         if (!cols.Contains("resume_ms"))        Exec("ALTER TABLE movies ADD COLUMN resume_ms INTEGER DEFAULT 0");
         // 5.1.0 (#25): times played, from the .nfo and the built-in player
         if (!cols.Contains("play_count"))       Exec("ALTER TABLE movies ADD COLUMN play_count INTEGER DEFAULT 0");
+        // 5.3.0: the languages of the tracks inside the file, read by VLC once for each file (the size it had then)
+        if (!cols.Contains("file_audio_languages"))    Exec("ALTER TABLE movies ADD COLUMN file_audio_languages TEXT");
+        if (!cols.Contains("file_subtitle_languages")) Exec("ALTER TABLE movies ADD COLUMN file_subtitle_languages TEXT");
+        if (!cols.Contains("file_languages_size"))     Exec("ALTER TABLE movies ADD COLUMN file_languages_size INTEGER");
         // v4.10.0: the audio and subtitles chosen in the player, for a movie ('m') or a whole show ('s')
         Exec(@"CREATE TABLE IF NOT EXISTS track_choices (
                  kind TEXT NOT NULL, id INTEGER NOT NULL,
@@ -619,6 +623,8 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
             Exec("ALTER TABLE tv_episodes ADD COLUMN note TEXT");
         if (!epCols.Contains("resume_ms"))   // v4.10.0, as on movies
             Exec("ALTER TABLE tv_episodes ADD COLUMN resume_ms INTEGER DEFAULT 0");
+        if (!epCols.Contains("play_count"))  // 5.3.0, as on movies
+            Exec("ALTER TABLE tv_episodes ADD COLUMN play_count INTEGER DEFAULT 0");
 
         // v4.6.0: what CineLibrary Essentials 1.3 writes. Edition; every studio
         // and country (studio / country keep the first, for the filters); a
@@ -2219,7 +2225,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.video_width, m.video_height, m.video_codec, m.video_aspect, m.hdr_type,
                    m.audio_codec, m.audio_channels, m.audio_languages, m.subtitle_languages,
                    m.duration_seconds, m.container_ext, m.file_size_bytes,
-                   m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating, m.play_count
+                   m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating, m.play_count,
+                   m.last_played_at, m.file_audio_languages, m.file_subtitle_languages, m.file_languages_size
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -2283,6 +2290,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 Countries         = SplitLines(r.IsDBNull(41) ? null : r.GetString(41)),
                 UserRating        = r.IsDBNull(42) ? null : r.GetDouble(42),
                 PlayCount         = r.IsDBNull(43) ? 0 : r.GetInt32(43),
+                LastPlayed        = r.IsDBNull(44) ? 0 : r.GetInt64(44),
+                FileAudioLanguages    = r.IsDBNull(45) ? null : r.GetString(45),
+                FileSubtitleLanguages = r.IsDBNull(46) ? null : r.GetString(46),
+                FileLanguagesSize     = r.IsDBNull(47) ? null : r.GetInt64(47),
             };
             // Rows from before v4.6.0 (or filled from TMDb) only have the first
             if (movie.Studios.Count == 0 && movie.Studio != null) movie.Studios.Add(movie.Studio);
@@ -3585,7 +3596,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 is_watched = MAX(COALESCE(tv_episodes.is_watched,0), COALESCE(o.is_watched,0)),
                 last_played_at = MAX(COALESCE(tv_episodes.last_played_at,0), COALESCE(o.last_played_at,0)),
                 is_favorite = MAX(COALESCE(tv_episodes.is_favorite,0), COALESCE(o.is_favorite,0)),
-                note = COALESCE(NULLIF(TRIM(tv_episodes.note),''), o.note)
+                note = COALESCE(NULLIF(TRIM(tv_episodes.note),''), o.note),
+                play_count = MAX(COALESCE(tv_episodes.play_count,0), COALESCE(o.play_count,0))
               FROM tv_episodes o
              WHERE tv_episodes.show_id=@new AND o.show_id=@old
                AND o.season=tv_episodes.season AND o.episode=tv_episodes.episode;
@@ -5046,7 +5058,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    e.subtitle_languages, e.video_width, e.video_height, e.video_codec,
                    e.hdr_type, e.audio_codec, e.audio_channels, e.audio_languages,
                    e.duration_seconds, e.container_ext, e.file_size_bytes, e.is_watched,
-                   s.title, s.volume_serial, e.is_favorite, e.note
+                   s.title, s.volume_serial, e.is_favorite, e.note, e.play_count, e.last_played_at
               FROM tv_episodes e JOIN tv_shows s ON s.id=e.show_id
              WHERE e.id=@id";
         cmd.Parameters.AddWithValue("@id", episodeId);
@@ -5079,6 +5091,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             VolumeSerial = r.GetString(24),
             IsFavorite = !r.IsDBNull(25) && r.GetInt32(25) == 1,
             Note = r.IsDBNull(26) ? null : r.GetString(26),
+            PlayCount = r.IsDBNull(27) ? 0 : r.GetInt32(27),
+            LastPlayed = r.IsDBNull(28) ? 0 : r.GetInt64(28),
         };
     }
 
@@ -5305,6 +5319,14 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             c.Parameters.AddWithValue("@id", showId);
             using var cr = c.ExecuteReader();
             if (cr.Read()) { d.EpisodeCount = cr.GetInt32(0); d.WatchedCount = cr.IsDBNull(1) ? 0 : cr.GetInt32(1); }
+        }
+        // 5.3.0: the episode played or marked watched last
+        using (var c = _conn.CreateCommand())
+        {
+            c.CommandText = "SELECT season, episode, last_played_at FROM tv_episodes WHERE show_id=@id AND last_played_at>0 ORDER BY last_played_at DESC LIMIT 1";
+            c.Parameters.AddWithValue("@id", showId);
+            using var lr = c.ExecuteReader();
+            if (lr.Read()) d.LastWatched = (lr.GetInt32(0), lr.GetInt32(1), lr.GetInt64(2));
         }
         d.Tags = GetTagNamesForShow(showId);
         d.NfoTags = GetNfoTagNames(showId, show: true);
@@ -5594,6 +5616,32 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "UPDATE movies SET play_count=COALESCE(play_count, 0)+1 WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.0: the built-in player reached the end of an episode once more.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddEpisodePlay(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE tv_episodes SET play_count=COALESCE(play_count, 0)+1 WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// 5.3.0: the languages VLC read from inside a film's file (codes, as the .nfo has them, or null
+    /// when its tracks don't say), with the file's size then, so a new file is read again.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetFileLanguages(int movieId, string? audio, string? subtitles, long size)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET file_audio_languages=@a, file_subtitle_languages=@s, file_languages_size=@n WHERE id=@id";
+        cmd.Parameters.AddWithValue("@a", (object?)audio ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@s", (object?)subtitles ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@n", size);
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
     }

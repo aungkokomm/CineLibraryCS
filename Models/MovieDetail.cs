@@ -106,6 +106,13 @@ public class MovieDetail
     /// <summary>v4.7.0: the .nfo's &lt;userrating&gt; (1 to 10), null when not set.</summary>
     public double? UserRating { get; set; }
     public int PlayCount { get; set; }
+    /// <summary>5.3.0: when it was last played or marked watched (Unix seconds), 0 for never.</summary>
+    public long LastPlayed { get; set; }
+    /// <summary>5.3.0: the languages inside the file as VLC read them, and the file's size then
+    /// (null: not read yet).</summary>
+    public string? FileAudioLanguages { get; set; }
+    public string? FileSubtitleLanguages { get; set; }
+    public long? FileLanguagesSize { get; set; }
     /// <summary>Every studio and country (Studio / Country are the first).</summary>
     public List<string> Studios { get; set; } = new();
     public List<string> Countries { get; set; } = new();

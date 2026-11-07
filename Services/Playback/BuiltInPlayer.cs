@@ -52,6 +52,16 @@ internal static class BuiltInPlayer
         session.FindSubtitleFilm = SubtitleFilmFor;
         session.ChoiceChanged += (tag, choice) => { if (tag is PlaybackItem chosen) db.SetTrackChoice(chosen.Kind == PlaybackKind.Episode, chosen.Id, choice); };
         session.ItemStarted += tag => { if (tag is PlaybackItem { Kind: PlaybackKind.Episode } episode) db.MarkEpisodePlayed(episode.Id); };
+        // 5.3.0: a film's languages, as its page reads them, for films played without opening it
+        session.LanguagesKnown += (tag, file, languages) =>
+        {
+            if (tag is not PlaybackItem { Kind: PlaybackKind.Movie } film) return;
+            _ = Task.Run(() =>
+            {
+                try { db.SetFileLanguages(film.Id, languages.Audio, languages.Subtitles, new FileInfo(file).Length); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException) { }
+            });
+        };
         session.ItemEnded += (tag, position, length) =>
         {
             if (tag is not PlaybackItem ended) return;
@@ -171,7 +181,12 @@ internal static class BuiltInPlayer
                 AppState.Instance.SavePlaybackState(false, item.Id);   // watched before: nothing else writes the count
                 return newly;
             }
-            if (db.IsEpisodeWatched(item.Id)) return false;
+            db.AddEpisodePlay(item.Id);   // 5.3.0, as for films
+            if (db.IsEpisodeWatched(item.Id))
+            {
+                AppState.Instance.SavePlaybackState(true, item.Id);   // watched before: nothing else writes the count
+                return false;
+            }
             db.SetEpisodeWatched(item.Id, true);
             return true;
         }

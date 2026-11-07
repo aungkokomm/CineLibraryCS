@@ -194,10 +194,12 @@ public sealed partial class TvShowsPage : Page
             g.Children.Add(l); g.Children.Add(v);
             root.Children.Add(g);
         }
-        AddRow("Audio", d.AudioLanguages?.Replace(",", " · "));
-        AddRow("Subtitles", d.SubtitleLanguages?.Replace(",", " · "));
+        AddRow("Audio", string.Join(" · ", DetailField.LanguageNames(d.AudioLanguages)));   // 5.3.0: by name
+        AddRow("Subtitles", string.Join(" · ", DetailField.LanguageNames(d.SubtitleLanguages)));
         AddRow("Duration", d.DurationText);
         AddRow("File size", d.FileSizeText);
+        if (d.PlayCount > 0) AddRow("Played", d.PlayCount == 1 ? "1 time" : $"{d.PlayCount} times");   // 5.3.0
+        if (d.LastPlayed > 0) AddRow("Last watched", DetailField.Day(d.LastPlayed));
 
         // v2.9 — Personal note for this episode. Saves on blur; empty
         // string clears the note row. Sidecar is best-effort.
@@ -796,6 +798,7 @@ public sealed partial class TvShowsPage : Page
         if (!string.IsNullOrWhiteSpace(d.Mpaa)) about.Add(("Rated", d.Mpaa!));
         if (d.Runtime is > 0) about.Add(("Length", $"{d.Runtime} min"));
         if (d.EpisodeCount > 0) about.Add(("Episodes", $"{d.EpisodeCount} · {d.WatchedCount} watched"));
+        if (d.LastWatched is { } last) about.Add(("Last watched", $"S{last.Season:D2}E{last.Episode:D2} · {DetailField.Day(last.At)}"));
         if (about.Count > 0) Add(DetailField.Section(DetailField.Kind.Story, "About the show", about, ElementTheme.Dark));
 
         var ids = new List<(string, string)>();

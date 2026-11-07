@@ -1162,6 +1162,18 @@ public class ScannerService
             BindEpisode(cmd, ep, thumb);
             cmd.ExecuteNonQuery();
         }
+        // 5.3.0: the .nfo's play count, as for movies: the highest number wins
+        if (p.PlayCount is > 0)
+        {
+            using var plays = conn.CreateCommand();
+            plays.Transaction = tx;
+            plays.CommandText = "UPDATE tv_episodes SET play_count=@n WHERE show_id=@s AND season=@se AND episode=@ep AND COALESCE(play_count, 0)<@n";
+            plays.Parameters.AddWithValue("@n", p.PlayCount.Value);
+            plays.Parameters.AddWithValue("@s", showId);
+            plays.Parameters.AddWithValue("@se", p.Season);
+            plays.Parameters.AddWithValue("@ep", p.Episode);
+            plays.ExecuteNonQuery();
+        }
     }
 
     private static void BindEpisode(SqliteCommand cmd, ScannedEpisode ep, string? thumb)

@@ -27,6 +27,8 @@ public static class TvStateSidecar
         [JsonPropertyName("note")]           public string? Note { get; set; }
         // v4.10.0: where it stopped
         [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }
+        // 5.3.0: times played to the end
+        [JsonPropertyName("playCount")]      public int? PlayCount { get; set; }
     }
 
     public class State
@@ -49,7 +51,7 @@ public static class TvStateSidecar
             Favorite || Watchlist || !string.IsNullOrWhiteSpace(Note) ||
             Lists.Count > 0 || Tags.Count > 0 || Tracks != null ||
             Episodes.Values.Any(e => e.Watched || (e.LastPlayedUnix ?? 0) > 0
-                                 || e.Favorite || !string.IsNullOrWhiteSpace(e.Note) || (e.ResumeMs ?? 0) > 0);
+                                 || e.Favorite || !string.IsNullOrWhiteSpace(e.Note) || (e.ResumeMs ?? 0) > 0 || (e.PlayCount ?? 0) > 0);
     }
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -133,7 +135,7 @@ public static class TvStateSidecar
 
         using (var c = conn.CreateCommand())
         {
-            c.CommandText = "SELECT season, episode, is_watched, last_played_at, is_favorite, note, resume_ms FROM tv_episodes WHERE show_id=@id";
+            c.CommandText = "SELECT season, episode, is_watched, last_played_at, is_favorite, note, resume_ms, play_count FROM tv_episodes WHERE show_id=@id";
             c.Parameters.AddWithValue("@id", showId);
             using var r = c.ExecuteReader();
             while (r.Read())
@@ -143,8 +145,9 @@ public static class TvStateSidecar
                 var fav = !r.IsDBNull(4) && r.GetInt32(4) == 1;
                 var note = r.IsDBNull(5) ? null : r.GetString(5);
                 var resume = r.IsDBNull(6) ? 0L : r.GetInt64(6);
+                var plays = r.IsDBNull(7) ? 0 : r.GetInt32(7);
                 // Only persist rows that carry anything personal.
-                if (!watched && lp == 0 && !fav && string.IsNullOrWhiteSpace(note) && resume == 0) continue;
+                if (!watched && lp == 0 && !fav && string.IsNullOrWhiteSpace(note) && resume == 0 && plays == 0) continue;
                 state.Episodes[Key(r.GetInt32(0), r.GetInt32(1))] =
                     new EpisodeState
                     {
@@ -153,6 +156,7 @@ public static class TvStateSidecar
                         Favorite = fav,
                         Note = note,
                         ResumeMs = resume > 0 ? resume : null,
+                        PlayCount = plays > 0 ? plays : null,
                     };
             }
         }
@@ -249,8 +253,10 @@ public static class TvStateSidecar
                        last_played_at = MAX(last_played_at, @lp),
                        is_favorite = CASE WHEN is_favorite=1 OR @f=1 THEN 1 ELSE 0 END,
                        note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END,
-                       resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END
+                       resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END,
+                       play_count = MAX(COALESCE(play_count, 0), @pc)
                  WHERE show_id=@id AND season=@se AND episode=@ep";
+            upd.Parameters.AddWithValue("@pc", est.PlayCount ?? 0);
             upd.Parameters.AddWithValue("@w", est.Watched ? 1 : 0);
             upd.Parameters.AddWithValue("@lp", est.LastPlayedUnix ?? 0);
             upd.Parameters.AddWithValue("@f", est.Favorite ? 1 : 0);

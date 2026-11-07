@@ -95,6 +95,7 @@ public static class BackupService
         [JsonPropertyName("favorite")]       public bool Favorite { get; set; }
         [JsonPropertyName("note")]           public string? Note { get; set; }
         [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }   // v4.10.0
+        [JsonPropertyName("playCount")]      public int? PlayCount { get; set; }   // 5.3.0
     }
 
     public class WatchEvent
@@ -231,9 +232,9 @@ public static class BackupService
         using (var c = conn.CreateCommand())
         {
             c.CommandText = @"
-                SELECT show_id, season, episode, is_watched, last_played_at, is_favorite, note, resume_ms
+                SELECT show_id, season, episode, is_watched, last_played_at, is_favorite, note, resume_ms, play_count
                   FROM tv_episodes
-                 WHERE is_watched=1 OR last_played_at>0 OR resume_ms>0
+                 WHERE is_watched=1 OR last_played_at>0 OR resume_ms>0 OR play_count>0
                     OR is_favorite=1 OR (note IS NOT NULL AND TRIM(note) != '')";
             using var r = c.ExecuteReader();
             while (r.Read())
@@ -247,6 +248,7 @@ public static class BackupService
                     Favorite = !r.IsDBNull(5) && r.GetInt32(5) == 1,
                     Note = r.IsDBNull(6) ? null : r.GetString(6),
                     ResumeMs = r.IsDBNull(7) || r.GetInt64(7) == 0 ? null : r.GetInt64(7),
+                    PlayCount = r.IsDBNull(8) || r.GetInt32(8) == 0 ? null : r.GetInt32(8),
                 };
             }
         }
@@ -677,8 +679,10 @@ public static class BackupService
                                     last_played_at = MAX(last_played_at, @lp),
                                     is_favorite = CASE WHEN is_favorite=1 OR @f=1 THEN 1 ELSE 0 END,
                                     note = CASE WHEN note IS NULL OR TRIM(note)='' THEN COALESCE(@n, note) ELSE note END,
-                                    resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END
+                                    resume_ms = CASE WHEN COALESCE(resume_ms, 0)=0 AND is_watched=0 AND @w=0 THEN @r ELSE resume_ms END,
+                                    play_count = MAX(COALESCE(play_count, 0), @pc)
                                  WHERE show_id=@id AND season=@se AND episode=@ep";
+            upd.Parameters.AddWithValue("@pc", est.PlayCount ?? 0);
             upd.Parameters.AddWithValue("@w",  est.Watched ? 1 : 0);
             upd.Parameters.AddWithValue("@lp", est.LastPlayedUnix ?? 0);
             upd.Parameters.AddWithValue("@f",  est.Favorite ? 1 : 0);

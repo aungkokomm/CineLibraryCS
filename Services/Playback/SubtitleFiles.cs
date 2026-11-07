@@ -72,6 +72,19 @@ internal static partial class SubtitleFiles
         return map;
     });
 
+    // ISO 639-2's older codes, which video files often carry; .NET knows the newer ones
+    private static readonly Dictionary<string, string> OlderCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["alb"] = "sqi", ["arm"] = "hye", ["baq"] = "eus", ["bur"] = "mya", ["chi"] = "zho", ["cze"] = "ces",
+        ["dut"] = "nld", ["fre"] = "fra", ["geo"] = "kat", ["ger"] = "deu", ["gre"] = "ell", ["ice"] = "isl",
+        ["mac"] = "mkd", ["mao"] = "mri", ["may"] = "msa", ["per"] = "fas", ["rum"] = "ron", ["slo"] = "slk",
+        ["tib"] = "bod", ["wel"] = "cym",
+    };
+
+    /// <summary>5.3.0: a language's name from a code in a video or an .nfo ("hin", "fre", "en"), else the code.</summary>
+    public static string LanguageName(string code) =>
+        Languages.Value.TryGetValue(OlderCodes.GetValueOrDefault(code, code), out var name) ? name : code;
+
     // A language's whole name anywhere, or a short code at the very end ("Film.en")
     private static string? LanguageOf(string name)
     {
