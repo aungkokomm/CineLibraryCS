@@ -112,6 +112,8 @@ public sealed partial class MovieDetailDialog : Window
         // touch the destroyed window (COMException "operation identifier is
         // not valid").
         Closed += (_, _) => _closed = true;
+        // 5.3.0: back here after a film played in another player
+        Activated += (_, e) => { if (e.WindowActivationState != WindowActivationState.Deactivated) OfferFinished(); };
 
         // Start DB load IMMEDIATELY (don't wait for Activated). Overlapping
         // with the window animation eliminates the visible "empty window"
@@ -219,6 +221,36 @@ public sealed partial class MovieDetailDialog : Window
             // Window was closed mid-populate — silently bail.
         }
     }
+
+    private int _finishedId;
+
+    /// <summary>5.3.0: back from a film played in another player, after most of its length: was it finished?
+    /// Asked once, about that film, whichever film this page shows now.</summary>
+    private void OfferFinished()
+    {
+        if (_closed || ExternalPlay.TakeDue() is not { } due) return;
+        if (AppState.Instance.Db.GetMovieDetail(due.Id, AppState.Instance.Connected) is not { IsWatched: false }) return;   // marked meanwhile
+        _finishedId = due.Id;
+        FinishedText.Text = $"Finished {due.Title}?";
+        FinishedBar.Visibility = Visibility.Visible;
+    }
+
+    private void OnFinishedYes(object sender, RoutedEventArgs e)
+    {
+        FinishedBar.Visibility = Visibility.Collapsed;
+        ExternalPlay.MarkFinished(_finishedId);
+        if (_movie?.Id == _finishedId)
+        {
+            _movie.IsWatched = true;
+            _movie.PlayCount = AppState.Instance.Db.GetPlayCount(_movie.Id);
+            _movie.LastPlayed = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            WatchedBtn.Content = ActionLabel.Watched(true);
+            PopulateFacts(_movie);
+        }
+        WatchlistChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnFinishedNo(object sender, RoutedEventArgs e) => FinishedBar.Visibility = Visibility.Collapsed;
 
     /// <summary>
     /// 5.3.0: the languages inside the film's file, read once for each file (known by its size) while

@@ -49,6 +49,8 @@ internal static class BuiltInPlayer
         session.SetNeighbours(tag => tag is PlaybackItem { Kind: PlaybackKind.Episode } episode ? Adjacent(episode, next: false) : null,
                               tag => tag is PlaybackItem { Kind: PlaybackKind.Episode } episode ? Adjacent(episode, next: true) : null);
         session.FindPauseInfo = PauseInfoFor;
+        session.FindCredits = CreditsFor;          // 5.3.0
+        session.SkippedToNext += LearnCredits;
         session.FindSubtitleFilm = SubtitleFilmFor;
         session.ChoiceChanged += (tag, choice) => { if (tag is PlaybackItem chosen) db.SetTrackChoice(chosen.Kind == PlaybackKind.Episode, chosen.Id, choice); };
         session.ItemStarted += tag => { if (tag is PlaybackItem { Kind: PlaybackKind.Episode } episode) db.MarkEpisodePlayed(episode.Id); };
@@ -62,10 +64,21 @@ internal static class BuiltInPlayer
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException) { }
             });
         };
+        // 5.3.0: marked watched as it passes 90% or its credits, not only when the player closes
+        var markedNow = false;
+        session.MarkWatched = (tag, position, length) =>
+        {
+            if (tag is not PlaybackItem item) return null;
+            markedNow = Record(item, position, length, session.CreditsMs);
+            return markedNow ? "Marked as watched" : null;   // nothing to say when watching it again
+        };
         session.ItemEnded += (tag, position, length) =>
         {
             if (tag is not PlaybackItem ended) return;
-            var watched = Record(ended, position, length);
+            // Already done as it passed that point (its play counted once, its place cleared)
+            var watched = session.WatchedReached ? markedNow : Record(ended, position, length, session.CreditsMs);
+            if (session.WatchedReached) AppState.Instance.SavePlaybackState(ended.Kind == PlaybackKind.Episode, ended.Id);   // tracks chosen since
+            markedNow = false;
             try { finished?.Invoke(ended, watched); } catch { /* the page may be gone */ }
             Stopped?.Invoke(ended);
         };
@@ -165,13 +178,13 @@ internal static class BuiltInPlayer
 
     private static string? PosterPath(string? relative) => relative is null ? null : AppState.Instance.Db.GetCachedImagePath(relative);
 
-    /// <summary>Where an item stopped: watched from 90%, else where to start next time.
-    /// True when it was newly marked watched (watching it again changes nothing).</summary>
-    private static bool Record(PlaybackItem item, long position, long length)
+    /// <summary>Where an item stopped: watched from 90% (5.3.0: or from its credits, when they start sooner),
+    /// else where to start next time. True when it was newly marked watched (watching it again changes nothing).</summary>
+    private static bool Record(PlaybackItem item, long position, long length, long? credits)
     {
         var db = AppState.Instance.Db;
         var episode = item.Kind == PlaybackKind.Episode;
-        if (length > 0 && position >= length * 0.9)
+        if (length > 0 && (position >= length * 0.9 || credits is long c && c > length / 2 && position >= c))
         {
             db.SetResumeMs(episode, item.Id, 0);
             if (!episode)
@@ -193,6 +206,22 @@ internal static class BuiltInPlayer
         db.SetResumeMs(episode, item.Id, position >= MinResumeMs ? position : 0);
         AppState.Instance.SavePlaybackState(episode, item.Id);
         return false;
+    }
+
+    /// <summary>5.3.0: where an episode's credits start when its chapters don't say: as far from its end as
+    /// they were when Next was pressed near the end of an episode of the same season.</summary>
+    private static long? CreditsFor(object? tag, long length) =>
+        tag is PlaybackItem { Kind: PlaybackKind.Episode } episode && AppState.Instance.Db.GetCreditsFromEnd(episode.Id) is long fromEnd
+            ? length - fromEnd : null;
+
+    /// <summary>5.3.0: Next pressed in an episode's last minutes, so the season's credits start about that far
+    /// from the end. Not when it was skipped early, nor at the very end.</summary>
+    private static void LearnCredits(object? tag, long position, long length)
+    {
+        if (tag is not PlaybackItem { Kind: PlaybackKind.Episode } episode || length <= 0) return;
+        var fromEnd = length - position;
+        if (position < length * 0.8 || fromEnd < 10_000 || fromEnd > 6 * 60_000) return;
+        AppState.Instance.Db.SetCreditsFromEnd(episode.Id, fromEnd);
     }
 
     /// <summary>The next (or previous) episode of the show, when its drive is here.</summary>
@@ -217,7 +246,8 @@ internal static class BuiltInPlayer
         _saveTimer.Interval = TimeSpan.FromSeconds(10);
         _saveTimer.Tick += (_, _) => ui.Post(() =>
         {
-            if (_session is not { Tag: PlaybackItem item } s || !s.IsPlaying || s.Position < MinResumeMs) return;
+            // 5.3.0: none once it counts as watched, or a watched film would be back in Continue Watching
+            if (_session is not { Tag: PlaybackItem item } s || !s.IsPlaying || s.Position < MinResumeMs || s.WatchedReached) return;
             try { AppState.Instance.Db.SetResumeMs(item.Kind == PlaybackKind.Episode, item.Id, s.Position); }
             catch { /* best effort */ }
         });

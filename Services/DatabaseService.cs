@@ -427,6 +427,10 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         if (!cols.Contains("file_audio_languages"))    Exec("ALTER TABLE movies ADD COLUMN file_audio_languages TEXT");
         if (!cols.Contains("file_subtitle_languages")) Exec("ALTER TABLE movies ADD COLUMN file_subtitle_languages TEXT");
         if (!cols.Contains("file_languages_size"))     Exec("ALTER TABLE movies ADD COLUMN file_languages_size INTEGER");
+        // 5.3.0: how far from the end a season's credits start, learned when Next is pressed near an episode's end
+        Exec(@"CREATE TABLE IF NOT EXISTS credits_offsets (
+                 show_id INTEGER NOT NULL, season INTEGER NOT NULL, from_end_ms INTEGER NOT NULL,
+                 PRIMARY KEY (show_id, season))");
         // v4.10.0: the audio and subtitles chosen in the player, for a movie ('m') or a whole show ('s')
         Exec(@"CREATE TABLE IF NOT EXISTS track_choices (
                  kind TEXT NOT NULL, id INTEGER NOT NULL,
@@ -5617,6 +5621,30 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = "UPDATE movies SET play_count=COALESCE(play_count, 0)+1 WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.0: how far from the end the credits start in an episode's season, when learned.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public long? GetCreditsFromEnd(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT o.from_end_ms FROM credits_offsets o
+                              JOIN tv_episodes e ON e.show_id=o.show_id AND e.season=o.season WHERE e.id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        return cmd.ExecuteScalar() is long ms ? ms : null;
+    }
+
+    /// <summary>5.3.0: Next pressed this far from the end of an episode: the latest for its season.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetCreditsFromEnd(int episodeId, long fromEndMs)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"INSERT INTO credits_offsets(show_id, season, from_end_ms)
+                            SELECT show_id, season, @ms FROM tv_episodes WHERE id=@id
+                            ON CONFLICT(show_id, season) DO UPDATE SET from_end_ms=excluded.from_end_ms";
+        cmd.Parameters.AddWithValue("@ms", fromEndMs);
+        cmd.Parameters.AddWithValue("@id", episodeId);
         cmd.ExecuteNonQuery();
     }
 

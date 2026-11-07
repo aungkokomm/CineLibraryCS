@@ -43,7 +43,11 @@ public static class VideoPlayer
         if (UiSettings.UseBuiltInPlayer
             && await Playback.BuiltInPlayer.PlayAsync(videoPath, item, finished, PlayExternalAsync))
             return PlayedWith.BuiltIn;
-        return await PlayExternalAsync(videoPath) ? PlayedWith.External : PlayedWith.Nothing;
+        if (!await PlayExternalAsync(videoPath)) return PlayedWith.Nothing;
+        // 5.3.0: that player never says how far it got; back in CineLibrary later, it's asked
+        if (item is { Kind: PlaybackKind.Movie } film && AppState.Instance.Db.GetMovieDetail(film.Id, AppState.Instance.Connected) is { IsWatched: false } movie)
+            ExternalPlay.Started(film.Id, movie.Title, movie.Runtime ?? movie.DurationSeconds / 60);
+        return PlayedWith.External;
     }
 
     private static async Task<bool> PlayExternalAsync(string videoPath)

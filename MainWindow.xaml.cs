@@ -145,6 +145,9 @@ public sealed partial class MainWindow : Window
             _ = _vm.OnDeviceChangeAsync();
         });
 
+        // 5.3.0: back here after a film played in another player
+        Activated += (_, e) => { if (e.WindowActivationState != WindowActivationState.Deactivated) OfferFinished(); };
+
         // Stop background timers BEFORE the XAML/Sqlite teardown begins.
         // The poll timer is gone in v1.5 (see above) but the toast timer
         // still exists, and the SqliteConnection still needs clean disposal.
@@ -677,7 +680,11 @@ public sealed partial class MainWindow : Window
     /// bulk operations (add to list / mark watched / favorite / etc.) so a
     /// fat-fingered batch is one click away from being put back.
     /// </summary>
-    public void ShowToastWithUndo(string message, Action undo)
+    public void ShowToastWithUndo(string message, Action undo) => ShowToastWithAction(message, "Undo", undo);
+
+    /// <summary>A toast with one button that runs <paramref name="act"/>: Undo, or 5.3.0's Mark watched,
+    /// a question that stays a little longer.</summary>
+    public void ShowToastWithAction(string message, string label, Action act, int ms = 6000)
     {
         DispatcherQueue.Post(() =>
         {
@@ -685,13 +692,25 @@ public sealed partial class MainWindow : Window
             ToastText.Text = message;
             // Set the visual label BEFORE installing the action so a rapid
             // click can never trigger the wrong handler.
-            ToastActionBtn.Content = "Undo";
+            ToastActionBtn.Content = label;
             ToastActionBtn.Visibility = Visibility.Visible;
-            _pendingUndo = undo;
+            _pendingUndo = act;
             ToastBorder.Visibility = Visibility.Visible;
             AnimateToastIn();
-            ScheduleToastHide(myGen);
+            ScheduleToastHide(myGen, ms);
         });
+    }
+
+    /// <summary>5.3.0: back from a film played in another player, after most of its length: was it finished?</summary>
+    private void OfferFinished()
+    {
+        if (ExternalPlay.TakeDue() is not { } due) return;
+        if (AppState.Instance.Db.GetMovieDetail(due.Id, AppState.Instance.Connected) is not { IsWatched: false }) return;   // marked meanwhile
+        ShowToastWithAction($"Finished {due.Title}?", "Mark watched", () =>
+        {
+            ExternalPlay.MarkFinished(due.Id);
+            RefreshSidebar();
+        }, ms: 20000);
     }
 
     /// <summary>
@@ -699,9 +718,9 @@ public sealed partial class MainWindow : Window
     /// generation we captured. Newer ShowToast* calls bump the counter
     /// and effectively cancel us.
     /// </summary>
-    private void ScheduleToastHide(int generation)
+    private void ScheduleToastHide(int generation, int ms = 6000)
     {
-        Task.Delay(6000).ContinueWith(_ => DispatcherQueue.Post(() =>
+        Task.Delay(ms).ContinueWith(_ => DispatcherQueue.Post(() =>
         {
             if (_toastGeneration != generation) return;
             _pendingUndo = null;

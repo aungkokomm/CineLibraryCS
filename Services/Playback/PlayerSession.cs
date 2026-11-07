@@ -26,7 +26,11 @@ internal sealed class PlayerSession
     private readonly PlayerWindow _window;
     private readonly PlayerControls _controls;
     private readonly DispatcherQueue _ui;
-    private readonly DispatcherQueueTimer _hide, _tick, _click, _countdown, _noteTimer, _cursor, _health, _noteHide, _pauseWait;
+    private readonly DispatcherQueueTimer _hide, _tick, _click, _countdown, _noteTimer, _cursor, _health, _noteHide, _pauseWait, _credits;
+    // 5.3.0: where this item's credits start (null: not known), whether that was worked out, the offer shown,
+    // and whether it has passed the point where it counts as watched
+    private long? _creditsMs;
+    private bool _creditsChecked, _creditsOffered, _watchedReached;
     private Media _media;
     private long _time, _length;
     private bool _barWanted, _closing, _released, _itemEnded;
@@ -80,6 +84,18 @@ internal sealed class PlayerSession
     public event Action<object?, TrackChoice>? ChoiceChanged;
     /// <summary>5.3.0: once per item, when it plays: its tag, its file and the languages of the tracks inside it.</summary>
     public event Action<object?, string, (string? Audio, string? Subtitles)>? LanguagesKnown;
+    /// <summary>5.3.0: the next item asked for before the end (Next, or the offer at the credits): the tag,
+    /// the position and the length (ms).</summary>
+    public event Action<object?, long, long>? SkippedToNext;
+    /// <summary>5.3.0: where an item's credits start when its chapters don't say: from its tag and length (ms).</summary>
+    public Func<object?, long, long?>? FindCredits { get; set; }
+    /// <summary>5.3.0: where the playing item's credits start (ms), once known; read when it ends.</summary>
+    public long? CreditsMs => _creditsMs;
+    /// <summary>5.3.0: once per item, as it passes 90% or its credits: marks it watched there and then, and
+    /// gives the note to show then ("Marked as watched"), or null for none.</summary>
+    public Func<object?, long, long, string?>? MarkWatched { get; set; }
+    /// <summary>5.3.0: the playing item has passed that point (and <see cref="MarkWatched"/> was asked).</summary>
+    public bool WatchedReached => _watchedReached;
     /// <summary>What the pause screen shows for an item; null shows none.</summary>
     public Func<object?, PauseInfo?>? FindPauseInfo { get; set; }
     /// <summary>What to look for subtitles online by; null goes by the title alone.</summary>
@@ -109,6 +125,7 @@ internal sealed class PlayerSession
         _health = Timer(2000, LogHealth, repeating: true);
         _noteHide = Timer(1500, () => _note?.HideText());
         _pauseWait = Timer(4000, ShowPause);
+        _credits = Timer(1000, WatchEnd, repeating: true);
 
         window.CloseRequested += () => _ = CloseAsync();
         window.KeyDown += OnKey;
@@ -175,6 +192,7 @@ internal sealed class PlayerSession
         beforePlay?.Invoke(session.Player);
         session.Player.Play(session._media);
         session._health.Start();
+        session._credits.Start();
         session.ShowBar();
         if (startMs > 0) session.ShowResumed(startMs);
         return (session, null);
@@ -291,7 +309,7 @@ internal sealed class PlayerSession
 
     private void GoNext()
     {
-        if (_nextItem is { } next) SwitchTo(next);
+        if (_nextItem is { } next) SkipTo(next);
         else if (_chapters)
         {
             var chapter = Player.Chapter + 1;
@@ -341,6 +359,77 @@ internal sealed class PlayerSession
         if (_offered is { } next) SwitchTo(next);
     }
 
+    /// <summary>5.3.0: the next item asked for before this one ended; where that was tells where the credits start.</summary>
+    private void SkipTo(NextUp next)
+    {
+        SkippedToNext?.Invoke(Tag, Position, Length);
+        SwitchTo(next);
+    }
+
+    /// <summary>
+    /// 5.3.0: once a second while playing. Past 90%, or past the credits when they start sooner, the item
+    /// is marked watched there and then, with a note. At the credits the next episode is offered, or for
+    /// a film (or a show's last episode here) a way to close. Nothing starts or closes by itself there: a
+    /// film may have a scene after them, and the next episode still waits for the end.
+    /// </summary>
+    private void WatchEnd()
+    {
+        if (_released || _closing || !Player.IsPlaying) return;
+        try { WatchEndOnce(); }
+        catch (Exception e) { PlayerLog.Write("watching the end: " + e.Message); }   // never out of a timer's tick
+    }
+
+    private void WatchEndOnce()
+    {
+        var length = Length;
+        var position = Position;
+        if (length <= 0) return;
+        if (!_creditsChecked)
+        {
+            _creditsChecked = true;
+            ChapterDescription[] chapters = Player.ChapterCount > 1 ? Player.FullChapterDescriptions() : [];
+            _creditsMs = CreditsChapter(chapters.Select(c => (c.TimeOffset, c.Name)).ToList(), length);
+            if (_creditsMs is null && FindCredits?.Invoke(Tag, length) is long learned && learned > length / 2 && learned < length)
+                _creditsMs = learned;
+            if (_creditsMs is long found) PlayerLog.Write($"credits from {PlayerControls.Format(found)}");
+        }
+        if (!_watchedReached && (position >= length * 0.9 || _creditsMs is long credits && credits > length / 2 && position >= credits))
+        {
+            _watchedReached = true;
+            PlayerLog.Write($"watched at {PlayerControls.Format(position)}");
+            if (MarkWatched?.Invoke(Tag, position, length) is { } note) ShowNote(note, ms: 3000);
+        }
+        if (_creditsMs is not long at) return;
+        if (position < at - 5000) { _creditsOffered = false; return; }   // gone back before them: offered again
+        if (_creditsOffered || position < at || position > length - 3000) return;
+        _creditsOffered = true;
+        PlayerLog.Write($"at the credits, {PlayerControls.Format(position)}");
+        if (_menu != null || _controls.Row.Length > 0 && _controls.Row != "message") return;   // never over something open
+        if (_nextItem is { } next)
+            _controls.ShowRow("message", $"Next: {next.Label}", [("Play next episode", true, () => SkipTo(next))]);
+        else
+            _controls.ShowRow("message", "Credits", [("Close player", true, () => _ = CloseAsync())]);
+        _noteTimer.Stop();
+        _noteTimer.Start();   // gone after a few seconds, the bar after it
+        ShowBar();
+    }
+
+    /// <summary>
+    /// 5.3.0: where the credits start, from a chapter named so in the second half: "Credits", "End Credits",
+    /// "Closing Credits", "Ending", "End Titles". Opening credits and chapters that don't say tell nothing.
+    /// </summary>
+    internal static long? CreditsChapter(IReadOnlyList<(long Offset, string? Name)> chapters, long length)
+    {
+        foreach (var (offset, name) in chapters)
+        {
+            if (offset < length / 2 || offset >= length || string.IsNullOrWhiteSpace(name)) continue;
+            var n = name.Trim().ToLowerInvariant();
+            if (n.Contains("credit") && !n.Contains("open") || n is "ending" or "end" or "ed" or "outro" or "end titles" or "closing")
+                return offset;
+        }
+        return null;
+    }
+
     /// <summary>Another item in the same window (full screen stays): the next or previous episode.</summary>
     private void SwitchTo(NextUp next)
     {
@@ -350,6 +439,8 @@ internal sealed class PlayerSession
         _controls.HideRow();
         CloseMenu();
         EndItem();
+        _creditsMs = null;   // 5.3.0: the next one's own
+        _creditsChecked = _creditsOffered = _watchedReached = false;
         PlayerLog.Write($"switch to {next.Path}");
         _shownPictures = _lostPictures = 0;
         _pauseWait.Stop();
@@ -740,7 +831,7 @@ internal sealed class PlayerSession
         else ShowNote(note);
     }
 
-    private void ShowNote(string text, bool stay = false)
+    private void ShowNote(string text, bool stay = false, int ms = 1500)
     {
         if (_closing) return;
         _note ??= PlayerLabel.Note(_window.Hwnd);
@@ -749,6 +840,7 @@ internal sealed class PlayerSession
         var margin = (int)Math.Round(24 * scale);
         _note.ShowText(text, scale, (width, _) => new PointInt32(r.Right - width - margin, r.Top + margin));
         _noteHide.Stop();
+        _noteHide.Interval = TimeSpan.FromMilliseconds(ms);   // 5.3.0: "Marked as watched" stays a little longer
         if (!stay) _noteHide.Start();
     }
 
@@ -893,7 +985,7 @@ internal sealed class PlayerSession
     {
         if (_closing) return;
         _closing = true;
-        foreach (var t in new[] { _hide, _tick, _click, _countdown, _noteTimer, _cursor, _health, _noteHide, _pauseWait }) t.Stop();
+        foreach (var t in new[] { _hide, _tick, _click, _countdown, _noteTimer, _cursor, _health, _noteHide, _pauseWait, _credits }) t.Stop();
         PlayerLog.Write($"close at {PlayerControls.Format(Position)}");
         EndItem();
         _offered = null;

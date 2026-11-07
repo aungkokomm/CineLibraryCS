@@ -649,6 +649,29 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- 5.3.0: back from a film played in another player, after most of its length: was it finished?
+             As the main window's toast looks -->
+        <Border x:Name="FinishedBar" Visibility="Collapsed"
+                VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,24,24"
+                Background="{ThemeResource ToastBgBrush}" CornerRadius="10" Padding="16,12"
+                BorderBrush="{StaticResource BrandPurpleBrush}" BorderThickness="1">
+            <Border.Shadow>
+                <ThemeShadow/>
+            </Border.Shadow>
+            <Border.Translation>0,0,32</Border.Translation>
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock x:Name="FinishedText" Foreground="{ThemeResource TextBrush}"
+                           VerticalAlignment="Center" FontSize="13"/>
+                <Button x:Name="FinishedYesBtn" Content="Mark watched" Click="OnFinishedYes"
+                        Background="{StaticResource BrandPurpleBrush}" Foreground="#FFFFFF" BorderThickness="0"
+                        CornerRadius="6" Padding="10,4" FontSize="12" VerticalAlignment="Center"/>
+                <Button Content="Not yet" Click="OnFinishedNo"
+                        Background="Transparent" Foreground="{ThemeResource MutedBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}" CornerRadius="6" Padding="10,4" FontSize="12"
+                        VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
         </Grid>
     </Grid>
 </Window>
