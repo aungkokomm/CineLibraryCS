@@ -21,9 +21,10 @@ namespace CineLibraryCS.Services;
 /// </summary>
 public static class ThemeBrushes
 {
-    public static SolidColorBrush Get(string key)
+    /// <param name="theme">v5.3.0: a given theme's variant, for parts that are dark in both themes</param>
+    public static SolidColorBrush Get(string key, ElementTheme? theme = null)
     {
-        var theme = (App.MainWindow?.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Dark;
+        theme ??= (App.MainWindow?.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Dark;
         var dictKey = theme == ElementTheme.Light ? "Light" : "Dark";
 
         foreach (var md in Application.Current.Resources.MergedDictionaries)

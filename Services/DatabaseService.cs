@@ -1910,6 +1910,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         string? Actor = null,
         string? Director = null,
         string? Studio = null,
+        string? Writer = null,   // v5.3.0: the movie window's writers are links too
         int? CollectionId = null,
         string WatchedFilter = "all",   // all | watched | unwatched
         bool FavoritesOnly = false,
@@ -2004,6 +2005,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.Genre != null) where.Add("EXISTS (SELECT 1 FROM movie_genres mg JOIN genres g ON g.id=mg.genre_id WHERE mg.movie_id=m.id AND g.name=@genre)");
         if (opts.Actor != null) where.Add("EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND LOWER(a.name)=LOWER(@actor))");
         if (opts.Director != null) where.Add("EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND LOWER(d.name)=LOWER(@director))");
+        if (opts.Writer != null) where.Add("EXISTS (SELECT 1 FROM movie_writers mw JOIN writers w ON w.id=mw.writer_id WHERE mw.movie_id=m.id AND LOWER(w.name)=LOWER(@writer))");
         // v4.6.0: or any of its other studios (one per line in studios)
         if (opts.Studio != null) where.Add("(LOWER(m.studio)=LOWER(@studio) OR instr(char(10) || LOWER(COALESCE(m.studios,'')) || char(10), char(10) || LOWER(@studio) || char(10)) > 0)");
         if (opts.CollectionId != null) where.Add("EXISTS (SELECT 1 FROM movie_sets ms WHERE ms.movie_id=m.id AND ms.set_id=@colId)");
@@ -2051,6 +2053,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.Genre != null) cmd.Parameters.AddWithValue("@genre", opts.Genre);
         if (opts.Actor != null) cmd.Parameters.AddWithValue("@actor", opts.Actor);
         if (opts.Director != null) cmd.Parameters.AddWithValue("@director", opts.Director);
+        if (opts.Writer != null) cmd.Parameters.AddWithValue("@writer", opts.Writer);
         if (opts.Studio != null) cmd.Parameters.AddWithValue("@studio", opts.Studio);
         if (opts.CollectionId != null) cmd.Parameters.AddWithValue("@colId", opts.CollectionId);
         if (opts.UserListId != null) cmd.Parameters.AddWithValue("@listId", opts.UserListId);

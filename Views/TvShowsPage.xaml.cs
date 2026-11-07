@@ -715,7 +715,7 @@ public sealed partial class TvShowsPage : Page
         // v4.8.0 (#25): "55-min", the show's typical length (each episode has its own)
         ShowRuntime.Text = _detail.Runtime is > 0 ? $"{_detail.Runtime}-min" : "";
         ShowRuntime.Visibility = _detail.Runtime is > 0 ? Visibility.Visible : Visibility.Collapsed;
-        PopulateShowRatings(_detail);
+        PopulateShowTiles(_detail);
         PopulateShowFacts(_detail);
         var folderOnline = ResolveShowFolderAbs(_detail) != null;
         ShowFolderBtn.IsEnabled = folderOnline;
@@ -775,74 +775,50 @@ public sealed partial class TvShowsPage : Page
 
     // ── v4.6.0: ratings, created by / studios / country, reload from .nfo ──
 
-    /// <summary>Each rating source with its votes, as in the movie window: only with more than one.
-    /// v4.8.0 (#25): one under another below the poster, the votes beside the figure.</summary>
-    private void PopulateShowRatings(TvShowDetail d)
+    /// <summary>
+    /// v5.3.0: tiles as in the movie window, on the header's light wash (it's dark in both themes): each
+    /// rating source with its votes (only with more than one; they were under the poster), about the
+    /// show, and the IDs, which copy on a click.
+    /// </summary>
+    private void PopulateShowTiles(TvShowDetail d)
     {
-        ShowRatingsPanel.Children.Clear();
-        var show = d.AllRatings.Count >= 2 || d.UserRating != null;
-        ShowRatingsPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show) return;
-        var label = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF));
-        foreach (var (source, value, votes) in d.AllRatings)
-        {
-            var stack = new StackPanel { Spacing = 2 };
-            stack.Children.Add(new TextBlock
-            {
-                Text = MovieDetailDialog.PrettySource(source).ToUpperInvariant(),
-                FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                CharacterSpacing = 150, Foreground = label,
-            });
-            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            line.Children.Add(new TextBlock
-            {
-                Text = value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
-                FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                // IMDb gold (as the ★ above), TMDb green; the header is dark in both themes
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(source.ToLowerInvariant() switch
-                {
-                    "imdb" => Windows.UI.Color.FromArgb(0xFF, 0xF5, 0x9E, 0x0B),
-                    "themoviedb" or "tmdb" => Windows.UI.Color.FromArgb(0xFF, 0x01, 0xD2, 0x77),
-                    _ => Microsoft.UI.Colors.White,
-                }),
-            });
-            if (votes is > 0)
-                line.Children.Add(new TextBlock
-                {
-                    Text = MovieDetailDialog.FormatVotes(votes.Value), FontSize = 11, Foreground = label,
-                    VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 3),
-                });
-            stack.Children.Add(line);
-            ShowRatingsPanel.Children.Add(stack);
-        }
-        if (d.UserRating is double user)
-            ShowRatingsPanel.Children.Add(MovieDetailDialog.UserRatingStack(user, label,
-                new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)));
+        ShowTiles.Children.Clear();
+        void Add(UIElement content) => ShowTiles.Children.Add(DetailField.Tile(content, ElementTheme.Dark, wash: true));
+        if (d.AllRatings.Count >= 2 || d.UserRating != null)
+            Add(DetailField.Ratings(d.AllRatings, d.UserRating, ElementTheme.Dark));
+
+        var about = new List<(string, string)>();
+        if (!string.IsNullOrWhiteSpace(d.Premiered))
+            about.Add(("First aired", DateTime.TryParse(d.Premiered, out var aired) ? aired.ToString("MMM d, yyyy") : d.Premiered!));
+        else if (d.Year.HasValue)
+            about.Add(("First aired", d.Year.Value.ToString()));
+        if (!string.IsNullOrWhiteSpace(d.Status)) about.Add(("Status", d.Status!));
+        if (!string.IsNullOrWhiteSpace(d.Mpaa)) about.Add(("Rated", d.Mpaa!));
+        if (d.Runtime is > 0) about.Add(("Length", $"{d.Runtime} min"));
+        if (d.EpisodeCount > 0) about.Add(("Episodes", $"{d.EpisodeCount} · {d.WatchedCount} watched"));
+        if (about.Count > 0) Add(DetailField.Section(DetailField.Kind.Story, "About the show", about, ElementTheme.Dark));
+
+        var ids = new List<(string, string)>();
+        if (!string.IsNullOrWhiteSpace(d.ImdbId)) ids.Add(("IMDb", d.ImdbId!));
+        if (!string.IsNullOrWhiteSpace(d.TmdbId)) ids.Add(("TMDb", d.TmdbId!));
+        if (ids.Count > 0) Add(DetailField.Ids(ids, ElementTheme.Dark));
+        ShowTiles.Visibility = ShowTiles.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>v5.3.0: coloured by kind, as in the movie window (the header is dark in both themes).</summary>
     private void PopulateShowFacts(TvShowDetail d)
     {
         ShowFacts.Children.Clear();
-        void Fact(string caption, IReadOnlyList<string> values)
+        void Fact(DetailField.Kind kind, string caption, IReadOnlyList<string> values)
         {
             if (values.Count == 0) return;
-            var stack = new StackPanel { Spacing = 2, MaxWidth = 360 };
-            stack.Children.Add(new TextBlock
-            {
-                Text = caption, FontSize = 11, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                CharacterSpacing = 120,
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xA3, 0xAF)),
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = string.Join(", ", values), FontSize = 13, TextWrapping = TextWrapping.Wrap,
-                Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0xE0, 0xE0, 0xE0)),
-            });
-            ShowFacts.Children.Add(stack);
+            var field = DetailField.Field(kind, caption, DetailField.Names(values, null, ElementTheme.Dark, fontSize: 14), ElementTheme.Dark);
+            field.MaxWidth = 360;
+            ShowFacts.Children.Add(field);
         }
-        Fact("CREATED BY", d.Creators);
-        Fact(d.Studios.Count > 1 ? "STUDIOS" : "STUDIO", d.Studios);
-        Fact(d.Countries.Count > 1 ? "COUNTRIES" : "COUNTRY", d.Countries);
+        Fact(DetailField.Kind.People, "Created by", d.Creators);
+        Fact(DetailField.Kind.Production, d.Studios.Count > 1 ? "Studios" : "Studio", d.Studios);
+        Fact(DetailField.Kind.Production, d.Countries.Count > 1 ? "Countries" : "Country", d.Countries);
         ShowFacts.Visibility = ShowFacts.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

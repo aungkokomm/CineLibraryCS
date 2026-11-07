@@ -1291,6 +1291,7 @@ public sealed partial class LibraryPage : Page
         AddChip("Actor",    _vm.FilterActor,     () => DropFilter(() => _vm.FilterActor = null));
         AddChip("Director", _vm.FilterDirector,  () => DropFilter(() => _vm.FilterDirector = null));
         AddChip("Studio",   _vm.FilterStudio,    () => DropFilter(() => _vm.FilterStudio = null));
+        AddChip("Writer",   _vm.FilterWriter,    () => DropFilter(() => _vm.FilterWriter = null));
         if (_vm.FavoritesOnly)
             AddChip("Favorites", "♥",   () => DropFilter(() => _vm.FavoritesOnly = false));
         if (_vm.IsWatchlistOnly)
@@ -1334,7 +1335,7 @@ public sealed partial class LibraryPage : Page
         _vm.FavoritesOnly || _vm.IsWatchlistOnly || _vm.IsContinueWatching ||
         _vm.IsRecentlyWatched || _vm.IsRecentlyAdded || _vm.HasNoteOnly || _vm.FewCastOnly ||
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
-        _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null ||
+        _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null || _vm.FilterWriter != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||
         _vm.UserListId != null || _vm.TagId != null;
 

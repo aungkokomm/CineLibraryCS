@@ -210,7 +210,7 @@
                         <!-- v4.5.0 (#24): genres right under the rating / year / runtime line -->
                         <controls:WrapPanel x:Name="GenreChips" HorizontalSpacing="6" VerticalSpacing="6"
                                             Visibility="Collapsed"/>
-                        <!-- Tech badges + ratings on the same row to save vertical space -->
+                        <!-- Tech badges (v5.3.0: the ratings beside them moved into the facts card) -->
                         <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,4,0,0"
                                     VerticalAlignment="Center">
                             <ItemsControl x:Name="TechBadges" VerticalAlignment="Center">
@@ -220,8 +220,6 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
-                            <StackPanel x:Name="RatingsPanel" Orientation="Horizontal" Spacing="18"
-                                        VerticalAlignment="Center" Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -288,6 +286,12 @@
                                 <MenuFlyout x:Name="ListsFlyout" Placement="Bottom" Opening="OnListsFlyoutOpening"/>
                             </Button.Flyout>
                         </Button>
+                        <!-- v5.3.0: with the other buttons, as on the TV page; the Notes card shows once there's a note -->
+                        <Button x:Name="NoteAddBtn" Click="OnNoteEditStart" Visibility="Collapsed"
+                                Background="{ThemeResource CardBrush}"
+                                Foreground="{ThemeResource TextBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}"
+                                CornerRadius="8" Padding="12,8"/>
                     </controls:WrapPanel>
 
                     <!-- v3.4 — TMDB enrichment: fill gaps in the app, then (for real
@@ -384,107 +388,31 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- v4.2.0 (#14): file info, plot, notes and details, one under another.
-                     In a wide window the code moves them beside the poster. -->
+                <!-- v4.2.0 (#14): facts, plot, notes and details, one under another (v5.3.0: the facts
+                     as a row of tiles). In a wide window the code moves them beside the poster. -->
                 <StackPanel x:Name="BodyStack">
-                    <!-- File info panel (v2.2.2) — sits right under the action row -->
-                    <Border x:Name="FileInfoPanel" Visibility="Collapsed"
-                            Margin="0,12,0,0" Padding="12,8"
-                            Background="{ThemeResource CardBrush}"
-                            BorderBrush="{ThemeResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="8">
-                        <controls:WrapPanel HorizontalSpacing="24" VerticalSpacing="8">
-                            <StackPanel x:Name="FiRuntimeBlock" Visibility="Collapsed">
-                                <TextBlock Text="RUNTIME" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiRuntime" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiReleaseBlock" Visibility="Collapsed">
-                                <TextBlock Text="RELEASED" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiRelease" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiMpaaBlock" Visibility="Collapsed">
-                                <TextBlock Text="RATED" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiMpaa" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiCountryBlock" Visibility="Collapsed">
-                                <TextBlock Text="COUNTRY" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiCountry" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiSizeBlock" Visibility="Collapsed">
-                                <TextBlock Text="FILE SIZE" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiSize" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiDurBlock" Visibility="Collapsed">
-                                <TextBlock Text="DURATION" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiDur" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiContainerBlock" Visibility="Collapsed">
-                                <TextBlock Text="FILE TYPE" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiContainer" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <!-- 5.1.0 (#25): from the .nfo, and each time the player reaches the end -->
-                            <StackPanel x:Name="FiPlaysBlock" Visibility="Collapsed">
-                                <TextBlock Text="PLAYED" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiPlays" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiLangBlock" Visibility="Collapsed">
-                                <TextBlock Text="AUDIO" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiLangs" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                            <StackPanel x:Name="FiSubsBlock" Visibility="Collapsed">
-                                <TextBlock Text="SUBTITLES" FontSize="9" FontWeight="SemiBold"
-                                           CharacterSpacing="150" Opacity="0.65"
-                                           Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="FiSubs" FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{ThemeResource TextBrush}"/>
-                            </StackPanel>
-                        </controls:WrapPanel>
+                    <StackPanel x:Name="BodyMain"/>
+
+                    <!-- v5.3.0: tiles for the ratings, about the film, the file and the IDs, built in code;
+                         each as wide as what's in it, and the tiles in a row as tall as each other -->
+                    <Border x:Name="FactsCard" Visibility="Collapsed" Margin="0,20,0,0">
+                        <controls:WrapPanel x:Name="FactsStack" HorizontalSpacing="12" VerticalSpacing="12"/>
                     </Border>
 
                     <!-- Plot — with section header + capped width for readability -->
                     <StackPanel x:Name="PlotBlock">
-                        <Border x:Name="PlotDivider" Visibility="Collapsed"
-                                Height="1" Background="{ThemeResource BorderBrush}"
-                                Margin="0,24,0,0" Opacity="0.5"/>
                         <StackPanel x:Name="PlotSection" Visibility="Collapsed" Margin="0,20,0,0" Spacing="8">
                             <TextBlock Text="OVERVIEW" FontSize="10" FontWeight="SemiBold"
-                                       CharacterSpacing="150" Opacity="0.65"
-                                       Foreground="{ThemeResource MutedBrush}"/>
+                                       CharacterSpacing="150"
+                                       Foreground="{ThemeResource DetailStoryBrush}"/>
                             <TextBlock x:Name="PlotText" FontSize="14" Foreground="{ThemeResource TextBrush}"
                                        TextWrapping="Wrap" LineHeight="22" MaxWidth="780"
                                        HorizontalAlignment="Left"/>
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Notes (v1.9) -->
-                    <Border x:Name="NotesCard" Margin="0,20,0,0" Padding="14,12"
+                    <!-- Notes (v1.9). v5.3.0: only with a note, or while writing one -->
+                    <Border x:Name="NotesCard" Visibility="Collapsed" Margin="0,20,0,0" Padding="14,12"
                             Background="{ThemeResource CardBrush}"
                             BorderBrush="{ThemeResource BorderBrush}"
                             BorderThickness="1" CornerRadius="8">
@@ -499,12 +427,6 @@
                                            Foreground="{ThemeResource TextBrush}"
                                            VerticalAlignment="Center"/>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                    <Button x:Name="NoteAddBtn" Click="OnNoteEditStart"
-                                            Content="+ Add note" Visibility="Collapsed"
-                                            Background="Transparent"
-                                            Foreground="{ThemeResource MutedBrush}"
-                                            BorderBrush="{ThemeResource BorderBrush}"
-                                            CornerRadius="6" Padding="10,4" FontSize="12"/>
                                     <Button x:Name="NoteEditBtn" Click="OnNoteEditStart"
                                             Content="Edit" Visibility="Collapsed"
                                             Background="Transparent"
@@ -540,43 +462,21 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- v5.3.0: people (director, writer) and production (studios, country), coloured
+                         by kind, in a row of four, two by two or one under another; filled in code -->
                     <StackPanel x:Name="FieldsBlock">
-                        <!-- Subtle section divider before fields grid -->
-                        <Border x:Name="FieldsDivider" Height="1" Background="{ThemeResource BorderBrush}"
-                                Margin="0,24,0,0" Opacity="0.5"/>
-
-                        <!-- Fields grid -->
-                        <Grid x:Name="FieldsGrid" Margin="0,20,0,0" SizeChanged="OnFieldsGridSizeChanged">
+                        <Grid x:Name="FieldsGrid" Margin="0,24,0,0" ColumnSpacing="28" RowSpacing="18"
+                              SizeChanged="OnFieldsGridSizeChanged">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <!-- v4.5.0 (#24): Director where Genres was (they moved up), then Writer -->
-                            <StackPanel Grid.Column="0" x:Name="DirectorField" Visibility="Collapsed" Spacing="4">
-                                <TextBlock Text="DIRECTOR" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
-                                <controls:WrapPanel x:Name="DirectorLinks" HorizontalSpacing="4" VerticalSpacing="2"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" x:Name="WriterField" Visibility="Collapsed" Spacing="4">
-                                <TextBlock Text="WRITER" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="WriterText" FontSize="15" Foreground="{ThemeResource TextBrush}"
-                                           TextWrapping="Wrap" Margin="0,1,0,0"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Spacing="4">
-                                <TextBlock x:Name="StudioLabel" Visibility="Collapsed"
-                                           Text="STUDIO" FontSize="10" FontWeight="SemiBold" CharacterSpacing="150" Opacity="0.65" Foreground="{ThemeResource MutedBrush}"/>
-                                <TextBlock x:Name="StudioText" Visibility="Collapsed"
-                                           FontSize="15" Foreground="{ThemeResource TextBrush}"
-                                           TextWrapping="Wrap"/>
-                                <!-- v4.6.0: every studio, not just the first -->
-                                <controls:WrapPanel x:Name="StudioLinks" Visibility="Collapsed"
-                                                    HorizontalSpacing="4" VerticalSpacing="2"/>
-                            </StackPanel>
+                            <StackPanel x:Name="DirectorField" Visibility="Collapsed"/>
+                            <StackPanel x:Name="WriterField" Visibility="Collapsed"/>
+                            <StackPanel x:Name="StudioField" Visibility="Collapsed"/>
+                            <StackPanel x:Name="CountryField" Visibility="Collapsed"/>
                         </Grid>
                     </StackPanel>
                 </StackPanel>

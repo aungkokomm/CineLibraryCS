@@ -313,7 +313,6 @@ public sealed partial class MovieDetailDialog : Window
         {
             PlotText.Text = plotText;
             PlotSection.Visibility = Visibility.Visible;
-            PlotDivider.Visibility = Visibility.Visible;
         }
 
         // Genres — clickable, filters library on click. v4.5.0 (#24): chips right
@@ -337,41 +336,33 @@ public sealed partial class MovieDetailDialog : Window
             GenreChips.Children.Add(chip);
         }
 
-        // Directors — clickable
-        if (m.Directors.Count > 0)
+        // v5.3.0: people and production, coloured by kind; every name a link to the library filtered by it
+        // (writers too now). v4.5.0 (#24): the first four writers, all of them on hover when there are more.
+        void Fill(StackPanel field, DetailField.Kind kind, string label, IReadOnlyList<string> names,
+                  Action<MainWindow, string>? go, int max = int.MaxValue)
         {
-            DirectorField.Visibility = Visibility.Visible;
-            AddLinks(DirectorLinks, m.Directors, d => NavigateAndClose(mw => mw.NavigateLibraryByDirector(d)));
+            field.Children.Clear();
+            if (names.Count == 0) return;
+            field.Children.Add(DetailField.Field(kind, label,
+                DetailField.Names(names, go == null ? null : n => NavigateAndClose(mw => go(mw, n)), max: max, hover: DetailField.Brush(kind))));
+            field.Visibility = Visibility.Visible;
         }
+        Fill(DirectorField, DetailField.Kind.People, m.Directors.Count > 1 ? "Directors" : "Director", m.Directors,
+             (mw, d) => mw.NavigateLibraryByDirector(d));
+        Fill(WriterField, DetailField.Kind.People, m.Writers.Count > 1 ? "Writers" : "Writer", m.Writers,
+             (mw, w) => mw.NavigateLibraryByWriter(w), max: 4);
+        Fill(StudioField, DetailField.Kind.Production, m.Studios.Count > 1 ? "Studios" : "Studio", m.Studios,
+             (mw, s) => mw.NavigateLibraryByStudio(s));
+        Fill(CountryField, DetailField.Kind.Production, m.Countries.Count > 1 ? "Countries" : "Country", m.Countries, null);
+        ArrangeFields(FieldsGrid.ActualWidth);
 
-        // v4.5.0 (#24): writers, the first four; all of them on hover when there are more
-        if (m.Writers.Count > 0)
-        {
-            WriterField.Visibility = Visibility.Visible;
-            WriterText.Text = string.Join(", ", m.Writers.Take(4))
-                + (m.Writers.Count > 4 ? $" +{m.Writers.Count - 4} more" : "");
-            ToolTipService.SetToolTip(WriterText, m.Writers.Count > 4 ? string.Join(", ", m.Writers) : null);
-        }
-
-        // Tech badges + ratings + file info (v2.2)
+        // Tech badges (v2.2); v5.3.0: ratings, about the film, the file and the IDs in one card
         PopulateTechBadges(m);
-        PopulateRatingsPanel(m);
-        PopulateFileInfo(m);
+        PopulateFacts(m);
         // Lists this movie is on (v2.5) — chip row with per-list ✕.
         RefreshListChips();
         // v2.9 — Free-form tags chip row + autocomplete.
         RefreshTagChips();
-
-        // Studios, each a link to the library filtered by it (v4.6.0: all of
-        // them, where it showed the first)
-        if (m.Studios.Count > 0)
-        {
-            StudioLabel.Text = m.Studios.Count > 1 ? "STUDIOS" : "STUDIO";
-            StudioLabel.Visibility = Visibility.Visible;
-            StudioText.Visibility = Visibility.Collapsed;
-            AddLinks(StudioLinks, m.Studios, s => NavigateAndClose(mw => mw.NavigateLibraryByStudio(s)));
-            StudioLinks.Visibility = Visibility.Visible;
-        }
 
         // Cast — show the list right away; trickle thumbnail loads in
         // batches so the first paint isn't blocked by many parallel image
@@ -835,17 +826,14 @@ public sealed partial class MovieDetailDialog : Window
         _castAll = false;
         foreach (var e in new FrameworkElement[]
                  {
-                     OriginalTitle, TaglineWrap, PlotSection, PlotDivider, DirectorField, WriterField,
-                     StudioLabel, StudioText, StudioLinks, CastSection, CastDivider, CastShowAllBtn, TrailerBtn,
-                     CollectionSection, DirectorSection, FileInfoPanel, FiRuntimeBlock, FiReleaseBlock,
-                     FiMpaaBlock, FiCountryBlock, FiSizeBlock, FiDurBlock, FiContainerBlock, FiPlaysBlock, FiLangBlock,
-                     FiSubsBlock, AddTagBox,
+                     OriginalTitle, TaglineWrap, PlotSection, DirectorField, WriterField, StudioField, CountryField,
+                     CastSection, CastDivider, CastShowAllBtn, TrailerBtn, CollectionSection, DirectorSection,
+                     FactsCard, NotesCard, AddTagBox,
                  })
             e.Visibility = Visibility.Collapsed;
         AddTagBtn.Visibility = Visibility.Visible;
-        DirectorLinks.Children.Clear();
-        StudioLinks.Children.Clear();
-        ToolTipService.SetToolTip(WriterText, null);
+        foreach (var field in new[] { DirectorField, WriterField, StudioField, CountryField }) field.Children.Clear();
+        FactsStack.Children.Clear();
         CastRepeater.ItemsSource = null;
         CollectionRepeater.ItemsSource = null;
         DirectorRepeater.ItemsSource = null;
@@ -922,30 +910,6 @@ public sealed partial class MovieDetailDialog : Window
     {
         if (App.MainWindow is MainWindow mw) nav(mw);
         Close();
-    }
-
-    /// <summary>
-    /// v4.8.0 (#25): names as links, a comma after each but the last (as Country
-    /// has), kept with its name so a wrapped line never starts with one.
-    /// </summary>
-    private static void AddLinks(Panel panel, IReadOnlyList<string> names, Action<string> onClick)
-    {
-        panel.Children.Clear();
-        for (int i = 0; i < names.Count; i++)
-        {
-            var name = names[i];
-            var link = new HyperlinkButton { Content = name, Padding = new Thickness(0), FontSize = 15 };
-            link.Click += (_, _) => onClick(name);
-            if (i == names.Count - 1) { panel.Children.Add(link); break; }
-            var item = new StackPanel { Orientation = Orientation.Horizontal };
-            item.Children.Add(link);
-            item.Children.Add(new TextBlock
-            {
-                Text = ",", FontSize = 15, VerticalAlignment = VerticalAlignment.Center,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"),
-            });
-            panel.Children.Add(item);
-        }
     }
 
     // ── Tech badges, ratings, trailer, file info (v2.2) ──────────────────────
@@ -1085,80 +1049,6 @@ public sealed partial class MovieDetailDialog : Window
         return parts.Count == 0 ? null : string.Join(" ", parts);
     }
 
-    private void PopulateRatingsPanel(MovieDetail m)
-    {
-        RatingsPanel.Children.Clear();
-        // v4.5.1 (#24): one source would only repeat the yellow chip.
-        if (m.AllRatings.Count < 2 && m.UserRating == null)
-        {
-            RatingsPanel.Visibility = Visibility.Collapsed;
-            return;
-        }
-        RatingsPanel.Visibility = Visibility.Visible;
-        foreach (var rt in m.AllRatings)
-        {
-            var sourceLabel = PrettySource(rt.Source);
-            var stack = new StackPanel { Spacing = 2 };
-            stack.Children.Add(new TextBlock
-            {
-                Text = sourceLabel.ToUpperInvariant(),
-                FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                CharacterSpacing = 150, Opacity = 0.65,
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
-            });
-            // v4.5.1: values are out of 10 now (max="100" is scaled), so the
-            // Rotten Tomatoes score goes back to a percentage.
-            var tomatoes = rt.Source.ToLowerInvariant() is "rottentomatoes" or "tomatometerallcritics" or "tomatometerallaudience";
-            stack.Children.Add(new TextBlock
-            {
-                Text = tomatoes
-                    ? (rt.Value * 10).ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + "%"
-                    : rt.Value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
-                FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                // v4.6.0: IMDb gold (as the ★), TMDb green
-                Foreground = CineLibraryCS.Services.ThemeBrushes.Get(rt.Source.ToLowerInvariant() switch
-                {
-                    "imdb" => "ImdbGoldBrush",
-                    "themoviedb" or "tmdb" => "TmdbGreenBrush",
-                    _ => "TextBrush",
-                }),
-            });
-            if (rt.Votes.HasValue && rt.Votes.Value > 0)
-            {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = FormatVotes(rt.Votes.Value),
-                    FontSize = 10,
-                    Foreground = CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"),
-                });
-            }
-            RatingsPanel.Children.Add(stack);
-        }
-        if (m.UserRating is double user)
-            RatingsPanel.Children.Add(UserRatingStack(user,
-                CineLibraryCS.Services.ThemeBrushes.Get("MutedBrush"), CineLibraryCS.Services.ThemeBrushes.Get("TextBrush"), 0.65));
-    }
-
-    /// <summary>v4.7.0 (#25): the .nfo's user rating, after the other sources.
-    /// v4.8.0 (#25): labelled "USER", as other apps and sites do.</summary>
-    internal static StackPanel UserRatingStack(double value, Microsoft.UI.Xaml.Media.Brush label,
-        Microsoft.UI.Xaml.Media.Brush valueBrush, double labelOpacity = 1)
-    {
-        var stack = new StackPanel { Spacing = 2 };
-        stack.Children.Add(new TextBlock
-        {
-            Text = "USER",
-            FontSize = 9, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CharacterSpacing = 150, Opacity = labelOpacity, Foreground = label,
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "/10",
-            FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = valueBrush,
-        });
-        return stack;
-    }
-
     internal static string PrettySource(string src) => src.ToLowerInvariant() switch
     {
         "imdb" => "IMDb",
@@ -1177,89 +1067,48 @@ public sealed partial class MovieDetailDialog : Window
         _            => $"{votes} votes",
     };
 
-    private void PopulateFileInfo(MovieDetail m)
+    /// <summary>
+    /// v5.3.0: a tile each for the ratings, about the film, the file and the IDs, where a strip mixed the
+    /// film's facts with the file's. The length shows once: the file's own only when it differs from
+    /// the .nfo's runtime by more than five minutes (another cut, or a wrong runtime).
+    /// </summary>
+    private void PopulateFacts(MovieDetail m)
     {
-        bool any = false;
-        // Runtime / Released / Rated / Country — folded in from the old
-        // below-poster column so the row stays compact (v2.3.x).
-        if (m.Runtime.HasValue && m.Runtime.Value > 0)
-        {
-            FiRuntime.Text = $"{m.Runtime.Value} min";
-            FiRuntimeBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
+        FactsStack.Children.Clear();
+        void Add(UIElement content) => FactsStack.Children.Add(DetailField.Tile(content));
+        // v4.5.1 (#24): one source would only repeat the yellow chip
+        if (m.AllRatings.Count >= 2 || m.UserRating != null)
+            Add(DetailField.Ratings(m.AllRatings, m.UserRating));
+
+        var film = new List<(string, string)>();
+        if (m.Runtime is > 0) film.Add(("Runtime", $"{m.Runtime.Value} min"));
         if (!string.IsNullOrWhiteSpace(m.Premiered))
-        {
-            FiRelease.Text = DateTime.TryParse(m.Premiered, out var dt)
-                ? dt.ToString("MMM d, yyyy")
-                : m.Premiered!;
-            FiReleaseBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
+            film.Add(("Released", DateTime.TryParse(m.Premiered, out var dt) ? dt.ToString("MMM d, yyyy") : m.Premiered!));
         else if (m.Year.HasValue)
-        {
-            FiRelease.Text = m.Year.Value.ToString();
-            FiReleaseBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.Mpaa))
-        {
-            FiMpaa.Text = m.Mpaa!;
-            FiMpaaBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (m.Countries.Count > 0)   // v4.6.0: all of them
-        {
-            FiCountry.Text = string.Join(", ", m.Countries);
-            FiCountryBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (m.FileSizeBytes.HasValue && m.FileSizeBytes.Value > 0)
-        {
-            FiSize.Text = FormatBytes(m.FileSizeBytes.Value);
-            FiSizeBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (m.DurationSeconds.HasValue && m.DurationSeconds.Value > 0)
-        {
-            FiDur.Text = FormatDuration(m.DurationSeconds.Value);
-            FiDurBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.ContainerExt))
-        {
-            FiContainer.Text = m.ContainerExt.ToUpperInvariant();
-            FiContainerBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
-        if (!string.IsNullOrWhiteSpace(m.AudioLanguages))
-        {
-            FiLangs.Text = m.AudioLanguages.Replace(",", " · ");
-            FiLangBlock.Visibility = Visibility.Visible;
-            any = true;
-        }
+            film.Add(("Released", m.Year.Value.ToString()));
+        if (!string.IsNullOrWhiteSpace(m.Mpaa)) film.Add(("Rated", m.Mpaa!));
+        // 5.1.0 (#25): from the .nfo, and each time the player reaches the end
+        if (m.PlayCount > 0) film.Add(("Played", m.PlayCount == 1 ? "1 time" : $"{m.PlayCount} times"));
+        if (film.Count > 0) Add(DetailField.Section(DetailField.Kind.Story, "About the film", film));
+
+        var file = new List<(string, string)>();
+        if (m.DurationSeconds is > 0 && (m.Runtime is not > 0 || Math.Abs(m.Runtime.Value * 60 - m.DurationSeconds.Value) > 300))
+            file.Add(("Length", FormatDuration(m.DurationSeconds.Value)));
+        if (m.FileSizeBytes is > 0) file.Add(("Size", FormatBytes(m.FileSizeBytes.Value)));
+        if (!string.IsNullOrWhiteSpace(m.ContainerExt)) file.Add(("Type", m.ContainerExt.ToUpperInvariant()));
+        if (!string.IsNullOrWhiteSpace(m.AudioLanguages)) file.Add(("Audio", m.AudioLanguages.Replace(",", " · ")));
         if (!string.IsNullOrWhiteSpace(m.SubtitleLanguages))
         {
             var subs = m.SubtitleLanguages.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            FiSubs.Text = subs.Length switch
-            {
-                0 => "—",
-                1 => subs[0],
-                <= 3 => string.Join(" · ", subs),
-                _ => $"{subs.Length} tracks",
-            };
-            FiSubsBlock.Visibility = Visibility.Visible;
-            any = true;
+            if (subs.Length > 0) file.Add(("Subtitles", subs.Length <= 3 ? string.Join(" · ", subs) : $"{subs.Length} tracks"));
         }
-        FileInfoPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        ShowPlays(m.PlayCount);
-    }
+        if (file.Count > 0) Add(DetailField.Section(DetailField.Kind.File, "The file", file));
 
-    private void ShowPlays(int count)
-    {
-        if (count <= 0) return;
-        FiPlays.Text = count == 1 ? "1 time" : $"{count} times";
-        FiPlaysBlock.Visibility = FileInfoPanel.Visibility = Visibility.Visible;
+        var ids = new List<(string, string)>();
+        if (!string.IsNullOrWhiteSpace(m.ImdbId)) ids.Add(("IMDb", m.ImdbId!));
+        if (!string.IsNullOrWhiteSpace(m.TmdbId)) ids.Add(("TMDb", m.TmdbId!));
+        if (ids.Count > 0) Add(DetailField.Ids(ids));
+        FactsCard.Visibility = FactsStack.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string FormatBytes(long b)
@@ -1312,27 +1161,29 @@ public sealed partial class MovieDetailDialog : Window
         DetailTitle.FontSize   = narrow ? 26 : 34;
         DetailTitle.LineHeight = narrow ? 32 : 40;
 
-        // Wide: everything up to the cast sits beside the poster. Buttons and plot
-        // go under the title; genres, director, studio, file info and notes get a
-        // column of their own. Otherwise they stack under the poster as before.
-        foreach (var block in new FrameworkElement[] { ActionsBlock, FileInfoPanel, PlotBlock, NotesCard, FieldsBlock })
+        // Wide: everything up to the cast sits beside the poster. Buttons, plot and the people
+        // go under the title; the fact tiles and notes get a column of their own. v5.3.0: otherwise,
+        // under the poster, the tiles in a row where the strip was, then the plot, notes and people.
+        foreach (var block in new FrameworkElement[] { ActionsBlock, FactsCard, PlotBlock, NotesCard, FieldsBlock })
             Detach(block);
         if (wide)
         {
             MetaStack.Children.Add(ActionsBlock);
             MetaStack.Children.Add(PlotBlock);
-            SideStack.Children.Add(FieldsBlock);
-            SideStack.Children.Add(FileInfoPanel);
+            MetaStack.Children.Add(FieldsBlock);
+            SideStack.Children.Add(FactsCard);
             SideStack.Children.Add(NotesCard);
         }
         else
         {
             ContentStack.Children.Insert(ContentStack.Children.IndexOf(TopGrid) + 1, ActionsBlock);
-            BodyStack.Children.Add(FileInfoPanel);
-            BodyStack.Children.Add(PlotBlock);
-            BodyStack.Children.Add(NotesCard);
-            BodyStack.Children.Add(FieldsBlock);
+            BodyMain.Children.Add(FactsCard);
+            BodyMain.Children.Add(PlotBlock);
+            BodyMain.Children.Add(NotesCard);
+            BodyMain.Children.Add(FieldsBlock);
         }
+        // At the top of the side column the tiles line up with the title's column
+        FactsCard.Margin = new Thickness(0, wide ? 0 : 20, 0, 0);
         // The title column stops at a readable width; the details column takes the rest.
         var main = TopGrid.ColumnDefinitions[1];
         var side = TopGrid.ColumnDefinitions[2];
@@ -1340,9 +1191,6 @@ public sealed partial class MovieDetailDialog : Window
         main.MaxWidth = wide ? 900 : double.PositiveInfinity;
         side.Width = wide ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
         side.MinWidth = wide ? 340 : 0;
-        // At the top of the details column the divider has nothing to divide
-        FieldsDivider.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
-        FieldsGrid.Margin = new Thickness(0, wide ? 0 : 20, 0, 0);
     }
 
     private static void Detach(FrameworkElement element)
@@ -1350,21 +1198,29 @@ public sealed partial class MovieDetailDialog : Window
         if (element.Parent is Panel parent) parent.Children.Remove(element);
     }
 
-    // v4.2.0: Genres, Director and Studio side by side, or one under another
-    // when the grid is narrow (a small window, or the wide layout's side column).
-    private void OnFieldsGridSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnFieldsGridSizeChanged(object sender, SizeChangedEventArgs e) => ArrangeFields(e.NewSize.Width);
+
+    /// <summary>
+    /// v5.3.0: the people and production fields in a row of four (director, writers, studios, country),
+    /// two by two when the grid is narrower, one under another when narrow. Only those the film has,
+    /// so none leaves a gap.
+    /// </summary>
+    private void ArrangeFields(double width)
     {
-        bool stack = e.NewSize.Width < 600;
-        FieldsGrid.ColumnDefinitions[1].Width = stack ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        FieldsGrid.ColumnDefinitions[2].Width = stack ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        FieldsGrid.ColumnSpacing = stack ? 0 : 24;   // v4.5.0: a long Writer list ran into Studio
-        for (int i = 0; i < FieldsGrid.Children.Count; i++)
+        int columns = width <= 0 || width >= 1000 ? 4 : width >= 520 ? 2 : 1;
+        while (FieldsGrid.ColumnDefinitions.Count < columns) FieldsGrid.ColumnDefinitions.Add(new ColumnDefinition());
+        while (FieldsGrid.ColumnDefinitions.Count > columns) FieldsGrid.ColumnDefinitions.RemoveAt(FieldsGrid.ColumnDefinitions.Count - 1);
+        FieldsGrid.ColumnSpacing = columns > 1 ? 28 : 0;   // v4.5.0: a long Writer list ran into Studio
+        var shown = FieldsGrid.Children.Cast<FrameworkElement>().Where(f => f.Visibility == Visibility.Visible).ToList();
+        int rows = (shown.Count + columns - 1) / columns;
+        while (FieldsGrid.RowDefinitions.Count < rows) FieldsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        while (FieldsGrid.RowDefinitions.Count > Math.Max(rows, 1)) FieldsGrid.RowDefinitions.RemoveAt(FieldsGrid.RowDefinitions.Count - 1);
+        for (int i = 0; i < shown.Count; i++)
         {
-            var field = (FrameworkElement)FieldsGrid.Children[i];
-            Grid.SetColumn(field, stack ? 0 : i);
-            Grid.SetRow(field, stack ? i : 0);
-            field.Margin = new Thickness(0, stack && i > 0 ? 14 : 0, 0, 0);
+            Grid.SetColumn(shown[i], i % columns);
+            Grid.SetRow(shown[i], i / columns);
         }
+        FieldsBlock.Visibility = shown.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Sticky action bar + external link buttons (v2.3) ─────────────────
@@ -1417,12 +1273,15 @@ public sealed partial class MovieDetailDialog : Window
             var movie = _movie;
             await VideoPlayer.PlayAsync(videoPath, new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), (_, watched) =>
             {
-                // v4.10.0: the built-in player marks it watched near the end
+                // v4.10.0: the built-in player marks it watched near the end. v5.3.0: only on this film's
+                // page; after stepping to another one, its count and buttons aren't this film's.
                 if (_closed) return;
-                ShowPlays(AppState.Instance.Db.GetPlayCount(movie.Id));
+                var shown = ReferenceEquals(_movie, movie);
+                movie.PlayCount = AppState.Instance.Db.GetPlayCount(movie.Id);
+                if (shown) PopulateFacts(movie);
                 if (!watched) return;
                 movie.IsWatched = true;
-                WatchedBtn.Content = ActionLabel.Watched(true);
+                if (shown) WatchedBtn.Content = ActionLabel.Watched(true);
                 WatchlistChanged?.Invoke(this, EventArgs.Empty);
             });
         }
@@ -1775,6 +1634,9 @@ public sealed partial class MovieDetailDialog : Window
         {
             if (_movie == null) return;
             var hasNote = !string.IsNullOrWhiteSpace(_movie.Note);
+            // v5.3.0: "Add note" waits in the button row; the card is there with a note, or while writing one
+            NoteAddBtn.Content ??= ActionLabel.Note("Add note");
+            NotesCard.Visibility = viewing && !hasNote ? Visibility.Collapsed : Visibility.Visible;
 
             if (viewing)
             {

@@ -1784,6 +1784,16 @@ public sealed partial class MainWindow : Window
         catch { }
     }
 
+    /// <summary>v5.3.0: from the movie window, where the writers are links too.</summary>
+    public void NavigateLibraryByWriter(string writer)
+    {
+        if (_libraryPage == null) NavigateTo("library");
+        _libraryPage?.ViewModel.FilterByWriter(writer);
+        _libraryPage?.UpdatePageTitle($"All movies › {writer}");
+        if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
+        ClearLibraryBack();
+    }
+
     public void NavigateLibraryByStudio(string studio)
     {
         if (_libraryPage == null) NavigateTo("library");

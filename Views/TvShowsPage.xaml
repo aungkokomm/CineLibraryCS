@@ -152,6 +152,10 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
                                         <StackPanel Grid.Column="0" Width="180" Spacing="20" VerticalAlignment="Top">
                                             <!-- Poster (v4.7.0 #25: a little bigger, still under the movie window's) -->
                                             <Border Height="270" CornerRadius="10"
@@ -163,10 +167,6 @@
                                                     <Image x:Name="ShowPoster" Stretch="UniformToFill"/>
                                                 </Grid>
                                             </Border>
-                                            <!-- v4.6.0: each rating source with its votes, when there's more than one.
-                                                 v4.8.0 (#25): under the poster, out of the info lines -->
-                                            <StackPanel x:Name="ShowRatingsPanel" Spacing="14" Margin="4,0,0,0"
-                                                        Visibility="Collapsed"/>
                                         </StackPanel>
                                         <!-- Meta -->
                                         <StackPanel x:Name="ShowMeta" Grid.Column="1" Spacing="14" VerticalAlignment="Top"
@@ -210,6 +210,10 @@
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
                                             </Grid>
+                                        </StackPanel>
+                                        <!-- v5.3.0: the rest across the page under the poster, as in the movie window,
+                                             where it left the poster's column empty below it -->
+                                        <StackPanel x:Name="ShowBody" Grid.Row="1" Grid.ColumnSpan="2" Spacing="14" Margin="0,20,0,0">
                                             <!-- v4.0.1: drive location, as in the movie window -->
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="Located on:" FontSize="12" Foreground="#A0A0A0"
@@ -246,7 +250,8 @@
 
                                             <!-- v3.10.0: TMDB fill-in, as in the movie details window.
                                                  Fills only what the show is missing. -->
-                                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                                            <!-- v5.3.0: wraps like the buttons above; in a smaller window Reload from .nfo was cut off -->
+                                            <controls:WrapPanel HorizontalSpacing="10" VerticalSpacing="8" VerticalAlignment="Top">
                                                 <!-- v4.3.0 (#17) -->
                                                 <Button x:Name="ShowNoteBtn" Click="OnEditShowNote"
                                                         Background="#22FFFFFF" Foreground="White"
@@ -276,7 +281,7 @@
                                                               VerticalAlignment="Center"/>
                                                 <TextBlock x:Name="ShowTmdbStatus" Visibility="Collapsed" FontSize="12"
                                                            Foreground="#B8B8C4" VerticalAlignment="Center"/>
-                                            </StackPanel>
+                                            </controls:WrapPanel>
                                             <!-- v2.9 show tags: chips with ✕ to remove, "+ Add tag" suggests existing ones.
                                                  v4.8.0 (#25): on a line of their own under these buttons, as in the movie window -->
                                             <controls:WrapPanel x:Name="ShowTagsRow" HorizontalSpacing="6"
@@ -316,6 +321,10 @@
                                                                 LostFocus="OnAddShowTagBlur"
                                                                 VerticalAlignment="Center"/>
                                             </controls:WrapPanel>
+                                            <!-- v5.3.0: tiles for the ratings (were under the poster), about the show
+                                                 and the IDs, as in the movie window; built in code -->
+                                            <controls:WrapPanel x:Name="ShowTiles" HorizontalSpacing="12" VerticalSpacing="12"
+                                                                Margin="0,6,0,0" Visibility="Collapsed"/>
                                             <!-- v4.6.0: created by, studios, country. v4.8.0 (#25): under the tags -->
                                             <controls:WrapPanel x:Name="ShowFacts" HorizontalSpacing="32" VerticalSpacing="10"
                                                                 MaxWidth="760" HorizontalAlignment="Left"

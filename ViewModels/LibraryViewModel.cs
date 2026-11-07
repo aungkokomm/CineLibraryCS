@@ -30,6 +30,7 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterActor = null;
     [ObservableProperty] private string? _filterDirector = null;
     [ObservableProperty] private string? _filterStudio = null;
+    [ObservableProperty] private string? _filterWriter = null;   // v5.3.0
     [ObservableProperty] private int? _filterDecadeStart = null;
     [ObservableProperty] private string? _filterRatingBand = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
@@ -146,6 +147,7 @@ public partial class LibraryViewModel : ObservableObject
         Actor: FilterActor,
         Director: FilterDirector,
         Studio: FilterStudio,
+        Writer: FilterWriter,
         CollectionId: CollectionId,
         WatchedFilter: WatchedFilter switch
         {
@@ -386,6 +388,14 @@ public partial class LibraryViewModel : ObservableObject
         _ = LoadAsync();
     }
 
+    public void FilterByWriter(string writer)
+    {
+        ResetAllFilters();
+        FilterWriter = writer;
+        PageTitle = $"Written by {writer}";
+        _ = LoadAsync();
+    }
+
     public void FilterByDecade(int decadeStart, string label)
     {
         ResetAllFilters();
@@ -407,6 +417,7 @@ public partial class LibraryViewModel : ObservableObject
         FilterActor = null;
         FilterDirector = null;
         FilterStudio = null;
+        FilterWriter = null;
         Genre = null;
         DriveSerial = null;
         CollectionId = null;
