@@ -20,6 +20,9 @@ internal static class BuiltInPlayer
     /// <summary>An item stopped and where it stopped is saved (on the UI thread).</summary>
     public static event Action<PlaybackItem>? Stopped;
 
+    /// <summary>5.3.0: a video is open in the player (background work waits for it).</summary>
+    public static bool IsOpen => _session != null;
+
     /// <summary>
     /// False when the built-in player couldn't start (the caller then uses the other player).
     /// A file VLC turns out unable to play goes to <paramref name="fallback"/>.
@@ -49,8 +52,9 @@ internal static class BuiltInPlayer
         session.SetNeighbours(tag => tag is PlaybackItem { Kind: PlaybackKind.Episode } episode ? Adjacent(episode, next: false) : null,
                               tag => tag is PlaybackItem { Kind: PlaybackKind.Episode } episode ? Adjacent(episode, next: true) : null);
         session.FindPauseInfo = PauseInfoFor;
-        session.FindCredits = CreditsFor;          // 5.3.0
+        session.FindSkipTimes = SkipTimesFor;      // 5.3.0
         session.SkippedToNext += LearnCredits;
+        session.SkippedIntro += LearnIntro;
         session.FindSubtitleFilm = SubtitleFilmFor;
         session.ChoiceChanged += (tag, choice) => { if (tag is PlaybackItem chosen) db.SetTrackChoice(chosen.Kind == PlaybackKind.Episode, chosen.Id, choice); };
         session.ItemStarted += tag => { if (tag is PlaybackItem { Kind: PlaybackKind.Episode } episode) db.MarkEpisodePlayed(episode.Id); };
@@ -214,6 +218,37 @@ internal static class BuiltInPlayer
         tag is PlaybackItem { Kind: PlaybackKind.Episode } episode && AppState.Instance.Db.GetCreditsFromEnd(episode.Id) is long fromEnd
             ? length - fromEnd : null;
 
+    /// <summary>
+    /// 5.3.0: where an item's intro, recap and credits are when its chapters don't say: TheIntroDB's times
+    /// (when on in Settings) as far as they fit this file, else for an episode what was learned in its season.
+    /// </summary>
+    private static async Task<SkipTimes?> SkipTimesFor(object? tag, long length)
+    {
+        if (tag is not PlaybackItem item) return null;
+        var asked = UiSettings.SkipTimesOnline ? await TheIntroDb.GetAsync(item, length) : null;
+        var online = asked is null ? null : TheIntroDb.Matched(asked, length);
+        if (asked is { } a && a != online)
+            PlayerLog.Write($"TheIntroDB times are for a {a.VersionLength} ms version, this file is {length} ms: {(online is null ? "none" : "all but the credits")} used");
+        if (item.Kind != PlaybackKind.Episode) return online;
+        var db = AppState.Instance.Db;
+        var credits = online?.Credits ?? CreditsFor(tag, length);
+        var learned = online?.IntroStart is null ? db.GetIntroSpan(item.Id) : null;
+        return (online ?? SkipTimes.None) with
+        {
+            Credits = credits,
+            IntroStart = online?.IntroStart ?? learned?.Start,
+            IntroEnd = online?.IntroEnd ?? learned?.End,
+        };
+    }
+
+    /// <summary>5.3.0: jumped over an episode's intro: the season's next ones offer to skip it there.</summary>
+    private static void LearnIntro(object? tag, long from, long to)
+    {
+        if (tag is not PlaybackItem { Kind: PlaybackKind.Episode } episode) return;
+        AppState.Instance.Db.SetIntroSpan(episode.Id, from, to);
+        AppState.Instance.SavePlaybackState(true, episode.Id);   // into the show's state file
+    }
+
     /// <summary>5.3.0: Next pressed in an episode's last minutes, so the season's credits start about that far
     /// from the end. Not when it was skipped early, nor at the very end.</summary>
     private static void LearnCredits(object? tag, long position, long length)
@@ -222,6 +257,7 @@ internal static class BuiltInPlayer
         var fromEnd = length - position;
         if (position < length * 0.8 || fromEnd < 10_000 || fromEnd > 6 * 60_000) return;
         AppState.Instance.Db.SetCreditsFromEnd(episode.Id, fromEnd);
+        AppState.Instance.SavePlaybackState(true, episode.Id);   // into the show's state file
     }
 
     /// <summary>The next (or previous) episode of the show, when its drive is here.</summary>

@@ -31,6 +31,15 @@ internal sealed class PlayerSession
     // and whether it has passed the point where it counts as watched
     private long? _creditsMs;
     private bool _creditsChecked, _creditsOffered, _watchedReached;
+    // 5.3.0: an intro or a recap to skip (ms), the one last offered, a scene after the credits, and the
+    // times asked for outside the file while they come
+    private List<(long Start, long End, string Label)> _skips = [];
+    private long _skipOffered = -1;
+    private long? _afterCredits;
+    private Task<SkipTimes?>? _timesTask;
+    // 5.3.0: several jumps forward in a row (+10 s pressed a few times) count as one
+    private long _jumpFrom = -1, _jumpTo;
+    private DateTime _jumpAt;
     private Media _media;
     private long _time, _length;
     private bool _barWanted, _closing, _released, _itemEnded;
@@ -87,8 +96,12 @@ internal sealed class PlayerSession
     /// <summary>5.3.0: the next item asked for before the end (Next, or the offer at the credits): the tag,
     /// the position and the length (ms).</summary>
     public event Action<object?, long, long>? SkippedToNext;
-    /// <summary>5.3.0: where an item's credits start when its chapters don't say: from its tag and length (ms).</summary>
-    public Func<object?, long, long?>? FindCredits { get; set; }
+    /// <summary>5.3.0: where an item's intro, recap and credits are when its chapters don't say (TheIntroDB, or
+    /// learned in the season): from its tag and length (ms). It may take a moment.</summary>
+    public Func<object?, long, Task<SkipTimes?>>? FindSkipTimes { get; set; }
+    /// <summary>5.3.0: the player was jumped forward near an item's start (one jump, or a few in a row): the
+    /// tag, from and to (ms). An intro, most likely.</summary>
+    public event Action<object?, long, long>? SkippedIntro;
     /// <summary>5.3.0: where the playing item's credits start (ms), once known; read when it ends.</summary>
     public long? CreditsMs => _creditsMs;
     /// <summary>5.3.0: once per item, as it passes 90% or its credits: marks it watched there and then, and
@@ -150,7 +163,12 @@ internal sealed class PlayerSession
         _controls.Subtitles += () => ShowTracks(audio: false);
         _controls.Previous += GoPrevious;
         _controls.Next += GoNext;
-        _controls.Seek += seconds => Player.Time = (long)(seconds * 1000);
+        _controls.Seek += seconds =>
+        {
+            var (from, to) = (Player.Time, (long)(seconds * 1000));
+            Player.Time = to;
+            NoteJump(from, to);   // 5.3.0: where it was asked to go (VLC's time catches up a moment later)
+        };
         _controls.Volume += SetVolume;
         _controls.SeekWheel += notches => SeekBy(notches * SeekStep);
         _controls.VolumeWheel += notches => ChangeVolume(notches * VolumeStep);
@@ -388,11 +406,20 @@ internal sealed class PlayerSession
         {
             _creditsChecked = true;
             ChapterDescription[] chapters = Player.ChapterCount > 1 ? Player.FullChapterDescriptions() : [];
-            _creditsMs = CreditsChapter(chapters.Select(c => (c.TimeOffset, c.Name)).ToList(), length);
-            if (_creditsMs is null && FindCredits?.Invoke(Tag, length) is long learned && learned > length / 2 && learned < length)
-                _creditsMs = learned;
-            if (_creditsMs is long found) PlayerLog.Write($"credits from {PlayerControls.Format(found)}");
+            var named = chapters.Select(c => (c.TimeOffset, c.Name)).ToList();
+            _creditsMs = CreditsChapter(named, length);
+            _skips = SkipChapters(named, length);
+            if (_creditsMs is long found) PlayerLog.Write($"credits from {PlayerControls.Format(found)} (chapter)");
+            if (_creditsMs is null || _skips.Count == 0)
+                _timesTask = FindSkipTimes?.Invoke(Tag, length);   // for what the chapters don't say
         }
+        if (_timesTask is { IsCompleted: true } asked)
+        {
+            _timesTask = null;
+            if (asked.IsCompletedSuccessfully && asked.Result is { } times) UseTimes(times, length);
+        }
+        if (_jumpFrom >= 0 && DateTime.UtcNow - _jumpAt > TimeSpan.FromSeconds(4)) CloseJump();
+        OfferSkip(position, again: false);
         if (!_watchedReached && (position >= length * 0.9 || _creditsMs is long credits && credits > length / 2 && position >= credits))
         {
             _watchedReached = true;
@@ -405,13 +432,87 @@ internal sealed class PlayerSession
         _creditsOffered = true;
         PlayerLog.Write($"at the credits, {PlayerControls.Format(position)}");
         if (_menu != null || _controls.Row.Length > 0 && _controls.Row != "message") return;   // never over something open
-        if (_nextItem is { } next)
-            _controls.ShowRow("message", $"Next: {next.Label}", [("Play next episode", true, () => SkipTo(next))]);
-        else
-            _controls.ShowRow("message", "Credits", [("Close player", true, () => _ = CloseAsync())]);
+        var buttons = new List<(string, bool, Action)>();
+        if (_nextItem is { } next) buttons.Add(("Play next episode", true, () => SkipTo(next)));
+        if (_afterCredits is long scene) buttons.Add(("Skip to the scene after", buttons.Count == 0, () => { Player.Time = scene; _controls.HideRow(); }));
+        if (_nextItem is null) buttons.Add(("Close player", buttons.Count == 0, () => _ = CloseAsync()));
+        _controls.ShowRow("message", _nextItem is { } n ? $"Next: {n.Label}" : _afterCredits is null ? "Credits" : "Credits · a scene comes after them", buttons);
         _noteTimer.Stop();
         _noteTimer.Start();   // gone after a few seconds, the bar after it
         ShowBar();
+    }
+
+    /// <summary>5.3.0: times from outside the file (TheIntroDB, or learned in the season), for what its chapters don't say.</summary>
+    private void UseTimes(SkipTimes t, long length)
+    {
+        if (_creditsMs is null && t.Credits is long c && c > length / 2 && c < length) _creditsMs = c;
+        if (t.AfterCredits is long a && _creditsMs is long credits && a > credits && a < length - 2000) _afterCredits = a;
+        if (_skips.Count == 0)
+        {
+            if (Span(t.RecapStart, t.RecapEnd, length) is { } recap) _skips.Add((recap.Start, recap.End, "Skip recap"));
+            if (Span(t.IntroStart, t.IntroEnd, length) is { } intro) _skips.Add((intro.Start, intro.End, "Skip intro"));
+        }
+        PlayerLog.Write($"skip times: credits {_creditsMs}, scene after {_afterCredits}; {string.Join(", ", _skips.Select(s => $"{s.Label} {s.Start}-{s.End}"))}");
+    }
+
+    private static (long Start, long End)? Span(long? start, long? end, long length) =>
+        start is long s && end is long e && s >= 0 && e - s >= 5000 && e <= length / 2 ? (s, e) : null;
+
+    /// <summary>
+    /// 5.3.0: inside an intro or a recap, a button to jump past it: shown on going in (with the bar, gone
+    /// with it), and again when the mouse brings the bar back up inside it.
+    /// </summary>
+    private void OfferSkip(long position, bool again)
+    {
+        var inside = _skips.FirstOrDefault(s => position >= s.Start && position < s.End - 2000);
+        if (inside.Label is null) return;
+        if (again ? _controls.Row.Length > 0 : _skipOffered == inside.Start) return;
+        if (_menu != null || _controls.Row.Length > 0 && _controls.Row != "message") return;
+        var first = _skipOffered != inside.Start;
+        _skipOffered = inside.Start;
+        var end = inside.End;
+        _controls.ShowRow("message", inside.Label == "Skip recap" ? "Recap" : "Intro",
+            [(inside.Label, true, () => { Player.Time = end; _controls.HideRow(); PlayerLog.Write($"{inside.Label} to {PlayerControls.Format(end)}"); })]);
+        _noteTimer.Stop();
+        _noteTimer.Start();
+        if (first) ShowBar();
+    }
+
+    /// <summary>
+    /// 5.3.0: chapters named for an intro or a recap in the first part ("Intro", "Opening", "Recap",
+    /// "Previously on"), from their start to the next chapter's.
+    /// </summary>
+    internal static List<(long Start, long End, string Label)> SkipChapters(IReadOnlyList<(long Offset, string? Name)> chapters, long length)
+    {
+        var spans = new List<(long, long, string)>();
+        for (int i = 0; i + 1 < chapters.Count; i++)
+        {
+            var (start, name) = chapters[i];
+            var end = chapters[i + 1].Offset;
+            if (string.IsNullOrWhiteSpace(name) || start > length * 0.4 || end - start < 5000 || end - start > 5 * 60_000) continue;
+            var n = name.Trim().ToLowerInvariant();
+            if (n.Contains("recap") || n.StartsWith("previously")) spans.Add((start, end, "Skip recap"));
+            else if (n.Contains("intro") || n.StartsWith("opening") || n is "op" or "title sequence" or "titles" or "main titles" or "theme")
+                spans.Add((start, end, "Skip intro"));
+        }
+        return spans;
+    }
+
+    private void NoteJump(long from, long to)
+    {
+        var now = DateTime.UtcNow;
+        if (_jumpFrom < 0 || now - _jumpAt > TimeSpan.FromSeconds(4)) { CloseJump(); _jumpFrom = from; }
+        _jumpTo = to;
+        _jumpAt = now;
+    }
+
+    /// <summary>5.3.0: one jump forward of 15 s to 3 min from the first 10 minutes: an intro, most likely.</summary>
+    private void CloseJump()
+    {
+        if (_jumpFrom < 0) return;
+        var (from, to) = (_jumpFrom, _jumpTo);
+        _jumpFrom = -1;
+        if (from < 10 * 60_000 && to - from >= 15_000 && to - from <= 180_000) SkippedIntro?.Invoke(Tag, from, to);
     }
 
     /// <summary>
@@ -441,6 +542,10 @@ internal sealed class PlayerSession
         EndItem();
         _creditsMs = null;   // 5.3.0: the next one's own
         _creditsChecked = _creditsOffered = _watchedReached = false;
+        _skips = [];
+        _skipOffered = _jumpFrom = -1;
+        _afterCredits = null;
+        _timesTask = null;
         PlayerLog.Write($"switch to {next.Path}");
         _shownPictures = _lostPictures = 0;
         _pauseWait.Stop();
@@ -739,6 +844,7 @@ internal sealed class PlayerSession
         if (y >= height - Math.Max(160 * _window.Scale, height * 0.2))
         {
             ShowBar();
+            if (_skips.Count > 0 && Player.IsPlaying) OfferSkip(Position, again: true);   // 5.3.0
             return;
         }
         _window.SetCursorHidden(false);
@@ -819,8 +925,10 @@ internal sealed class PlayerSession
     {
         PlayerLog.Write($"seek {ms / 1000:+0;-0} s");
         if (!Player.IsSeekable) return;
-        var to = Math.Clamp(Player.Time + ms, 0, Math.Max(0, Player.Length - 1000));
+        var from = Player.Time;
+        var to = Math.Clamp(from + ms, 0, Math.Max(0, Player.Length - 1000));
         Player.Time = to;
+        NoteJump(from, to);   // 5.3.0
         Feedback($"{(ms > 0 ? "+" : "-")}{Math.Abs(ms) / 1000} s  ({PlayerControls.Format(to)})");
     }
 

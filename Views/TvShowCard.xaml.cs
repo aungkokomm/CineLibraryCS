@@ -251,13 +251,14 @@ public sealed partial class TvShowCard : UserControl
     private void UpdateHoverActions(TvShowListItem s)
     {
         var online = AppState.Instance.Connected.ContainsKey(s.VolumeSerial);
-        var canPlay = online && _next is { File: not null };
+        // 5.3.0: its drive away too: Play then waits for the drive and the episode starts when it's connected
+        var canPlay = _next is { File: not null };
         HoverPlayBtn.Visibility = canPlay ? Visibility.Visible : Visibility.Collapsed;
         if (canPlay) HoverPlayBtn.Content = $"▶ Play {_next!.Value.Code}";
 
-        // Can't play: say where the next episode is, or that the show is done.
+        // Can't play now: say where the next episode is, or that the show is done.
         string? note = _next is { } n
-            ? canPlay ? null
+            ? canPlay ? online ? null : s.DriveLabel is { Length: > 0 } d ? $"on {d}, not connected" : "its drive isn't connected"
               : online ? $"Next: {n.Code}"
               : $"Next: {n.Code}\non {s.DriveLabel ?? "a drive that isn't connected"}"
             : s.EpisodeCount > 0 ? "✓ All watched" : null;
@@ -301,7 +302,12 @@ public sealed partial class TvShowCard : UserControl
     {
         if (Show is not { } s || _next is not { File: { } file } next) return;
         var mw = App.MainWindow as MainWindow;
-        if (!AppState.Instance.Connected.TryGetValue(s.VolumeSerial, out var letter)) return;
+        if (!AppState.Instance.Connected.TryGetValue(s.VolumeSerial, out var letter))
+        {
+            var name = $"{s.Title} {next.Code}";
+            WaitingPlay.Wait(new PlaybackItem(PlaybackKind.Episode, next.Id, name), s.VolumeSerial, s.DriveLabel, name);   // 5.3.0
+            return;
+        }
         var path = Path.Combine($"{letter}:\\", file.Replace('/', '\\'));
         if (!File.Exists(path)) { mw?.ShowToast($"Couldn't find {next.Code} on the drive"); return; }
 

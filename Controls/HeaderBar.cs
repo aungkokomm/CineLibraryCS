@@ -36,6 +36,8 @@ public sealed class HeaderBar : Panel
 
         // Let the title shrink (it trims) when even it alone is too wide.
         if (title != null && w(title) > width) title.Measure(new Size(width, double.PositiveInfinity));
+        // 5.3.0: and pills on a line of their own that's too narrow for them: in a WrapPanel they wrap
+        if (_mode is 1 or 3 && pills != null && w(pills) > width) pills.Measure(new Size(width, double.PositiveInfinity));
 
         double height = _mode switch
         {

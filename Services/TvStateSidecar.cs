@@ -27,8 +27,9 @@ public static class TvStateSidecar
         [JsonPropertyName("note")]           public string? Note { get; set; }
         // v4.10.0: where it stopped
         [JsonPropertyName("resumeMs")]       public long? ResumeMs { get; set; }
-        // 5.3.0: times played to the end
+        // 5.3.0: times played to the end, and intro and credits times from TheIntroDB
         [JsonPropertyName("playCount")]      public int? PlayCount { get; set; }
+        [JsonPropertyName("skipTimes")]      public Playback.SkipTimesEntry? SkipTimes { get; set; }
     }
 
     public class State
@@ -44,6 +45,8 @@ public static class TvStateSidecar
         // v4.10.0: the audio and subtitles chosen for the show
         [JsonPropertyName("tracks")]    public TrackChoice? Tracks { get; set; }
         [JsonPropertyName("episodes")]  public Dictionary<string, EpisodeState> Episodes { get; set; } = new();
+        // 5.3.0: each season's intro and credits as learned, by season number
+        [JsonPropertyName("seasons")]   public Dictionary<string, Playback.SeasonTimes>? Seasons { get; set; }
         [JsonPropertyName("updated")]   public string Updated { get; set; } =
             DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -160,6 +163,16 @@ public static class TvStateSidecar
                     };
             }
         }
+        // 5.3.0: TheIntroDB's times for the episodes, and the seasons' learned ones
+        var (seasons, skips) = db.GetShowSkipTimes(showId);
+        foreach (var ((season, episode), entry) in skips)
+        {
+            var key = Key(season, episode);
+            if (!state.Episodes.TryGetValue(key, out var es)) state.Episodes[key] = es = new EpisodeState();
+            es.SkipTimes = entry;
+        }
+        if (seasons.Count > 0)
+            state.Seasons = seasons.ToDictionary(kv => kv.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), kv => kv.Value);
         return (folderAbs, state);
     }
 
@@ -266,7 +279,21 @@ public static class TvStateSidecar
             upd.Parameters.AddWithValue("@se", season);
             upd.Parameters.AddWithValue("@ep", ep);
             upd.ExecuteNonQuery();
+            if (est.SkipTimes != null)   // 5.3.0
+            {
+                using var find = conn.CreateCommand();
+                find.Transaction = tx;
+                find.CommandText = "SELECT id FROM tv_episodes WHERE show_id=@id AND season=@se AND episode=@ep";
+                find.Parameters.AddWithValue("@id", showId);
+                find.Parameters.AddWithValue("@se", season);
+                find.Parameters.AddWithValue("@ep", ep);
+                if (find.ExecuteScalar() is long episodeId) DatabaseService.RestoreSkipTimes(conn, tx, true, (int)episodeId, est.SkipTimes);
+            }
         }
+        // 5.3.0: the seasons' learned intro and credits, where none are kept here
+        foreach (var (key, times) in s.Seasons ?? new Dictionary<string, Playback.SeasonTimes>())
+            if (int.TryParse(key, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var number))
+                DatabaseService.RestoreSeasonTimes(conn, tx, showId, number, times);
 
         // v2.9 — Tags (show-level) — additive, create-if-missing.
         foreach (var tagName in s.Tags.Distinct(StringComparer.OrdinalIgnoreCase))

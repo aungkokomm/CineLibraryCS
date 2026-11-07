@@ -1258,7 +1258,7 @@ public sealed partial class TvShowsPage : Page
     {
         if (ep.VideoFileRelPath == null) return;
         var connected = AppState.Instance.Connected;
-        if (!connected.TryGetValue(ep.VolumeSerial, out var letter)) { await ShowOfflineDialog(ep.Title); return; }
+        if (!connected.TryGetValue(ep.VolumeSerial, out var letter)) { await ShowOfflineDialog(ep.Title, waitFor: ep); return; }
         var path = Path.Combine($"{letter}:\\", ep.VideoFileRelPath.Replace('/', '\\'));
         if (!File.Exists(path)) { await ShowOfflineDialog(ep.Title); return; }
 
@@ -1459,16 +1459,27 @@ public sealed partial class TvShowsPage : Page
         AddShowTagBtn.Visibility = Visibility.Visible;
     }
 
-    private async Task ShowOfflineDialog(string title)
+    /// <param name="waitFor">5.3.0: its drive isn't connected: offer to play it the moment it is</param>
+    private async Task ShowOfflineDialog(string title, TvEpisodeItem? waitFor = null)
     {
+        var show = _detail;
+        var drive = show?.DriveLabel;
         var dlg = new ContentDialog
         {
             Title = "Can't play yet",
-            Content = $"\"{title}\" is on a drive that isn't connected. Plug it in and try again.",
-            CloseButtonText = "OK",
+            Content = waitFor == null ? $"\"{title}\" is on a drive that isn't connected. Plug it in and try again."
+                : string.IsNullOrEmpty(drive) ? $"\"{title}\" is on a drive that isn't connected. Connect it and the episode starts."
+                : $"\"{title}\" is on \"{drive}\", which isn't connected. Connect it and the episode starts.",
+            PrimaryButtonText = waitFor != null ? "Play when connected" : "",
+            CloseButtonText = waitFor != null ? "Cancel" : "OK",
+            DefaultButton = waitFor != null ? ContentDialogButton.Primary : ContentDialogButton.Close,
             XamlRoot = XamlRoot,
             RequestedTheme = MainWindow.CurrentTheme,
         };
-        try { await dlg.ShowAsync(); } catch { }
+        ContentDialogResult answer;
+        try { answer = await dlg.ShowAsync(); } catch { return; }
+        if (waitFor is { } ep && answer == ContentDialogResult.Primary)
+            WaitingPlay.Wait(new PlaybackItem(PlaybackKind.Episode, ep.Id, $"{ep.Code} {ep.Title}"), ep.VolumeSerial, drive,
+                             $"{show?.Title} {ep.Code}".Trim());
     }
 }

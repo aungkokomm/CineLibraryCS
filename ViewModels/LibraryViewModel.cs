@@ -31,6 +31,10 @@ public partial class LibraryViewModel : ObservableObject
     [ObservableProperty] private string? _filterDirector = null;
     [ObservableProperty] private string? _filterStudio = null;
     [ObservableProperty] private string? _filterWriter = null;   // v5.3.0
+    // 5.3.0: films with sound in a language (its name, and the codes that mean it). Like the watched
+    // filter it stays on across the sidebar's views; Clear filters ends it.
+    public string? FilterAudio { get; private set; }
+    private IReadOnlyList<string>? _filterAudioCodes;
     [ObservableProperty] private int? _filterDecadeStart = null;
     [ObservableProperty] private string? _filterRatingBand = null;
     [ObservableProperty] private bool _isWatchlistOnly = false;
@@ -166,6 +170,7 @@ public partial class LibraryViewModel : ObservableObject
         TagId: TagId,
         DecadeStart: FilterDecadeStart,
         RatingBand: FilterRatingBand,
+        AudioCodes: _filterAudioCodes,
         Limit: PageSize,
         Offset: offset
     );
@@ -339,8 +344,17 @@ public partial class LibraryViewModel : ObservableObject
     public void ClearFilters()
     {
         ResetAllFilters();
+        FilterAudio = null;
+        _filterAudioCodes = null;
         PageTitle = "All Movies";
         _ = LoadAsync();
+    }
+
+    /// <summary>5.3.0: only films with sound in this language (null: any). The page loads after.</summary>
+    public void SetAudioFilter(string? name, IReadOnlyList<string>? codes)
+    {
+        FilterAudio = codes is { Count: > 0 } ? name : null;
+        _filterAudioCodes = FilterAudio is null ? null : codes;
     }
 
     public void ShowUserList(int listId, string listName)

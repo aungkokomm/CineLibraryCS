@@ -50,6 +50,22 @@
         <Setter Property="BorderBrush" Value="#A78BFA"/>
     </Style>
 
+    <!-- 5.3.0: a drop-down that reads as one of the filter pills (the library's Audio filter) -->
+    <Style x:Key="PillDropDownStyle" TargetType="DropDownButton">
+        <Setter Property="Background"   Value="{ThemeResource CardBrush}"/>
+        <Setter Property="Foreground"   Value="{ThemeResource MutedBrush}"/>
+        <Setter Property="BorderBrush"  Value="{ThemeResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding"      Value="12,5,8,5"/>
+        <Setter Property="FontSize"     Value="12"/>
+    </Style>
+    <Style x:Key="PillDropDownActiveStyle" TargetType="DropDownButton" BasedOn="{StaticResource PillDropDownStyle}">
+        <Setter Property="Background"  Value="#A78BFA"/>
+        <Setter Property="Foreground"  Value="#FFFFFF"/>
+        <Setter Property="BorderBrush" Value="#A78BFA"/>
+    </Style>
+
     <!-- Icon button -->
     <Style x:Key="IconButtonStyle" TargetType="Button">
         <Setter Property="Background"      Value="Transparent"/>

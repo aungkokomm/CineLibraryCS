@@ -897,8 +897,40 @@ public sealed partial class LibraryPage : Page
         FilterWatched.Style = pill;
         _vm.WatchedFilter = WatchedFilter.All;
         _vm.ClearFilters();
+        UpdateAudioButton();
         PageTitleText.Text = "All movies";
         UpdateClearFiltersButton();
+    }
+
+    // ── Audio language (5.3.0) ────────────────────────────────────────────
+
+    /// <summary>Any, then the languages the films' sound is in, most films first, with how many.</summary>
+    private void OnAudioMenuOpening(object sender, object e)
+    {
+        AudioMenu.Items.Clear();
+        void Add(string text, string? count, string? name, IReadOnlyList<string>? codes)
+        {
+            var item = new RadioMenuFlyoutItem { Text = text, GroupName = "audio", IsChecked = _vm.FilterAudio == name };
+            if (count != null) item.KeyboardAcceleratorTextOverride = count;
+            item.Click += (_, _) =>
+            {
+                _vm.SetAudioFilter(name, codes);
+                UpdateAudioButton();
+                _ = _vm.LoadAsync();
+                UpdateClearFiltersButton();
+            };
+            AudioMenu.Items.Add(item);
+        }
+        Add("Any", null, null, null);
+        var languages = AppState.Instance.Db.GetAudioLanguages();
+        if (languages.Count > 0) AudioMenu.Items.Add(new MenuFlyoutSeparator());
+        foreach (var (name, codes, films) in languages) Add(name, films.ToString("N0"), name, codes);
+    }
+
+    private void UpdateAudioButton()
+    {
+        AudioLabel.Text = _vm.FilterAudio is { } name ? $"Audio: {name}" : "Audio: Any";
+        AudioDropDown.Style = (Style)Application.Current.Resources[_vm.FilterAudio is null ? "PillDropDownStyle" : "PillDropDownActiveStyle"];
     }
 
     private void UpdateClearFiltersButton()
@@ -1033,6 +1065,47 @@ public sealed partial class LibraryPage : Page
             if (g.Repeater.ItemsSource is not List<object> shown || !shown.SequenceEqual(part))
                 g.Repeater.ItemsSource = part;
         }
+        UpdateStillWatching(now, ContinueEarlierHeader.Visibility == Visibility.Visible);
+    }
+
+    // ── 5.3.0: Still watching? ────────────────────────────────────────────
+
+    private const long StillWatchingAfter = 60 * 86_400;   // not gone back to in two months
+    private const string StillWatchingKeptPref = "continueKeptFrom";   // "Keep": films played before this aren't asked about
+
+    private long StillWatchingFrom() =>
+        long.TryParse(AppState.Instance.GetPref(StillWatchingKeptPref, "0"), out var from) ? from : 0;
+
+    /// <summary>Under Earlier: the films not gone back to in two months, to take out of Continue Watching.
+    /// Films only: a show is there because some of its episodes were watched.</summary>
+    private void UpdateStillWatching(long now, bool earlierShown)
+    {
+        var stale = earlierShown ? AppState.Instance.Db.GetContinueWatchingPlayedBetween(StillWatchingFrom(), now - StillWatchingAfter) : 0;
+        StillWatchingBar.Visibility = stale > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (stale == 0) return;
+        StillWatchingText.Text = stale == 1
+            ? "One film here you haven't gone back to in over two months. Still watching it?"
+            : $"{stale} films here you haven't gone back to in over two months. Still watching them?";
+        StillWatchingRemoveBtn.Content = stale == 1 ? "Remove it" : "Remove them";
+    }
+
+    private void OnStillWatchingRemove(object sender, RoutedEventArgs e)
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var removed = AppState.Instance.Db.HideFromContinueWatching(StillWatchingFrom(), now - StillWatchingAfter);
+        StillWatchingBar.Visibility = Visibility.Collapsed;
+        _ = _vm.LoadAsync();
+        SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+        if (App.MainWindow is MainWindow mw && removed > 0)
+            mw.ShowToast(removed == 1 ? "Out of Continue Watching. Played again, it starts where it stopped"
+                                      : $"{removed} films out of Continue Watching. Played again, each starts where it stopped");
+    }
+
+    private void OnStillWatchingKeep(object sender, RoutedEventArgs e)
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        AppState.Instance.SetPref(StillWatchingKeptPref, (now - StillWatchingAfter).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        StillWatchingBar.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>v4.7.0 (#25): the shows on a page with movies come as rows in list view, cards otherwise.</summary>
@@ -1236,7 +1309,7 @@ public sealed partial class LibraryPage : Page
         var key = _vm.UserListId is int listId ? $"list:{listId}"
                 : _vm.Genre is string genreKey ? $"genre:{genreKey}"
                 : page?.ToString();
-        key = $"{key}|{_vm.WatchedFilter}";
+        key = $"{key}|{_vm.WatchedFilter}|{_vm.FilterAudio}";
         if (key == _shownRowKey) { ApplyContinueGroups(); return; }
         _shownRowKey = key;
 
@@ -1246,6 +1319,7 @@ public sealed partial class LibraryPage : Page
                   : page is { } p ? db.GetTvShowsForPage(p, AppState.Instance.Connected)
                   : new List<TvShowListItem>();
         shows = ByWatched(shows);
+        if (_vm.FilterAudio != null) shows = new();   // 5.3.0: the Audio filter is the films' sound; shows aren't in it
         ShowsInListHeader.Text = _vm.UserListId != null ? "TV SHOWS IN THIS LIST" : "TV SHOWS";
         ShowsInListRepeater.ItemsSource = ShowsInListRows.ItemsSource = shows.Count > 0 ? shows : null;
         _rowShows = shows;
@@ -1337,7 +1411,7 @@ public sealed partial class LibraryPage : Page
         _vm.DriveSerial != null || _vm.Genre != null || _vm.CollectionId != null ||
         _vm.FilterActor != null || _vm.FilterDirector != null || _vm.FilterStudio != null || _vm.FilterWriter != null ||
         _vm.FilterDecadeStart != null || _vm.FilterRatingBand != null ||
-        _vm.UserListId != null || _vm.TagId != null;
+        _vm.UserListId != null || _vm.TagId != null || _vm.FilterAudio != null;
 
     private void AddChip(string label, string? value, Action onClear)
     {

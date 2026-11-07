@@ -337,7 +337,7 @@ public sealed partial class MovieRowControl : UserControl
         var connected = AppState.Instance.Connected;
         if (!connected.TryGetValue(Movie.VolumeSerial, out var letter))
         {
-            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel);
+            await ShowOfflineDialog(Movie.Title, Movie.DriveLabel, offerWait: true);
             return;
         }
         var detail = AppState.Instance.Db.GetMovieDetail(Movie.Id, connected);
@@ -372,19 +372,26 @@ public sealed partial class MovieRowControl : UserControl
         }
     }
 
-    private async Task ShowOfflineDialog(string title, string? driveLabel)
+    /// <param name="offerWait">5.3.0: its drive isn't connected: offer to play it the moment it is</param>
+    private async Task ShowOfflineDialog(string title, string? driveLabel, bool offerWait = false)
     {
+        var movie = Movie;
+        var where = string.IsNullOrEmpty(driveLabel) ? "a drive that isn't connected" : $"\"{driveLabel}\", which isn't connected";
         var dlg = new ContentDialog
         {
             Title = "Can't play yet",
-            Content = string.IsNullOrEmpty(driveLabel)
-                ? $"\"{title}\" lives on a drive that isn't connected. Plug it in and try again."
-                : $"\"{title}\" lives on \"{driveLabel}\", which isn't connected. Plug it in and try again.",
-            CloseButtonText = "OK",
+            Content = offerWait ? $"\"{title}\" lives on {where}. Connect it and the film starts."
+                                : $"\"{title}\" lives on {where}. Plug it in and try again.",
+            PrimaryButtonText = offerWait ? "Play when connected" : "",
+            CloseButtonText = offerWait ? "Cancel" : "OK",
+            DefaultButton = offerWait ? ContentDialogButton.Primary : ContentDialogButton.Close,
             XamlRoot = XamlRoot,
             RequestedTheme = MainWindow.CurrentTheme,
         };
-        try { await dlg.ShowAsync(); } catch { }
+        ContentDialogResult answer;
+        try { answer = await dlg.ShowAsync(); } catch { return; }
+        if (offerWait && answer == ContentDialogResult.Primary && movie != null)
+            WaitingPlay.Wait(new PlaybackItem(PlaybackKind.Movie, movie.Id, movie.Title), movie.VolumeSerial, movie.DriveLabel, movie.Title);
     }
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e)

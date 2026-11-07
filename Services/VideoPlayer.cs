@@ -40,12 +40,24 @@ public static class VideoPlayer
     public static async Task<PlayedWith> PlayAsync(string videoPath, PlaybackItem? item = null,
                                                    Action<PlaybackItem, bool>? finished = null)
     {
+        WaitingPlay.Cancel();   // 5.3.0: something else plays, so a film waiting for its drive doesn't start over it
+        // 5.3.0: played here, its saved place says whether it's in Continue Watching; played in another
+        // player (also one a file goes to when VLC can't play it), it stays there
+        var film = item is { Kind: PlaybackKind.Movie } m ? m : null;
+        async Task<bool> ElsewhereAsync(string path)
+        {
+            if (!await PlayExternalAsync(path)) return false;
+            if (film != null && AppState.Instance.Db.SetPlayedElsewhere(film.Id, true))
+                AppState.Instance.SavePlaybackState(false, film.Id);   // into its state file
+            return true;
+        }
+        if (UiSettings.UseBuiltInPlayer && film != null) AppState.Instance.Db.SetPlayedElsewhere(film.Id, false);
         if (UiSettings.UseBuiltInPlayer
-            && await Playback.BuiltInPlayer.PlayAsync(videoPath, item, finished, PlayExternalAsync))
+            && await Playback.BuiltInPlayer.PlayAsync(videoPath, item, finished, ElsewhereAsync))
             return PlayedWith.BuiltIn;
-        if (!await PlayExternalAsync(videoPath)) return PlayedWith.Nothing;
+        if (!await ElsewhereAsync(videoPath)) return PlayedWith.Nothing;
         // 5.3.0: that player never says how far it got; back in CineLibrary later, it's asked
-        if (item is { Kind: PlaybackKind.Movie } film && AppState.Instance.Db.GetMovieDetail(film.Id, AppState.Instance.Connected) is { IsWatched: false } movie)
+        if (film != null && AppState.Instance.Db.GetMovieDetail(film.Id, AppState.Instance.Connected) is { IsWatched: false } movie)
             ExternalPlay.Started(film.Id, movie.Title, movie.Runtime ?? movie.DurationSeconds / 60);
         return PlayedWith.External;
     }

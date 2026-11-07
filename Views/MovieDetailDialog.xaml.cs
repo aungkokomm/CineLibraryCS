@@ -358,7 +358,11 @@ public sealed partial class MovieDetailDialog : Window
         DriveText.Text = m.DriveLabel + (m.CurrentLetter != null ? $" ({m.CurrentLetter}:)" : "");
 
         // Actions
-        PlayBtn.IsEnabled = m.Playable;
+        // 5.3.0: its drive away, Play waits for it and the film starts when it's connected
+        var waits = !m.IsOnline && !m.IsMissing && m.VideoFileRelPath != null;
+        PlayBtn.IsEnabled = m.Playable || waits;
+        PlayLabel.Text = waits ? "▶ Play when connected" : "▶ Play";
+        ToolTipService.SetToolTip(PlayBtn, waits ? $"Starts the moment {(string.IsNullOrEmpty(m.DriveLabel) ? "its drive" : m.DriveLabel)} is connected" : null);
         TrailerBtn.Visibility = TrailerUri(m.Trailer) != null ? Visibility.Visible : Visibility.Collapsed;
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = ActionLabel.Favorite(m.IsFavorite);
@@ -1321,6 +1325,11 @@ public sealed partial class MovieDetailDialog : Window
 
     private async void OnPlay(object sender, RoutedEventArgs e)
     {
+        if (_movie is { IsOnline: false, IsMissing: false, VideoFileRelPath: not null } away)
+        {
+            WaitingPlay.Wait(new PlaybackItem(PlaybackKind.Movie, away.Id, away.Title), away.VolumeSerial, away.DriveLabel, away.Title);   // 5.3.0
+            return;
+        }
         if (_movie?.CurrentLetter == null || _movie.VideoFileRelPath == null) return;
         var letter = _movie.CurrentLetter;
         var videoPath = Path.Combine($"{letter}:\\", _movie.VideoFileRelPath.Replace('/', '\\'));

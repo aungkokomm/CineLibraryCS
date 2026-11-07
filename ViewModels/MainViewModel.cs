@@ -51,6 +51,7 @@ public partial class MainViewModel : ObservableObject
             try { ImdbUpdate.WritePending(); }
             catch { }
         });
+        LanguageSweep.Start(TimeSpan.FromSeconds(30));   // 5.3.0: the films' languages, for the Audio filter
     }
 
     public async Task RefreshSidebarAsync()
@@ -121,6 +122,8 @@ public partial class MainViewModel : ObservableObject
                     try { _state.SyncFetched(serial); } catch { }
                     try { ImdbUpdate.WritePending(serial); } catch { }
                 });
+                LanguageSweep.Start(TimeSpan.FromSeconds(10));   // 5.3.0: its films' languages, once
+                _ = WaitingPlay.DriveConnectedAsync(serial);      // 5.3.0: the film waiting for it plays
             }
         }
 

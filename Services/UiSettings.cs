@@ -31,6 +31,7 @@ public static class UiSettings
     private const string KeyPreferredSubtitles = "ui_preferredSubtitles"; // v4.10.0
     private const string KeyPauseScreen = "ui_pauseScreen";               // v4.10.0
     private const string KeyPlayerFullScreen = "ui_playerFullScreen";     // v5.2.0
+    private const string KeySkipTimesOnline = "ui_skipTimesOnline";       // 5.3.0
     private const string KeyFindSubtitlesOnline = "ui_findSubtitlesOnline";   // v4.10.0
 
     /// <summary>How much Windows Mica material shows behind the window.
@@ -88,6 +89,8 @@ public static class UiSettings
 
     /// <summary>v5.2.0: the player fills the screen when it opens. Default on.</summary>
     public static bool PlayerFullScreen { get; private set; } = true;
+    /// <summary>5.3.0: intro and credits times from TheIntroDB, for what a file's chapters don't say. Default on.</summary>
+    public static bool SkipTimesOnline { get; private set; } = true;
     public static bool FindSubtitlesOnline { get; private set; }
 
     /// <summary>v4.6.0: a show page asks TMDb which aired episodes aren't on
@@ -118,6 +121,7 @@ public static class UiSettings
         PreferredSubtitles = AppState.Instance.GetPref(KeyPreferredSubtitles, "");
         PauseScreen = AppState.Instance.GetPref(KeyPauseScreen, "true") == "true";
         PlayerFullScreen = AppState.Instance.GetPref(KeyPlayerFullScreen, "true") == "true";
+        SkipTimesOnline = AppState.Instance.GetPref(KeySkipTimesOnline, "true") == "true";
         FindSubtitlesOnline = AppState.Instance.GetPref(KeyFindSubtitlesOnline, "false") == "true";
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
@@ -238,6 +242,12 @@ public static class UiSettings
     {
         PlayerFullScreen = value;
         AppState.Instance.SetPref(KeyPlayerFullScreen, value ? "true" : "false");
+    }
+
+    public static void SetSkipTimesOnline(bool value)
+    {
+        SkipTimesOnline = value;
+        AppState.Instance.SetPref(KeySkipTimesOnline, value ? "true" : "false");
     }
 
     /// <summary>No Changed event: it applies the next time a show page opens.</summary>

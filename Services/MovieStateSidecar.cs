@@ -42,6 +42,10 @@ public static class MovieStateSidecar
         [JsonPropertyName("tracks")]        public TrackChoice? Tracks { get; set; }
         // 5.1.0: times played
         [JsonPropertyName("playCount")]     public int? PlayCount { get; set; }
+        // 5.3.0: intro and credits times from TheIntroDB, so they travel with the drive
+        [JsonPropertyName("skipTimes")]     public Playback.SkipTimesEntry? SkipTimes { get; set; }
+        // 5.3.0: last played in another player, so it stays in Continue Watching (null when not)
+        [JsonPropertyName("playedElsewhere")] public bool? PlayedElsewhere { get; set; }
         /// <summary>v3.4 — TMDB-fetched metadata (only written for movies whose
         /// info was filled in CineLibrary), so a rescan can recover it without
         /// rewriting the user's NFO. Null for state-only sidecars.</summary>
@@ -173,7 +177,7 @@ public static class MovieStateSidecar
         using var c = db.GetConnection().CreateCommand();
         c.CommandText = @"
             SELECT volume_serial, folder_rel_path, is_watched, is_favorite,
-                   is_watchlist, last_played_at, note, resume_ms, play_count
+                   is_watchlist, last_played_at, note, resume_ms, play_count, played_elsewhere
               FROM movies WHERE id=@id";
         c.Parameters.AddWithValue("@id", movieId);
         using var r = c.ExecuteReader();
@@ -193,10 +197,13 @@ public static class MovieStateSidecar
             Note             = r.IsDBNull(6) ? null : r.GetString(6),
             ResumeMs         = r.IsDBNull(7) || r.GetInt64(7) == 0 ? null : r.GetInt64(7),
             PlayCount        = r.IsDBNull(8) || r.GetInt32(8) == 0 ? null : r.GetInt32(8),
+            PlayedElsewhere  = !r.IsDBNull(9) && r.GetInt32(9) == 1 ? true : null,
         };
         state.Lists = db.GetUserListNamesForMovie(movieId);
         state.Tags = db.GetTagNamesForMovie(movieId);
         state.Tracks = db.GetSavedTracks('m', movieId);
+        if (db.GetSkipTimes(false, movieId) is { } kept)   // 5.3.0: also "none", so it's never asked again
+            state.SkipTimes = Playback.SkipTimesEntry.From(kept.FetchedAt, kept.Times);
         return (folderAbs, state);
     }
 
@@ -342,6 +349,15 @@ public static class MovieStateSidecar
         if (s.ResumeMs is > 0) DatabaseService.RestoreResume(conn, tx, movieId, s.ResumeMs.Value);
         if (s.Tracks != null) DatabaseService.RestoreTracks(conn, tx, 'm', movieId, s.Tracks);
         DatabaseService.RaisePlayCount(conn, tx, movieId, s.PlayCount ?? 0);
+        if (s.SkipTimes != null) DatabaseService.RestoreSkipTimes(conn, tx, false, movieId, s.SkipTimes);   // 5.3.0
+        if (s.PlayedElsewhere == true)   // 5.3.0: unless a place saved here says how far it got
+        {
+            using var elsewhere = conn.CreateCommand();
+            elsewhere.Transaction = tx;
+            elsewhere.CommandText = "UPDATE movies SET played_elsewhere=1 WHERE id=@id AND COALESCE(resume_ms, 0)=0";
+            elsewhere.Parameters.AddWithValue("@id", movieId);
+            elsewhere.ExecuteNonQuery();
+        }
 
         // Lists — additive. Each list name in the sidecar gets resolved
         // (or created) and the movie added to it.

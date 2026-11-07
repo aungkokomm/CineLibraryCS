@@ -247,7 +247,7 @@
                         <Button x:Name="PlayBtn" Click="OnPlay"
                                 Background="#A78BFA" Foreground="White"
                                 BorderThickness="0" CornerRadius="8" Padding="16,8">
-                            <TextBlock Text="▶ Play"/>
+                            <TextBlock x:Name="PlayLabel" Text="▶ Play"/>
                         </Button>
                         <!-- v4.6.0: the trailer link from the .nfo -->
                         <Button x:Name="TrailerBtn" Click="OnTrailer"

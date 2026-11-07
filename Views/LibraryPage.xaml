@@ -82,14 +82,25 @@
                                VerticalAlignment="Center" Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <!-- 5.3.0: wraps when its line is too narrow (with the Audio filter it no longer fits ~420 px) -->
+                <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" VerticalAlignment="Center">
                     <Button x:Name="FilterAll"      Content="All"       Tag="all"
                             Style="{StaticResource PillButtonActiveStyle}" Click="OnWatchedFilter"/>
                     <Button x:Name="FilterUnwatched" Content="Unwatched" Tag="unwatched"
                             Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
                     <Button x:Name="FilterWatched"  Content="Watched"   Tag="watched"
                             Style="{StaticResource PillButtonStyle}"       Click="OnWatchedFilter"/>
-                </StackPanel>
+                    <!-- 5.3.0: films with sound in a language; the menu lists the films' languages, most first -->
+                    <DropDownButton x:Name="AudioDropDown" Style="{StaticResource PillDropDownStyle}"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.Name="Audio language"
+                                    ToolTipService.ToolTip="Only films with sound in this language">
+                        <TextBlock x:Name="AudioLabel" Text="Audio: Any"/>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="AudioMenu" Placement="Bottom" Opening="OnAudioMenuOpening"/>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                </controls:WrapPanel>
 
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <ComboBox x:Name="SortCombo"
@@ -374,6 +385,24 @@
                     <TextBlock x:Name="ContinueMonthHeader" Text="THIS MONTH" Style="{StaticResource ContinueHeader}"/>
                     <ItemsRepeater x:Name="ContinueMonth" TabFocusNavigation="Once" Margin="0,0,0,20"/>
                     <TextBlock x:Name="ContinueEarlierHeader" Text="EARLIER" Style="{StaticResource ContinueHeader}"/>
+                    <!-- 5.3.0: films not gone back to in two months: still watching them? -->
+                    <Border x:Name="StillWatchingBar" Visibility="Collapsed" HorizontalAlignment="Left"
+                            Background="{ThemeResource CardBrush}" CornerRadius="10" Padding="16,10"
+                            BorderBrush="{StaticResource BrandPurpleBrush}" BorderThickness="1">
+                        <!-- the buttons go under the words when there isn't room beside them -->
+                        <controls:WrapPanel HorizontalSpacing="12" VerticalSpacing="8">
+                            <TextBlock x:Name="StillWatchingText" Foreground="{ThemeResource TextBrush}" FontSize="13"
+                                       TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button x:Name="StillWatchingRemoveBtn" Click="OnStillWatchingRemove"
+                                        Background="{StaticResource BrandPurpleBrush}" Foreground="#FFFFFF" BorderThickness="0"
+                                        CornerRadius="6" Padding="10,4" FontSize="12"/>
+                                <Button Content="Keep" Click="OnStillWatchingKeep"
+                                        Background="Transparent" Foreground="{ThemeResource MutedBrush}"
+                                        BorderBrush="{ThemeResource BorderBrush}" CornerRadius="6" Padding="10,4" FontSize="12"/>
+                            </StackPanel>
+                        </controls:WrapPanel>
+                    </Border>
                     <ItemsRepeater x:Name="ContinueEarlier" TabFocusNavigation="Once"/>
                 </StackPanel>
 

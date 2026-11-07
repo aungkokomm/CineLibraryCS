@@ -414,6 +414,21 @@ public sealed partial class MainWindow : Window
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         });
+        // 5.3.0
+        var skipTimesToggle = new ToggleSwitch
+        {
+            Header = "Intro and credits times from TheIntroDB",
+            IsOn = UiSettings.SkipTimesOnline,
+            OffContent = "Off", OnContent = "On",
+        };
+        skipTimesToggle.Toggled += (_, _) => UiSettings.SetSkipTimesOnline(skipTimesToggle.IsOn);
+        panel.Children.Add(skipTimesToggle);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "To offer Skip intro and the credits at the right moment, the player asks theintrodb.org once for each film or episode, the first time it plays, by its TMDB or IMDb id and the file's length, and keeps the answer with the drive. Playing it again never asks. Off, it goes by the file's chapters and where you skipped before.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
         panel.Children.Add(PlayerLanguageBox("Audio language", UiSettings.PreferredAudio, UiSettings.SetPreferredAudio, off: false));
         panel.Children.Add(PlayerLanguageBox("Subtitle language", UiSettings.PreferredSubtitles, UiSettings.SetPreferredSubtitles, off: true));
         panel.Children.Add(new TextBlock

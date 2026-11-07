@@ -431,6 +431,26 @@ CREATE TABLE IF NOT EXISTS user_list_shows (
         Exec(@"CREATE TABLE IF NOT EXISTS credits_offsets (
                  show_id INTEGER NOT NULL, season INTEGER NOT NULL, from_end_ms INTEGER NOT NULL,
                  PRIMARY KEY (show_id, season))");
+        // 5.3.0: a season's intro, learned when the player is jumped over it near an episode's start
+        Exec(@"CREATE TABLE IF NOT EXISTS intro_spans (
+                 show_id INTEGER NOT NULL, season INTEGER NOT NULL, start_ms INTEGER NOT NULL, end_ms INTEGER NOT NULL,
+                 PRIMARY KEY (show_id, season))");
+        // 5.3.0: intro, recap and credits times from TheIntroDB for a movie ('m') or an episode ('e'), kept
+        // for good (all null when TheIntroDB had none), so each is asked once
+        Exec(@"CREATE TABLE IF NOT EXISTS skip_times (
+                 kind TEXT NOT NULL, id INTEGER NOT NULL, fetched_at INTEGER NOT NULL,
+                 intro_start INTEGER, intro_end INTEGER, recap_start INTEGER, recap_end INTEGER,
+                 credits INTEGER, after_credits INTEGER, version_ms INTEGER,
+                 PRIMARY KEY (kind, id))");
+        // 5.3.0: last played in another player, which can't say how far: Continue Watching keeps those
+        if (!cols.Contains("played_elsewhere"))
+        {
+            Exec("ALTER TABLE movies ADD COLUMN played_elsewhere INTEGER DEFAULT 0");
+            // what's in Continue Watching now stays there, though played before this was known
+            Exec("UPDATE movies SET played_elsewhere=1 WHERE last_played_at>0 AND COALESCE(resume_ms,0)=0 AND COALESCE(is_watched,0)=0");
+        }
+        // 5.3.0: taken out of Continue Watching ("Still watching?"), its place kept; played again, it's back
+        if (!cols.Contains("continue_hidden")) Exec("ALTER TABLE movies ADD COLUMN continue_hidden INTEGER DEFAULT 0");
         // v4.10.0: the audio and subtitles chosen in the player, for a movie ('m') or a whole show ('s')
         Exec(@"CREATE TABLE IF NOT EXISTS track_choices (
                  kind TEXT NOT NULL, id INTEGER NOT NULL,
@@ -1925,7 +1945,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         string WatchedFilter = "all",   // all | watched | unwatched
         bool FavoritesOnly = false,
         bool IsWatchlistOnly = false,
-        bool ContinueWatching = false,  // true = last_played_at > 0 AND is_watched = 0
+        bool ContinueWatching = false,  // true = ContinueWatchingSql
         bool RecentlyWatchedOnly = false, // v2.9 — true = last_played_at > 0 (any watched state)
         bool RecentlyAddedOnly = false,   // v2.9.0 fix — true = restrict to top N most-recently-added
         int RecentlyAddedTopN = 50,
@@ -1937,7 +1957,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         string? RatingBand = null,      // bucket key: "9","8","7","6","5","0"
         bool ArchivedOnly = false,      // v3.3 — Watched & Gone page
         int Limit = 60,
-        int Offset = 0
+        int Offset = 0,
+        IReadOnlyList<string>? AudioCodes = null   // 5.3.0: a sound track in any of these languages ("hin", "hi")
     );
 
     /// <summary>
@@ -2025,7 +2046,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
         if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
         if (opts.FewCastOnly) where.Add(FewCastSql);
-        if (opts.ContinueWatching) where.Add("m.last_played_at > 0 AND m.is_watched = 0");
+        if (opts.ContinueWatching) where.Add(ContinueWatchingSql);
         if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
         if (opts.RecentlyAddedOnly)
             where.Add($"m.id IN (SELECT id FROM movies WHERE is_missing=0 AND archived_at IS NULL ORDER BY date_added DESC, id DESC LIMIT {Math.Max(1, opts.RecentlyAddedTopN)})");
@@ -2036,6 +2057,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             where.Add("m.year >= @decLo AND m.year <= @decHi");
         if (opts.RatingBand != null)
             where.Add("m.rating >= @ratLo AND m.rating < @ratHi");
+        if (opts.AudioCodes is { Count: > 0 } audio)   // 5.3.0: as the file says, else the .nfo
+            where.Add("(" + string.Join(" OR ", audio.Select((_, i) => $"instr({AudioListSql}, @aud{i}) > 0")) + ")");
         // v3.3 — Watched & Gone isolation. Every live-library query excludes
         // archived rows; the W&G page flips the flag to see ONLY them. Always
         // present, so a missed call site can't leak archived movies.
@@ -2087,6 +2110,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             cmd.Parameters.AddWithValue("@ratLo", lo);
             cmd.Parameters.AddWithValue("@ratHi", hi);
         }
+        if (opts.AudioCodes is { Count: > 0 } audio)
+            for (int i = 0; i < audio.Count; i++) cmd.Parameters.AddWithValue($"@aud{i}", $",{audio[i]},");
         if (includePaging)
         {
             cmd.Parameters.AddWithValue("@lim", opts.Limit);
@@ -5509,11 +5534,23 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public void MarkPlayed(int movieId)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "UPDATE movies SET last_played_at = strftime('%s','now') WHERE id=@id";
+        cmd.CommandText = "UPDATE movies SET last_played_at = strftime('%s','now'), continue_hidden = 0 WHERE id=@id";   // 5.3.0: back in Continue Watching
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
         LogWatchEvent("movie", movieId, "played");
         RaisePersonalStateChanged(movieId);
+    }
+
+    /// <summary>5.3.0: last played in another player (which can't say how far), or in CineLibrary's,
+    /// whose saved place then says whether it's in Continue Watching. True when that changed it.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool SetPlayedElsewhere(int movieId, bool elsewhere)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE movies SET played_elsewhere=@e WHERE id=@id AND COALESCE(played_elsewhere, 0) != @e";
+        cmd.Parameters.AddWithValue("@e", elsewhere ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        return cmd.ExecuteNonQuery() > 0;
     }
 
     // ── v4.10.0 Built-in player ──────────────────────────────────────────────
@@ -5648,6 +5685,158 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>5.3.0: an episode's season's intro (ms from the start), when learned.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (long Start, long End)? GetIntroSpan(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT i.start_ms, i.end_ms FROM intro_spans i
+                              JOIN tv_episodes e ON e.show_id=i.show_id AND e.season=i.season WHERE e.id=@id";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetInt64(0), r.GetInt64(1)) : null;
+    }
+
+    /// <summary>5.3.0: the player was jumped from here to there near an episode's start: the latest for its season.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetIntroSpan(int episodeId, long startMs, long endMs)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"INSERT INTO intro_spans(show_id, season, start_ms, end_ms)
+                            SELECT show_id, season, @s, @e FROM tv_episodes WHERE id=@id
+                            ON CONFLICT(show_id, season) DO UPDATE SET start_ms=excluded.start_ms, end_ms=excluded.end_ms";
+        cmd.Parameters.AddWithValue("@s", startMs);
+        cmd.Parameters.AddWithValue("@e", endMs);
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.0: what TheIntroDB knows an item by: its IMDb and TMDB ids (the show's, for an episode) and the episode.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (string? Imdb, string? Tmdb, int? Season, int? Episode) GetSkipLookup(bool episode, int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = episode
+            ? "SELECT s.imdb_id, s.tmdb_id, e.season, e.episode FROM tv_episodes e JOIN tv_shows s ON s.id=e.show_id WHERE e.id=@id"
+            : "SELECT imdb_id, tmdb_id, NULL, NULL FROM movies WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return (null, null, null, null);
+        string? Text(int i) => r.IsDBNull(i) ? null : Convert.ToString(r.GetValue(i), System.Globalization.CultureInfo.InvariantCulture);
+        return (Text(0), Text(1), r.IsDBNull(2) ? null : r.GetInt32(2), r.IsDBNull(3) ? null : r.GetInt32(3));
+    }
+
+    /// <summary>5.3.0: TheIntroDB's times for an item as kept, and when they were asked for (Unix seconds).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (long FetchedAt, Services.Playback.SkipTimes Times)? GetSkipTimes(bool episode, int id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT fetched_at, intro_start, intro_end, recap_start, recap_end, credits, after_credits, version_ms FROM skip_times WHERE kind=@k AND id=@id";
+        cmd.Parameters.AddWithValue("@k", episode ? "e" : "m");
+        cmd.Parameters.AddWithValue("@id", id);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        long? At(int i) => r.IsDBNull(i) ? null : r.GetInt64(i);
+        return (r.GetInt64(0), new Services.Playback.SkipTimes(At(1), At(2), At(3), At(4), At(5), At(6), At(7)));
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SetSkipTimes(bool episode, int id, Services.Playback.SkipTimes t)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"INSERT OR REPLACE INTO skip_times(kind, id, fetched_at, intro_start, intro_end, recap_start, recap_end, credits, after_credits, version_ms)
+                            VALUES(@k, @id, strftime('%s','now'), @is, @ie, @rs, @re, @c, @a, @ver)";
+        cmd.Parameters.AddWithValue("@k", episode ? "e" : "m");
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@is", (object?)t.IntroStart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ie", (object?)t.IntroEnd ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@rs", (object?)t.RecapStart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@re", (object?)t.RecapEnd ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@c", (object?)t.Credits ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@a", (object?)t.AfterCredits ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ver", (object?)t.VersionLength ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.0: TheIntroDB's times from a state file, when none are kept here.</summary>
+    internal static void RestoreSkipTimes(SqliteConnection conn, SqliteTransaction tx, bool episode, int id, Services.Playback.SkipTimesEntry e)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = @"INSERT OR IGNORE INTO skip_times(kind, id, fetched_at, intro_start, intro_end, recap_start, recap_end, credits, after_credits, version_ms)
+                            VALUES(@k, @id, @f, @is, @ie, @rs, @re, @c, @a, @ver)";
+        cmd.Parameters.AddWithValue("@k", episode ? "e" : "m");
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@f", e.FetchedUnix);
+        cmd.Parameters.AddWithValue("@is", (object?)e.IntroStart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ie", (object?)e.IntroEnd ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@rs", (object?)e.RecapStart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@re", (object?)e.RecapEnd ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@c", (object?)e.Credits ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@a", (object?)e.AfterCredits ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@ver", (object?)e.VersionLength ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.0: a season's learned intro and credits from the show's state file, when none are kept here.</summary>
+    internal static void RestoreSeasonTimes(SqliteConnection conn, SqliteTransaction tx, int showId, int season, Services.Playback.SeasonTimes t)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.Parameters.AddWithValue("@show", showId);
+        cmd.Parameters.AddWithValue("@season", season);
+        if (t.IntroStart is long start && t.IntroEnd is long end)
+        {
+            cmd.CommandText = "INSERT OR IGNORE INTO intro_spans(show_id, season, start_ms, end_ms) VALUES(@show, @season, @s, @e)";
+            cmd.Parameters.AddWithValue("@s", start);
+            cmd.Parameters.AddWithValue("@e", end);
+            cmd.ExecuteNonQuery();
+        }
+        if (t.CreditsFromEnd is long fromEnd)
+        {
+            cmd.CommandText = "INSERT OR IGNORE INTO credits_offsets(show_id, season, from_end_ms) VALUES(@show, @season, @c)";
+            cmd.Parameters.AddWithValue("@c", fromEnd);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>5.3.0: what a show's state file keeps of its seasons' learned times and its episodes' TheIntroDB times.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    internal (Dictionary<int, Services.Playback.SeasonTimes> Seasons, Dictionary<(int Season, int Episode), Services.Playback.SkipTimesEntry> Episodes) GetShowSkipTimes(int showId)
+    {
+        var seasons = new Dictionary<int, Services.Playback.SeasonTimes>();
+        Services.Playback.SeasonTimes Season(int s) => seasons.TryGetValue(s, out var t) ? t : seasons[s] = new Services.Playback.SeasonTimes();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT season, start_ms, end_ms FROM intro_spans WHERE show_id=@id";
+            cmd.Parameters.AddWithValue("@id", showId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) { var t = Season(r.GetInt32(0)); t.IntroStart = r.GetInt64(1); t.IntroEnd = r.GetInt64(2); }
+        }
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT season, from_end_ms FROM credits_offsets WHERE show_id=@id";
+            cmd.Parameters.AddWithValue("@id", showId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) Season(r.GetInt32(0)).CreditsFromEnd = r.GetInt64(1);
+        }
+        var episodes = new Dictionary<(int, int), Services.Playback.SkipTimesEntry>();
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = @"SELECT e.season, e.episode, t.fetched_at, t.intro_start, t.intro_end, t.recap_start, t.recap_end, t.credits, t.after_credits, t.version_ms
+                                  FROM skip_times t JOIN tv_episodes e ON t.kind='e' AND t.id=e.id WHERE e.show_id=@id";
+            cmd.Parameters.AddWithValue("@id", showId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                long? At(int i) => r.IsDBNull(i) ? null : r.GetInt64(i);
+                var times = new Services.Playback.SkipTimes(At(3), At(4), At(5), At(6), At(7), At(8), At(9));
+                episodes[(r.GetInt32(0), r.GetInt32(1))] = Services.Playback.SkipTimesEntry.From(r.GetInt64(2), times);   // "none" too
+            }
+        }
+        return (seasons, episodes);
+    }
+
     /// <summary>5.3.0: the built-in player reached the end of an episode once more.</summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void AddEpisodePlay(int episodeId)
@@ -5662,6 +5851,53 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     /// 5.3.0: the languages VLC read from inside a film's file (codes, as the .nfo has them, or null
     /// when its tracks don't say), with the file's size then, so a new file is read again.
     /// </summary>
+    /// <summary>5.3.0: a film's sound languages as ",hin,eng,": from the file, else the .nfo.</summary>
+    private const string AudioListSql = "(',' || REPLACE(LOWER(COALESCE(m.file_audio_languages, m.audio_languages, '')), ' ', '') || ',')";
+
+    /// <summary>
+    /// 5.3.0: the languages the films' sound is in, by name with the codes that mean it ("en", "eng")
+    /// and how many films have it, most first: the library's Audio filter.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(string Name, List<string> Codes, int Films)> GetAudioLanguages()
+    {
+        var byName = new Dictionary<string, (HashSet<string> Codes, int Films)>(StringComparer.OrdinalIgnoreCase);
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT LOWER(COALESCE(m.file_audio_languages, m.audio_languages)) FROM movies m WHERE m.archived_at IS NULL AND COALESCE(m.file_audio_languages, m.audio_languages, '') != ''";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var code in r.GetString(0).Replace(" ", "").Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var name = Services.Playback.SubtitleFiles.LanguageName(code);
+                if (!byName.TryGetValue(name, out var entry)) byName[name] = entry = (new HashSet<string>(), 0);
+                entry.Codes.Add(code);
+                if (names.Add(name)) byName[name] = (entry.Codes, entry.Films + 1);
+            }
+        }
+        return byName.Select(kv => (kv.Key, kv.Value.Codes.Order().ToList(), kv.Value.Films))
+                     .OrderByDescending(l => l.Films).ThenBy(l => l.Key).ToList();
+    }
+
+    /// <summary>5.3.0: the films on connected drives whose sound languages aren't known (the .nfo doesn't
+    /// say, the file never read), newest first, with the file's path.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(int Id, string Path)> GetFilmsWithoutLanguages(IReadOnlyDictionary<string, string> connected)
+    {
+        var films = new List<(int, string)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT id, volume_serial, video_file_rel_path FROM movies
+                            WHERE archived_at IS NULL AND COALESCE(is_missing, 0) = 0 AND file_languages_size IS NULL
+                              AND COALESCE(audio_languages, '') = '' AND COALESCE(video_file_rel_path, '') != ''
+                            ORDER BY date_added DESC, id DESC";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            if (!r.IsDBNull(1) && connected.TryGetValue(r.GetString(1), out var letter))
+                films.Add((r.GetInt32(0), System.IO.Path.Combine($"{letter}:\\", r.GetString(2).Replace('/', '\\'))));
+        return films;
+    }
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void SetFileLanguages(int movieId, string? audio, string? subtitles, long size)
     {
@@ -5760,6 +5996,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         using var r = cmd.ExecuteReader();
         if (!r.Read()) return null;
         return (r.GetInt32(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4));
+    }
+
+    /// <summary>5.3.0: an episode's video file, and its show's drive.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (string File, string VolumeSerial)? GetEpisodeFile(int episodeId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT e.video_file_rel_path, s.volume_serial FROM tv_episodes e JOIN tv_shows s ON s.id = e.show_id
+                             WHERE e.id = @id AND e.video_file_rel_path IS NOT NULL AND s.volume_serial IS NOT NULL";
+        cmd.Parameters.AddWithValue("@id", episodeId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? (r.GetString(0), r.GetString(1)) : null;
     }
 
     // ── v2.9 Watch history ───────────────────────────────────────────────────
@@ -6279,9 +6527,43 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public int GetContinueWatchingCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"SELECT COUNT(*) FROM movies
-                            WHERE last_played_at > 0 AND is_watched = 0 AND is_missing = 0 AND archived_at IS NULL";
+        cmd.CommandText = $@"SELECT COUNT(*) FROM movies m
+                             WHERE {ContinueWatchingSql} AND m.is_missing = 0 AND m.archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>
+    /// 5.3.0: in Continue Watching: played, not watched, and stopped somewhere worth going back to (the
+    /// player saves a place a minute in or more) or played in another player, which can't say how far.
+    /// A film opened for a few seconds stays out, and so do those taken out of it.
+    /// </summary>
+    private const string ContinueWatchingSql =
+        "m.last_played_at > 0 AND m.is_watched = 0 AND (COALESCE(m.resume_ms, 0) > 0 OR COALESCE(m.played_elsewhere, 0) = 1)"
+        + " AND COALESCE(m.continue_hidden, 0) = 0";
+
+    /// <summary>5.3.0: the films in Continue Watching last played between these times (Unix seconds).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetContinueWatchingPlayedBetween(long from, long before)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM movies m WHERE {ContinueWatchingSql} AND m.archived_at IS NULL AND m.last_played_at >= @f AND m.last_played_at < @b";
+        cmd.Parameters.AddWithValue("@f", from);
+        cmd.Parameters.AddWithValue("@b", before);
+        return Convert.ToInt32(cmd.ExecuteScalar() ?? 0);
+    }
+
+    /// <summary>5.3.0: "Still watching?" No: those films out of Continue Watching. Where each stopped is
+    /// kept, so played again it starts there and is back.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int HideFromContinueWatching(long from, long before)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"UPDATE movies SET continue_hidden=1 WHERE id IN (
+                               SELECT m.id FROM movies m WHERE {ContinueWatchingSql} AND m.archived_at IS NULL
+                                  AND m.last_played_at >= @f AND m.last_played_at < @b)";
+        cmd.Parameters.AddWithValue("@f", from);
+        cmd.Parameters.AddWithValue("@b", before);
+        return cmd.ExecuteNonQuery();
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
