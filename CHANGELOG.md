@@ -6,6 +6,32 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.3.0] - 2026-11-08
+
+A special Diwali release.
+
+### Added
+- Skip intro and Skip recap in the player, and at the credits Play next episode, or Close player for a film. The times come from the file's chapters, from TheIntroDB (looked up once for each film or episode, the first time it plays, and kept), or from where you skipped earlier in the season. Turn off Intro and credits times from TheIntroDB in Settings to stay offline.
+- Play when connected: press Play on a film or an episode whose drive isn't connected, and it starts when you connect the drive.
+- An Audio filter in the library, by the language of a film's sound.
+- Scan this folder: on the Drives page, the folder under the mouse has a button that scans just that folder.
+- Films and shows show when you last watched them, and episodes count their plays like films.
+- A file named like S03E01E02 counts as both episodes, and Kodi's .nfo for a double episode is read.
+
+### Changed
+- A film's page shows its fan art behind the poster, the title and the buttons, fading into the page.
+- The player bar is glass: Play is a purple glass ball that lights up under the mouse, and the seek and volume bars have glass handles.
+- Details pages colour each kind of field, the facts sit in tiles, and writers open the library filtered by writer.
+- Runtimes read like 2h 17m.
+- The languages of a film's sound and subtitles are read from the file itself.
+- A film or episode is marked watched as soon as it passes 90% or its credits.
+- Continue Watching keeps the films you stopped partway, and asks "Still watching?" about ones untouched for two months.
+- The library's filter chips use the sidebar's icons, and watched episodes' pictures stay clear instead of dark.
+
+### Fixed
+- The app could close with an error when a film ended with the mouse on the seek bar.
+- Some .nfo files gave a film a length of one second.
+
 ## [5.2.0] - 2026-11-06
 
 ### Added
