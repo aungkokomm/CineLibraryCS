@@ -6,6 +6,11 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.3.1] - Unreleased
+
+### Fixed
+- Fetch missing info no longer takes a film's poster and details from another film when the film's .nfo carries that other film's IMDb or TMDb id. It asks you to pick the film instead.
+
 ## [5.3.0] - 2026-11-08
 
 A special Diwali release.

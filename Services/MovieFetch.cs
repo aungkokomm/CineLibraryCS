@@ -85,10 +85,17 @@ public static class MovieFetch
     /// </summary>
     public static async Task<TmdbMovie?> SureMatchAsync(TmdbClient client, MovieDetail m)
     {
+        // 5.3.0: an id is sure only when TMDb's film has your film's title (TitleFits)
         if (int.TryParse(m.TmdbId?.Trim(), out var tmdbId) && tmdbId > 0)
-            return await client.GetMovieDetailsAsync(tmdbId) ?? throw new InvalidOperationException("No details from TMDb");
+        {
+            var byId = await client.GetMovieDetailsAsync(tmdbId) ?? throw new InvalidOperationException("No details from TMDb");
+            return TitleFits(m.Title, byId) ? byId : null;
+        }
         if (ImdbRatingClient.IsImdbId(m.ImdbId) && await client.FindMovieByImdbAsync(m.ImdbId!.Trim()) is int found)
-            return await client.GetMovieDetailsAsync(found) ?? throw new InvalidOperationException("No details from TMDb");
+        {
+            var byImdb = await client.GetMovieDetailsAsync(found) ?? throw new InvalidOperationException("No details from TMDb");
+            return TitleFits(m.Title, byImdb) ? byImdb : null;
+        }
         if (m.Year is not > 0 || string.IsNullOrWhiteSpace(m.Title)) return null;
         var key = Key(m.Title);
         var hits = (await client.SearchMovieAsync(m.Title, m.Year))
@@ -102,6 +109,37 @@ public static class MovieFetch
     // Titles compared by their letters and digits: "Spider-Man: No Way Home" = "Spider Man No Way Home"
     private static string Key(string? title)
         => new string((title ?? "").Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
+    /// <summary>
+    /// 5.3.0: TMDb's film has your film's title, or its original title does: one title's words run inside
+    /// the other's, in order, accents aside ("Life On Us - A Microscopic Safari (2014)" and "Life on Us: A
+    /// Microscopic Safari"). An id in an .nfo can be another film's (two documentaries with one IMDb id gave
+    /// one of them the other's poster); then nothing is sure, and you pick.
+    /// </summary>
+    internal static bool TitleFits(string? ours, TmdbMovie d)
+    {
+        var mine = Words(ours);
+        if (mine.Length == 0) return false;
+        foreach (var theirs in new[] { Words(d.Title), Words(d.OriginalTitle) })
+            if (theirs.Length > 0 && (Inside(theirs, mine) || Inside(mine, theirs))) return true;
+        return false;
+    }
+
+    private static string[] Words(string? title)
+    {
+        var plain = new string((title ?? "").Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .ToArray());
+        return System.Text.RegularExpressions.Regex.Split(plain.ToLowerInvariant(), @"[^\p{L}\p{N}]+").Where(w => w.Length > 0).ToArray();
+    }
+
+    // The words of part, one after another, somewhere in whole
+    private static bool Inside(string[] part, string[] whole)
+    {
+        for (int i = 0; i + part.Length <= whole.Length; i++)
+            if (whole.Skip(i).Take(part.Length).SequenceEqual(part)) return true;
+        return false;
+    }
 
     public record BulkResult(int Updated, int Saved, int Waiting, List<string> NoMatch, int Failed, bool Stopped);
 

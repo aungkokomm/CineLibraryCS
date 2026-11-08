@@ -575,13 +575,16 @@ public sealed partial class MovieDetailDialog : Window
         TmdbBusyState(true, "Looking up TMDb…");
         try
         {
-            // Match: stored tmdb_id is exact; otherwise let the user confirm.
+            // Match: the stored tmdb_id when TMDb's film has this film's title (5.3.0: an .nfo's id can be
+            // another film's, see MovieFetch.TitleFits); otherwise let the user confirm.
             Services.Tmdb.TmdbMovie? d = null;
-            if (int.TryParse(m.TmdbId, out var tid) && tid > 0)
+            var stored = int.TryParse(m.TmdbId, out var tid) && tid > 0;
+            if (stored)
             {
                 d = await client.GetMovieDetailsAsync(tid);
+                if (d != null && !Services.MovieFetch.TitleFits(m.Title, d)) { d = null; stored = false; }
             }
-            else
+            if (!stored)
             {
                 var picker = new TmdbPickerDialog(client, m.Title, m.Year)
                 {
