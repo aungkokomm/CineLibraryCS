@@ -621,6 +621,15 @@ with it, and they're on the **Tags** page. They change with the
 **Reload from .nfo**) CineLibrary follows. They're not written to the
 sidecar file or your backups, since the `.nfo` already carries them.
 
+A note that's already in a movie's or show's `.nfo` (tinyMediaManager
+writes one as `<user_note>`, and so does CineLibrary Essentials' editor)
+shows as **Your note** when you haven't written one in CineLibrary. Write
+your own and it shows instead; clear yours and the `.nfo`'s note is back.
+Titles with either kind of note are on the **Notes** page. Like the tags,
+the `.nfo`'s note follows the file after the next scan or **Reload from
+.nfo**. A show's play count in its `tvshow.nfo` shows as **Played** on
+the show page.
+
 ---
 
 ## Watched & Gone

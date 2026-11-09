@@ -1749,14 +1749,15 @@ public sealed partial class MovieDetailDialog : Window
         private void UpdateNoteUi(bool viewing)
         {
             if (_movie == null) return;
-            var hasNote = !string.IsNullOrWhiteSpace(_movie.Note);
+            var note = _movie.ShownNote;   // 5.3.2: or the .nfo's note when there's none of yours
+            var hasNote = !string.IsNullOrWhiteSpace(note);
             // v5.3.0: "Add note" waits in the button row; the card is there with a note, or while writing one
             NoteAddBtn.Content ??= ActionLabel.Note("Add note");
             NotesCard.Visibility = viewing && !hasNote ? Visibility.Collapsed : Visibility.Visible;
 
             if (viewing)
             {
-                NoteText.Text = _movie.Note ?? "";
+                NoteText.Text = note ?? "";
                 NoteText.Visibility = hasNote ? Visibility.Visible : Visibility.Collapsed;
                 NoteEditor.Visibility = Visibility.Collapsed;
                 NoteAddBtn.Visibility = hasNote ? Visibility.Collapsed : Visibility.Visible;
@@ -1768,7 +1769,7 @@ public sealed partial class MovieDetailDialog : Window
             else
             {
                 // Editing mode
-                NoteEditor.Text = _movie.Note ?? "";
+                NoteEditor.Text = note ?? "";
                 NoteText.Visibility = Visibility.Collapsed;
                 NoteEditor.Visibility = Visibility.Visible;
                 NoteAddBtn.Visibility = Visibility.Collapsed;

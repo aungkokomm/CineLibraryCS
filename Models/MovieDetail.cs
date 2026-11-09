@@ -78,6 +78,10 @@ public class MovieDetail
     public string? FolderRelPath { get; set; }
     public string? VideoFileRelPath { get; set; }
     public string? Note { get; set; }
+    /// <summary>5.3.2: the .nfo's &lt;user_note&gt; (tinyMediaManager, CineLibrary Essentials).</summary>
+    public string? NfoNote { get; set; }
+    /// <summary>Your note here, else the .nfo's.</summary>
+    public string? ShownNote => string.IsNullOrWhiteSpace(Note) ? NfoNote : Note;
     // v2.2 — trailer + stream details + file info
     public string? Trailer { get; set; }
     public int? VideoWidth { get; set; }

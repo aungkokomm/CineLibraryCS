@@ -92,7 +92,7 @@ public class ScannerService
             hdr_type=@hdr, audio_codec=@ac, audio_channels=@ach,
             audio_languages=@al, subtitle_languages=@sl, duration_seconds=@dur,
             container_ext=@cx, file_size_bytes=@fs,
-            edition=@ed, studios=@sts, countries=@cts, user_rating=@ur,
+            edition=@ed, studios=@sts, countries=@cts, user_rating=@ur, nfo_note=@nn,
             is_missing=0, date_modified=strftime('%s','now')
             WHERE id=@id";
 
@@ -103,9 +103,9 @@ public class ScannerService
             premiered, studio, country, trailer, local_poster, local_fanart, local_nfo,
             video_width, video_height, video_codec, video_aspect, hdr_type,
             audio_codec, audio_channels, audio_languages, subtitle_languages,
-            duration_seconds, container_ext, file_size_bytes, edition, studios, countries, user_rating)
+            duration_seconds, container_ext, file_size_bytes, edition, studios, countries, user_rating, nfo_note)
             VALUES (@vs,@fr,@vfr,@t,@ot,@st,@y,@ra,@vo,@ru,@pl,@ou,@tg,@mp,@im,@tm,@pr,@su,@co,@tr,@lp,@lf,@ln,
-                    @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs,@ed,@sts,@cts,@ur)";
+                    @vw,@vh,@vc,@va,@hdr,@ac,@ach,@al,@sl,@dur,@cx,@fs,@ed,@sts,@cts,@ur,@nn)";
 
         // v3.3 — revive: when a movie is found at a NEW path/drive that matches
         // an archived Watched & Gone record, un-archive that record and move it
@@ -382,6 +382,7 @@ public class ScannerService
         cmd.Parameters.AddWithValue("@sts", (object?)DatabaseService.JoinLines(p.Studios)   ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@cts", (object?)DatabaseService.JoinLines(p.Countries) ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ur",  (object?)p.UserRating          ?? DBNull.Value);   // v4.7.0
+        cmd.Parameters.AddWithValue("@nn",  (object?)p.NfoNote             ?? DBNull.Value);   // 5.3.2
     }
 
     /// <summary>
@@ -814,6 +815,7 @@ public class ScannerService
                 var localNfo    = CopyToCache(nfoPath, dataDir, key, "nfo");
 
                 int showId = UpsertTvShow(conn, tx, volumeSerial, folderRel, show, localPoster, localFanart, localNfo);
+                DatabaseService.RaiseShowPlayCount(conn, tx, showId, show.PlayCount ?? 0);   // 5.3.2, as for movies
                 UpsertTvShowRelated(conn, tx, showId, show, lookup);
 
                 // Episodes — every video file with an SxxExx pattern.
@@ -1021,7 +1023,7 @@ public class ScannerService
                 local_poster=COALESCE(@lp,local_poster), local_fanart=COALESCE(@lf,local_fanart),
                 tagline=COALESCE(@tg,tagline), runtime=COALESCE(@ru,runtime), studios=COALESCE(@sts,studios),
                 countries=COALESCE(@cts,countries), creators=COALESCE(@cr,creators), user_rating=@ur,
-                local_nfo=@ln, is_missing=0, date_modified=strftime('%s','now') WHERE id=@id";
+                nfo_note=@nn, local_nfo=@ln, is_missing=0, date_modified=strftime('%s','now') WHERE id=@id";
             BindShow(cmd, s, poster, fanart, nfo);
             cmd.Parameters.AddWithValue("@id", id);
             cmd.ExecuteNonQuery();
@@ -1032,9 +1034,9 @@ public class ScannerService
             cmd.CommandText = @"INSERT INTO tv_shows
                 (volume_serial, folder_rel_path, title, original_title, sort_title, year, rating, votes,
                  plot, mpaa, premiered, studio, status, imdb_id, tmdb_id, tvdb_id, local_poster, local_fanart, local_nfo,
-                 tagline, runtime, studios, countries, creators, user_rating)
+                 tagline, runtime, studios, countries, creators, user_rating, nfo_note)
                 VALUES (@vs,@fr,@t,@ot,@st,@y,@ra,@vo,@pl,@mp,@pr,@su,@status,@im,@tm,@tv,@lp,@lf,@ln,
-                        @tg,@ru,@sts,@cts,@cr,@ur);
+                        @tg,@ru,@sts,@cts,@cr,@ur,@nn);
                 SELECT last_insert_rowid();";
             cmd.Parameters.AddWithValue("@vs", serial);
             cmd.Parameters.AddWithValue("@fr", folderRel);

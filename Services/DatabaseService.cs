@@ -673,10 +673,13 @@ CREATE TABLE IF NOT EXISTS tv_show_tags (
                                             ("countries", "TEXT"), ("creators", "TEXT"),
                                             ("fetched_at", "INTEGER"), ("synced_at", "INTEGER"),
                                             ("user_rating", "REAL"),
-                                            ("archived_at", "INTEGER") })   // v4.9.0 (#25): Watched & Gone, as for movies
+                                            ("archived_at", "INTEGER"),   // v4.9.0 (#25): Watched & Gone, as for movies
+                                            ("nfo_note", "TEXT"), ("play_count", "INTEGER DEFAULT 0") })   // 5.3.2
             if (!showCols.Contains(col)) Exec($"ALTER TABLE tv_shows ADD COLUMN {col} {type}");
         // v4.7.0: Kodi's <userrating>, shown beside IMDb and TMDb
         if (!cols.Contains("user_rating")) Exec("ALTER TABLE movies ADD COLUMN user_rating REAL");
+        // 5.3.2: tinyMediaManager's <user_note>, shown when there's no note of yours
+        if (!cols.Contains("nfo_note")) Exec("ALTER TABLE movies ADD COLUMN nfo_note TEXT");
         Exec(@"
 CREATE TABLE IF NOT EXISTS tv_show_ratings (
     show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
@@ -759,6 +762,22 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
             }
         }
 
+        // 5.3.2: notes (<user_note>) and shows' play counts already in the .nfo
+        // files, read once from the cached copies
+        var nfoNoteKey = "_migration_nfo_note_v532";
+        if (GetPref(nfoNoteKey) != "done")
+        {
+            try
+            {
+                ReadNfoNotesAndShowPlays();
+                SetPref(nfoNoteKey, "done");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"nfo notes 5.3.2 skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
     }
@@ -800,6 +819,55 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
             upd.Parameters.AddWithValue("@id", id);
             upd.ExecuteNonQuery();
         }
+        tx.Commit();
+    }
+
+    /// <summary>
+    /// 5.3.2 one-shot: the &lt;user_note&gt; of every movie and show whose cached .nfo
+    /// has one, and a show's &lt;playcount&gt; (only those files are parsed).
+    /// </summary>
+    private void ReadNfoNotesAndShowPlays()
+    {
+        var notes = new List<(string Table, int Id, string Note)>();
+        var plays = new List<(int Id, int Count)>();
+        foreach (var (table, show) in new[] { ("movies", false), ("tv_shows", true) })
+        {
+            var rows = new List<(int Id, string Nfo)>();
+            using (var sel = _conn.CreateCommand())
+            {
+                sel.CommandText = $"SELECT id, local_nfo FROM {table} WHERE local_nfo IS NOT NULL";
+                using var r = sel.ExecuteReader();
+                while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+            }
+            foreach (var (id, nfoRel) in rows)
+            {
+                var path = Path.Combine(_dataDir, nfoRel);
+                string text;
+                try { text = File.ReadAllText(path); } catch { continue; }
+                var hasNote = text.Contains("<user_note", StringComparison.OrdinalIgnoreCase);
+                var hasPlays = show && text.Contains("<playcount", StringComparison.OrdinalIgnoreCase);
+                if (!hasNote && !hasPlays) continue;
+                if (show)
+                {
+                    var s = NfoParser.ParseTvShow(path);
+                    if (s?.NfoNote != null) notes.Add((table, id, s.NfoNote));
+                    if (s?.PlayCount is > 0) plays.Add((id, s.PlayCount.Value));
+                }
+                else if (NfoParser.Parse(path)?.NfoNote is { } note) notes.Add((table, id, note));
+            }
+        }
+        if (notes.Count == 0 && plays.Count == 0) return;
+        using var tx = _conn.BeginTransaction();
+        foreach (var (table, id, note) in notes)
+        {
+            using var upd = _conn.CreateCommand();
+            upd.Transaction = tx;
+            upd.CommandText = $"UPDATE {table} SET nfo_note=@n WHERE id=@id";
+            upd.Parameters.AddWithValue("@n", note);
+            upd.Parameters.AddWithValue("@id", id);
+            upd.ExecuteNonQuery();
+        }
+        foreach (var (id, count) in plays) RaiseShowPlayCount(_conn, tx, id, count);
         tx.Commit();
     }
 
@@ -906,6 +974,7 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
     internal static void BindShowExtras(SqliteCommand cmd, ParsedTvShow s)
     {
         cmd.Parameters.AddWithValue("@ur", (object?)s.UserRating ?? DBNull.Value);   // v4.7.0
+        cmd.Parameters.AddWithValue("@nn", (object?)s.NfoNote ?? DBNull.Value);      // 5.3.2
         cmd.Parameters.AddWithValue("@tg", (object?)s.Tagline ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ru", (object?)s.Runtime ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@sts", (object?)JoinLines(s.Studios) ?? DBNull.Value);
@@ -2044,7 +2113,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         else if (opts.WatchedFilter == "unwatched") where.Add("m.is_watched=0");
         if (opts.FavoritesOnly) where.Add("m.is_favorite=1");
         if (opts.IsWatchlistOnly) where.Add("m.is_watchlist=1");
-        if (opts.HasNoteOnly) where.Add("m.note IS NOT NULL AND TRIM(m.note) != ''");
+        if (opts.HasNoteOnly) where.Add(MovieHasNoteSql);
         if (opts.FewCastOnly) where.Add(FewCastSql);
         if (opts.ContinueWatching) where.Add(ContinueWatchingSql);
         if (opts.RecentlyWatchedOnly) where.Add("m.last_played_at > 0");
@@ -2255,7 +2324,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                    m.audio_codec, m.audio_channels, m.audio_languages, m.subtitle_languages,
                    m.duration_seconds, m.container_ext, m.file_size_bytes,
                    m.tmdb_id, m.edition, m.studios, m.countries, m.user_rating, m.play_count,
-                   m.last_played_at, m.file_audio_languages, m.file_subtitle_languages, m.file_languages_size
+                   m.last_played_at, m.file_audio_languages, m.file_subtitle_languages, m.file_languages_size,
+                   m.nfo_note
             FROM movies m LEFT JOIN drives d ON d.volume_serial=m.volume_serial
             WHERE m.id=@id";
         cmd.Parameters.AddWithValue("@id", id);
@@ -2323,6 +2393,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 FileAudioLanguages    = r.IsDBNull(45) ? null : r.GetString(45),
                 FileSubtitleLanguages = r.IsDBNull(46) ? null : r.GetString(46),
                 FileLanguagesSize     = r.IsDBNull(47) ? null : r.GetInt64(47),
+                NfoNote               = r.IsDBNull(48) ? null : r.GetString(48),   // 5.3.2
             };
             // Rows from before v4.6.0 (or filled from TMDb) only have the first
             if (movie.Studios.Count == 0 && movie.Studio != null) movie.Studios.Add(movie.Studio);
@@ -4471,11 +4542,15 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     }
 
     /// <summary>v2.8.2 — count of movies carrying a note (for the Notes pill badge).</summary>
+    // 5.3.2: a note of yours, or one in the .nfo (tinyMediaManager's <user_note>)
+    private const string MovieHasNoteSql =
+        "((m.note IS NOT NULL AND TRIM(m.note) != '') OR (m.nfo_note IS NOT NULL AND TRIM(m.nfo_note) != ''))";
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public int GetNotesCount()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE note IS NOT NULL AND TRIM(note) != '' AND archived_at IS NULL";
+        cmd.CommandText = $"SELECT COUNT(*) FROM movies m WHERE {MovieHasNoteSql} AND m.archived_at IS NULL";
         return (int)(long)cmd.ExecuteScalar()!;
     }
 
@@ -5032,7 +5107,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     {
         TvShowPage.Favorites => "s.is_favorite = 1",
         TvShowPage.Watchlist => "s.is_watchlist = 1",
-        TvShowPage.Notes => "s.note IS NOT NULL AND TRIM(s.note) != ''",   // v4.3.0
+        TvShowPage.Notes => "((s.note IS NOT NULL AND TRIM(s.note) != '') OR (s.nfo_note IS NOT NULL AND TRIM(s.nfo_note) != ''))",   // v4.3.0; 5.3.2: or the .nfo's
         // v4.8.0 (#25): the shows added since the oldest of Recently Added's 50 movies
         // (all of them when there are no movies), so the page covers one stretch of time
         TvShowPage.RecentlyAdded => @"s.date_added >= COALESCE((SELECT MIN(date_added) FROM (
@@ -5274,7 +5349,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             SELECT s.id, s.title, s.year, s.rating, s.plot, s.mpaa, s.studio, s.status, s.premiered,
                    s.imdb_id, s.tmdb_id, s.local_poster, s.local_fanart, s.volume_serial,
                    s.folder_rel_path, s.is_favorite, s.is_watchlist, s.note, d.label,
-                   s.original_title, s.tagline, s.runtime, s.studios, s.countries, s.creators, s.user_rating
+                   s.original_title, s.tagline, s.runtime, s.studios, s.countries, s.creators, s.user_rating,
+                   s.nfo_note, s.play_count
               FROM tv_shows s LEFT JOIN drives d ON d.volume_serial=s.volume_serial
              WHERE s.id=@id";
         cmd.Parameters.AddWithValue("@id", showId);
@@ -5308,6 +5384,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
             Countries = SplitLines(r.IsDBNull(23) ? null : r.GetString(23)),
             Creators = SplitLines(r.IsDBNull(24) ? null : r.GetString(24)),
             UserRating = r.IsDBNull(25) ? null : r.GetDouble(25),
+            NfoNote = r.IsDBNull(26) ? null : r.GetString(26),   // 5.3.2
+            PlayCount = r.IsDBNull(27) ? 0 : r.GetInt32(27),
         };
         r.Close();
         if (d.Studios.Count == 0 && d.Studio != null) d.Studios.Add(d.Studio);
@@ -5648,6 +5726,18 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.CommandText = "UPDATE movies SET play_count=@n WHERE id=@id AND COALESCE(play_count, 0)<@n";
         cmd.Parameters.AddWithValue("@n", count);
         cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>5.3.2: a show's play count from its tvshow.nfo; the highest number wins, as for movies.</summary>
+    internal static void RaiseShowPlayCount(SqliteConnection conn, SqliteTransaction tx, int showId, int count)
+    {
+        if (count <= 0) return;
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE tv_shows SET play_count=@n WHERE id=@id AND COALESCE(play_count, 0)<@n";
+        cmd.Parameters.AddWithValue("@n", count);
+        cmd.Parameters.AddWithValue("@id", showId);
         cmd.ExecuteNonQuery();
     }
 

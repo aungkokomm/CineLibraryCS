@@ -822,6 +822,8 @@ public sealed partial class TvShowsPage : Page
         Fact(DetailField.Kind.People, "Created by", d.Creators);
         Fact(DetailField.Kind.Production, d.Studios.Count > 1 ? "Studios" : "Studio", d.Studios);
         Fact(DetailField.Kind.Production, d.Countries.Count > 1 ? "Countries" : "Country", d.Countries);
+        if (d.PlayCount > 0)   // 5.3.2: the tvshow.nfo's play count
+            Fact(DetailField.Kind.File, "Played", new[] { d.PlayCount == 1 ? "1 time" : $"{d.PlayCount} times" });
         ShowFacts.Visibility = ShowFacts.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -997,7 +999,7 @@ public sealed partial class TvShowsPage : Page
 
     private void UpdateShowNote()
     {
-        var note = _detail?.Note;
+        var note = _detail?.ShownNote;   // 5.3.2: or the .nfo's note when there's none of yours
         var has = !string.IsNullOrWhiteSpace(note);
         ShowNoteText.Text = has ? note : "";
         ShowNoteWrap.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
@@ -1010,7 +1012,7 @@ public sealed partial class TvShowsPage : Page
         var show = _detail;
         var box = new TextBox
         {
-            Text = show.Note ?? "",
+            Text = show.ShownNote ?? "",
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 120,

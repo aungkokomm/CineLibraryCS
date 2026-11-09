@@ -200,6 +200,12 @@ public class TvShowDetail
     public bool IsFavorite { get; set; }
     public bool IsWatchlist { get; set; }
     public string? Note { get; set; }
+    /// <summary>5.3.2: the tvshow.nfo's &lt;user_note&gt; (tinyMediaManager, CineLibrary Essentials).</summary>
+    public string? NfoNote { get; set; }
+    /// <summary>Your note here, else the .nfo's.</summary>
+    public string? ShownNote => string.IsNullOrWhiteSpace(Note) ? NfoNote : Note;
+    /// <summary>5.3.2: the tvshow.nfo's &lt;playcount&gt;.</summary>
+    public int PlayCount { get; set; }
     public List<string> Genres { get; set; } = new();
     public List<Actor> Actors { get; set; } = new();
     public int EpisodeCount { get; set; }

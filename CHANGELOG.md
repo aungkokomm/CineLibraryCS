@@ -8,6 +8,10 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [5.3.1] - Unreleased
 
+### Added
+- A note that's in a movie's or show's .nfo (`<user_note>`, as tinyMediaManager and CineLibrary Essentials' editor write it) shows as Your note when you haven't written one in CineLibrary, and those titles are on the Notes page.
+- A show's play count from its tvshow.nfo shows as Played on the show page.
+
 ### Fixed
 - Fetch missing info no longer takes a film's poster and details from another film when the film's .nfo carries that other film's IMDb or TMDb id. It asks you to pick the film instead.
 

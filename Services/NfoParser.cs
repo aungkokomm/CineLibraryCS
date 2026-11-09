@@ -56,7 +56,9 @@ public record ParsedMovie(
     // v4.7.0: Kodi's <userrating> (1 to 10), set in CineLibrary Essentials' editor
     double? UserRating = null,
     // 5.1.0 (#25): Kodi's <playcount>
-    int? PlayCount = null
+    int? PlayCount = null,
+    // 5.3.2: tinyMediaManager's <user_note>, shown when there's no note of yours here
+    string? NfoNote = null
 );
 
 // ── TV Shows (v2.8) ──────────────────────────────────────────────────────
@@ -87,7 +89,10 @@ public record ParsedTvShow(
     List<string> Creators,
     List<string> Tags,
     List<ParsedRating> Ratings,
-    double? UserRating = null   // v4.7.0
+    double? UserRating = null,   // v4.7.0
+    // 5.3.2: tinyMediaManager's <user_note>, and Kodi's <playcount> as for movies
+    string? NfoNote = null,
+    int? PlayCount = null
 );
 
 /// <summary>Parsed `<episodedetails>` root from an episode .nfo.</summary>
@@ -170,7 +175,9 @@ public static class NfoParser
                 Creators: MergeLists(ReadList(root, "credits")),
                 Tags: MergeLists(ReadList(root, "tag")),
                 Ratings: ratings,
-                UserRating: UserRating(root)
+                UserRating: UserRating(root),
+                NfoNote: Get(root, "user_note"),
+                PlayCount: TryInt(Get(root, "playcount"))
             );
         }
         catch { return null; }
@@ -362,7 +369,8 @@ public static class NfoParser
                 Countries: MergeLists(ReadList(root, "country")),
                 Tags: MergeLists(ReadList(root, "tag")),
                 UserRating: UserRating(root),
-                PlayCount: TryInt(Get(root, "playcount"))
+                PlayCount: TryInt(Get(root, "playcount")),
+                NfoNote: Get(root, "user_note")
             );
         }
         catch
