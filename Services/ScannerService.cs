@@ -274,6 +274,7 @@ public class ScannerService
                 // note importer. Recovers state after a drive-remove + re-add.
                 MovieStateSidecar.ImportIntoMovieRow(_db, conn, tx, rowId, folder);
                 DatabaseService.RaisePlayCount(conn, tx, rowId, parsed.PlayCount ?? 0);
+                if (parsed.CountsAsWatched) DatabaseService.MarkWatchedFromNfo(conn, tx, rowId);   // 5.3.2
             }
 
             tx.Commit();

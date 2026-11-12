@@ -6,7 +6,12 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
-## [5.3.1] - Unreleased
+## [5.3.2] - Unreleased
+
+### Added
+- A movie whose .nfo says it's watched (`<watched>true</watched>`, as tinyMediaManager and CineLibrary Essentials' editor write it) or has a play count is marked watched, the way Kodi counts it. Movies already in your library are marked the first time you start this version. An .nfo never marks a movie unwatched.
+
+## [5.3.1] - 2026-11-09
 
 ### Added
 - A note that's in a movie's or show's .nfo (`<user_note>`, as tinyMediaManager and CineLibrary Essentials' editor write it) shows as Your note when you haven't written one in CineLibrary, and those titles are on the Notes page.

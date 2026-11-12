@@ -158,6 +158,13 @@ trailer link ရှိလျှင် **🎞 Trailer** ခလုတ်က web br
 စာမျက်နှာတွင် တွေ့ရပါမည်။ TV Show ၏ `tvshow.nfo` ထဲရှိ play count ကိုလည်း Show
 စာမျက်နှာတွင် **Played** အဖြစ် ပြပါသည်။
 
+**v5.3.2 မှစ၍** ရုပ်ရှင်၏ `.nfo` က ကြည့်ပြီးကြောင်း ပြောလျှင် (`<watched>true</watched>`၊
+tinyMediaManager နှင့် CineLibrary Essentials ၏ editor က ရေးသည့်ပုံစံ) သို့မဟုတ် play count
+ပါလျှင် Kodi ကဲ့သို့ပင် **Watched** အဖြစ် မှတ်ပေးပါသည်။ `.nfo` က ရုပ်ရှင်ကို unwatched
+ဘယ်တော့မှ ပြန်မလုပ်ပါ။ ဤနေရာတွင် unwatched လုပ်ထားလျှင် နောက်တစ်ကြိမ် scan သို့မဟုတ်
+**Reload from .nfo** လုပ်သည့်အခါ Watched ပြန်ဖြစ်မည်ဖြစ်၍ CineLibrary Essentials ၏
+editor တွင်လည်း **Watched** ကို ဖြုတ်ပါ။
+
 Poster ကို **နှစ်ချက်နှိပ်** လျှင် မူလ video player ဖြင့် ချက်ချင်း
 ဖွင့်ပါမည်။ ရုပ်ရှင်ရှိသော drive မချိတ်ဆက်ထားလျှင် မည်သည့် drive ကို
 ချိတ်ဆက်ရမည်ကို CineLibrary က ပြောပြပါမည်။

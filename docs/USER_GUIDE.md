@@ -630,6 +630,13 @@ the `.nfo`'s note follows the file after the next scan or **Reload from
 .nfo**. A show's play count in its `tvshow.nfo` shows as **Played** on
 the show page.
 
+A movie whose `.nfo` says it's watched (`<watched>true</watched>`, as
+tinyMediaManager and CineLibrary Essentials' editor write it) or has a
+play count is marked **Watched**, the way Kodi counts it. The `.nfo` never
+marks a movie unwatched. If you mark one unwatched here, the next scan or
+**Reload from .nfo** marks it watched again, so untick **Watched** in
+CineLibrary Essentials' editor too.
+
 ---
 
 ## Watched & Gone

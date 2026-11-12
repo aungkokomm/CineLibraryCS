@@ -778,6 +778,21 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
             }
         }
 
+        // 5.3.2 (CLE #4): movies an .nfo already calls watched, read once from the cached copies
+        var nfoWatchedKey = "_migration_nfo_watched_v532";
+        if (GetPref(nfoWatchedKey) != "done")
+        {
+            try
+            {
+                ReadNfoWatched();
+                SetPref(nfoWatchedKey, "done");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"nfo watched 5.3.2 skipped: {ex.Message}");
+            }
+        }
+
         // Create indexes for performance
         CreateIndexes();
     }
@@ -868,6 +883,37 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
             upd.ExecuteNonQuery();
         }
         foreach (var (id, count) in plays) RaiseShowPlayCount(_conn, tx, id, count);
+        tx.Commit();
+    }
+
+    // <watched>true, or a play count from 1 up; only files that have one are parsed
+    private static readonly System.Text.RegularExpressions.Regex NfoSaysWatched =
+        new(@"<watched>\s*true|<playcount>\s*0*[1-9]", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// 5.3.2 one-shot: movies not watched here whose cached .nfo says watched
+    /// (tinyMediaManager's &lt;watched&gt;, or any plays, as Kodi counts them).
+    /// </summary>
+    private void ReadNfoWatched()
+    {
+        var rows = new List<(int Id, string Nfo)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT id, local_nfo FROM movies WHERE local_nfo IS NOT NULL AND COALESCE(is_watched, 0)=0";
+            using var r = sel.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt32(0), r.GetString(1)));
+        }
+        var watched = new List<int>();
+        foreach (var (id, nfoRel) in rows)
+        {
+            var path = Path.Combine(_dataDir, nfoRel);
+            string text;
+            try { text = File.ReadAllText(path); } catch { continue; }
+            if (NfoSaysWatched.IsMatch(text) && NfoParser.Parse(path)?.CountsAsWatched == true) watched.Add(id);
+        }
+        if (watched.Count == 0) return;
+        using var tx = _conn.BeginTransaction();
+        foreach (var id in watched) MarkWatchedFromNfo(_conn, tx, id);
         tx.Commit();
     }
 
@@ -5725,6 +5771,19 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         cmd.Transaction = tx;
         cmd.CommandText = "UPDATE movies SET play_count=@n WHERE id=@id AND COALESCE(play_count, 0)<@n";
         cmd.Parameters.AddWithValue("@n", count);
+        cmd.Parameters.AddWithValue("@id", movieId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// 5.3.2 (CLE #4): a movie whose .nfo says watched, or has plays, is marked
+    /// watched. An .nfo never un-watches one, as with play counts.
+    /// </summary>
+    internal static void MarkWatchedFromNfo(SqliteConnection conn, SqliteTransaction tx, int movieId)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE movies SET is_watched=1 WHERE id=@id AND COALESCE(is_watched, 0)=0";
         cmd.Parameters.AddWithValue("@id", movieId);
         cmd.ExecuteNonQuery();
     }

@@ -58,8 +58,14 @@ public record ParsedMovie(
     // 5.1.0 (#25): Kodi's <playcount>
     int? PlayCount = null,
     // 5.3.2: tinyMediaManager's <user_note>, shown when there's no note of yours here
-    string? NfoNote = null
-);
+    string? NfoNote = null,
+    // 5.3.2: tinyMediaManager's <watched>true</watched> (Essentials' editor writes it too)
+    bool Watched = false
+)
+{
+    /// <summary>Watched as players see it: &lt;watched&gt;true or any plays.</summary>
+    public bool CountsAsWatched => Watched || PlayCount is > 0;
+}
 
 // ── TV Shows (v2.8) ──────────────────────────────────────────────────────
 
@@ -370,7 +376,8 @@ public static class NfoParser
                 Tags: MergeLists(ReadList(root, "tag")),
                 UserRating: UserRating(root),
                 PlayCount: TryInt(Get(root, "playcount")),
-                NfoNote: Get(root, "user_note")
+                NfoNote: Get(root, "user_note"),
+                Watched: string.Equals(Get(root, "watched"), "true", StringComparison.OrdinalIgnoreCase)
             );
         }
         catch
