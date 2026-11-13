@@ -6,84 +6,83 @@
     xmlns:models="using:CineLibraryCS.Models"
     Background="{ThemeResource BgBrush}">
 
-    <Grid Padding="24,8,24,24">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Height="0"/>
+        <!-- Page header: fixed above the cards, as on the other pages -->
+        <Grid Grid.Row="0" Padding="24,8,24,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Drive cards area -->
-        <ScrollViewer Grid.Row="1">
-            <StackPanel Spacing="16">
+            <TextBlock Grid.Row="0" Grid.Column="0"
+                       Text="Drives" FontSize="24" FontWeight="SemiBold"
+                       Foreground="{ThemeResource TextBrush}"
+                       VerticalAlignment="Center"/>
 
-                <!-- Page header -->
-                <Grid Margin="0,0,0,2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Row="0" Grid.Column="0"
-                               Text="Drives" FontSize="24" FontWeight="SemiBold"
-                               Foreground="{ThemeResource TextBrush}"
-                               VerticalAlignment="Center"/>
-
-                    <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
-                                Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                        <Button x:Name="RefreshChangesBtn" Click="OnRefreshChanges"
-                                Background="Transparent"
-                                Foreground="{ThemeResource TextBrush}"
-                                BorderBrush="{ThemeResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8" Padding="12,8"
-                                ToolTipService.ToolTip="Rescan all connected drives for new or changed files">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE72C;" FontSize="14"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Refresh changes" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <!-- v4.6.0 -->
-                        <Button x:Name="UpdateImdbBtn" Click="OnUpdateImdb"
-                                Background="Transparent"
-                                Foreground="{ThemeResource TextBrush}"
-                                BorderBrush="{ThemeResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8" Padding="12,8"
-                                ToolTipService.ToolTip="Get the IMDb rating of every movie and show, and write it into their .nfo files">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource ImdbGoldBrush}"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Update IMDb ratings" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Click="OnAddDrive"
-                                Background="{StaticResource BrandPurpleBrush}" Foreground="White"
-                                BorderThickness="0" CornerRadius="8" Padding="14,8">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon Glyph="&#xE710;" FontSize="13"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          Foreground="White" VerticalAlignment="Center"/>
-                                <TextBlock Text="Add Drive" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Button>
+            <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="2"
+                        Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button x:Name="RefreshChangesBtn" Click="OnRefreshChanges"
+                        Background="Transparent"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8" Padding="12,8"
+                        ToolTipService.ToolTip="Rescan all connected drives for new or changed files">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72C;" FontSize="14"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock Text="Refresh changes" VerticalAlignment="Center"/>
                     </StackPanel>
+                </Button>
+                <!-- v4.6.0 -->
+                <Button x:Name="UpdateImdbBtn" Click="OnUpdateImdb"
+                        Background="Transparent"
+                        Foreground="{ThemeResource TextBrush}"
+                        BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8" Padding="12,8"
+                        ToolTipService.ToolTip="Get the IMDb rating of every movie and show, and write it into their .nfo files">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE734;" FontSize="14" Foreground="{ThemeResource ImdbGoldBrush}"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                  VerticalAlignment="Center"/>
+                        <TextBlock Text="Update IMDb ratings" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Click="OnAddDrive"
+                        Background="{StaticResource BrandPurpleBrush}" Foreground="White"
+                        BorderThickness="0" CornerRadius="8" Padding="14,8">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="13"
+                                  FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                  Foreground="White" VerticalAlignment="Center"/>
+                        <TextBlock Text="Add Drive" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0"
-                               Text="External drives that hold your movies. Identified by hardware ID, so changing drive letters won't break anything."
-                               Foreground="{ThemeResource MutedBrush}" FontSize="13"
-                               TextWrapping="Wrap" MaxWidth="720"
-                               HorizontalAlignment="Left"
-                               Margin="0,4,16,0"/>
-                </Grid>
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="External drives that hold your movies. Identified by hardware ID, so changing drive letters won't break anything."
+                       Foreground="{ThemeResource MutedBrush}" FontSize="13"
+                       TextWrapping="Wrap" MaxWidth="720"
+                       HorizontalAlignment="Left"
+                       Margin="0,4,16,0"/>
+        </Grid>
+
+        <!-- Drive cards area: the full width, so the scroll bar has the page's
+             right edge to itself and never covers a card -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16" Margin="24,4,24,24">
 
                 <!-- Empty state -->
                 <Border x:Name="EmptyState" Visibility="Collapsed"

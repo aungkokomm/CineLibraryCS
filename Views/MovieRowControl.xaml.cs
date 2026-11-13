@@ -134,6 +134,7 @@ public sealed partial class MovieRowControl : UserControl
     {
         if (Movie == null) return;
         if (e.PropertyName is nameof(MovieListItem.IsWatched) or nameof(MovieListItem.ResumeMs)) ApplyResume(Movie);
+        if (e.PropertyName == nameof(MovieListItem.AgeInRole)) ApplyMeta(Movie);   // 5.4.1
         if (e.PropertyName is nameof(MovieListItem.IsWatched) or nameof(MovieListItem.IsWatchlist))
             ApplyToggleIcons(Movie);
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
@@ -165,12 +166,20 @@ public sealed partial class MovieRowControl : UserControl
         ResumeRest.Width = new GridLength(1 - m.ResumeProgress, GridUnitType.Star);
     }
 
+    /// <summary>Year, (on an actor's page) the part and their age then, length and genre.</summary>
+    private void ApplyMeta(MovieListItem m)
+    {
+        var role = m.Role is { Length: > 0 } r0 ? (m.AgeInRole is int a ? $" · as {r0}, {a}" : $" · as {r0}")
+                 : m.AgeInRole is int a2 ? $" · aged {a2}" : "";
+        RowMeta.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0
+            ? $"{m.Year?.ToString() ?? "—"} · {m.ResumeText}"
+            : $"{m.Year?.ToString() ?? "—"}{role}{(m.Runtime is int r ? " · " + MovieCardControl.RuntimeText(r) : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
+    }
+
     private void Populate(MovieListItem m)
     {
         RowTitle.Text = m.Title;
-        RowMeta.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0
-            ? $"{m.Year?.ToString() ?? "—"} · {m.ResumeText}"
-            : $"{m.Year?.ToString() ?? "—"}{(m.Runtime is int r ? " · " + MovieCardControl.RuntimeText(r) : "")}{(m.GenresCsv != null ? $" · {m.GenresCsv.Split(',')[0].Trim()}" : "")}";
+        ApplyMeta(m);
         ApplyResume(m);
         RowFav.Visibility = m.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
         RowRating.Text = m.RatingText;

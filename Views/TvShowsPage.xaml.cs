@@ -978,6 +978,16 @@ public sealed partial class TvShowsPage : Page
         await OpenWebPageAsync($"https://www.themoviedb.org/tv/{_detail.TmdbId.Trim()}", "TMDb");
     }
 
+    /// <summary>5.4.0: a cast member's page (their films and shows), with ‹ Back to this show.</summary>
+    private void OnCastClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string actor } || App.MainWindow is not MainWindow mw) return;
+        var back = mw.CaptureView();
+        var show = _currentShow?.Title;
+        mw.NavigateLibraryByActor(actor);
+        mw.SetLibraryBack(string.IsNullOrEmpty(show) ? "Back" : show, back);
+    }
+
     private static async Task OpenWebPageAsync(string url, string site)
     {
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri(url)); }

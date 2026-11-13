@@ -41,6 +41,53 @@
         <!-- Scrollable body with two optional sections -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0">
             <StackPanel Spacing="0">
+                <!-- 5.4.1: "Born on this date": actors and directors from your films (the ones
+                     opened on their page, which TMDb told us about) -->
+                <StackPanel x:Name="BornSection" Visibility="Collapsed" Spacing="8" Margin="0,4,0,18">
+                    <Grid Margin="24,4,24,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="🎂  BORN ON THIS DATE"
+                                   FontSize="12" FontWeight="SemiBold" CharacterSpacing="150"
+                                   Opacity="0.85"
+                                   Foreground="{StaticResource BrandPurpleBrush}"/>
+                        <TextBlock x:Name="BornSub" Grid.Column="1" FontSize="11"
+                                   Foreground="{ThemeResource MutedBrush}"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                                  Padding="24,4,24,16">
+                        <ItemsRepeater x:Name="BornRepeater">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="16"/>
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:BirthdayPerson">
+                                    <Button Click="OnBornClick" Tag="{x:Bind Name}" Width="112" Padding="0"
+                                            Background="Transparent" BorderThickness="0" CornerRadius="10"
+                                            HorizontalContentAlignment="Stretch">
+                                        <StackPanel Spacing="4">
+                                            <Grid Height="168" CornerRadius="10" Background="{ThemeResource CardBrush}">
+                                                <TextBlock Text="{x:Bind Initials}" FontSize="28" FontWeight="SemiBold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{ThemeResource MutedBrush}"/>
+                                                <Image Source="{x:Bind Photo}" Stretch="UniformToFill"/>
+                                            </Grid>
+                                            <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextBrush}"/>
+                                            <TextBlock Text="{x:Bind Line}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{ThemeResource MutedBrush}"/>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </ScrollViewer>
+                </StackPanel>
+
                 <!-- "You watched on this date" -->
                 <StackPanel x:Name="WatchedSection" Visibility="Collapsed" Spacing="8" Margin="0,4,0,18">
                     <Grid Margin="24,4,24,0">

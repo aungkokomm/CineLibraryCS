@@ -6,7 +6,24 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
-## [5.3.2] - Unreleased
+## [5.4.1] - 2026-11-13
+
+### Added
+- Who they are: an actor's or director's page (click them in a movie's cast, the director, a TV show's cast, or Statistics) starts with their photo, when and where they were born (and died) and their age, coloured as the movie window's details, and their biography from TMDb, with links to IMDb and TMDb. The first look needs the internet; after that it shows at once, offline too.
+- Awards, from Wikidata: an actor's or director's page says what they won and were nominated for ("2 Oscars · 12 wins · 8 nominations"), and opens the list by award, the Oscars first, each with what for, the film and the year. A movie's window has an Awards tile with See all. Kept for a month, so they show at once and offline after the first look.
+- Their films come in three parts, each with a coloured heading and a count: In your library, Watched & Gone (the records of theirs you watched and let go, by the cast kept with them and by their films on TMDb), and Not in your library: every film a director made, or an actor's best-known films, leaving out the ones you have or have seen.
+- Your history with them: In your library says how many you've watched, their average rating and the years; a director's page shows how many of their films you've seen, watched or in Watched & Gone, with a bar.
+- Often with: the actors (and an actor's directors) they work with most in your films, two films or more, each a link to their page.
+- On an actor's page each film says the part they play and how old they were ("2010 · as Cobb, 35"), and their TV shows you have are in a row above their films. On a show's page, click anyone in the cast for their page.
+- Wishlist: + under a film you don't have, on an actor's or director's page, puts it on your Wishlist (in the sidebar, with a count). It lists them the latest first, with whose page each came from, and keeps their posters, so it shows offline too. A film you've since got is marked In your library, to take off. Copy list copies the rest with their years. The Wishlist is in Backup & Export.
+- ‹ Back on a page opened from a movie's window (an actor, the director, a writer, studio, genre or tag), a TV show or Statistics takes you back: to the movie, and to the list under it as you left it. The mouse's back button and Alt+Left do it too.
+- On This Day: the actors and directors from your films born on this date, with their age today. It knows the people you've opened on their page.
+- Scan in CineLibrary: CineLibrary Essentials 1.5 can ask CineLibrary to read the folders it just scraped, so they show up right away, without a Rescan. CineLibrary scans the ones inside the folders it already scans (opening first when it isn't running) and names any that aren't.
+
+### Fixed
+- On the Drives page, the scroll bar no longer covers Add Drive or the drive cards.
+
+## [5.3.2] - 2026-11-12
 
 ### Added
 - A movie whose .nfo says it's watched (`<watched>true</watched>`, as tinyMediaManager and CineLibrary Essentials' editor write it) or has a play count is marked watched, the way Kodi counts it. Movies already in your library are marked the first time you start this version. An .nfo never marks a movie unwatched.

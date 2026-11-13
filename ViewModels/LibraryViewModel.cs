@@ -102,7 +102,7 @@ public partial class LibraryViewModel : ObservableObject
         ));
 
         Movies.Clear();
-        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; Movies.Add(m); }
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; m.AgeInRole = AgeIn(m); Movies.Add(m); }
         FilterTotal = total;
         HasMore = movies.Count == PageSize && Movies.Count < total;
         TotalCount = Movies.Count;
@@ -115,7 +115,7 @@ public partial class LibraryViewModel : ObservableObject
         IsLoading = true;
         var opts = BuildOpts(Movies.Count);
         var movies = await Task.Run(() => _state.Db.GetMovies(opts, _state.Connected));
-        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; Movies.Add(m); }
+        foreach (var m in movies) { m.ListedBy = IsRecentlyAdded ? "recently_added" : IsContinueWatching ? "continue" : opts.SortKey; m.AgeInRole = AgeIn(m); Movies.Add(m); }
         HasMore = movies.Count == PageSize && Movies.Count < FilterTotal;
         TotalCount = Movies.Count;
         IsLoading = false;
@@ -186,6 +186,7 @@ public partial class LibraryViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         _searchCts?.Cancel();
+        if (_restoringView) return;
         _searchCts?.Dispose();
         _searchCts = new CancellationTokenSource();
         var token = _searchCts.Token;
@@ -205,7 +206,7 @@ public partial class LibraryViewModel : ObservableObject
     // v3.1 — changing the scope while a query is present re-runs the search.
     partial void OnSearchScopeChanged(string value)
     {
-        if (!string.IsNullOrWhiteSpace(SearchText)) _ = LoadAsync();
+        if (!_restoringView && !string.IsNullOrWhiteSpace(SearchText)) _ = LoadAsync();
     }
 
     // ── Sort / View ──────────────────────────────────────────────────────────
@@ -217,16 +218,66 @@ public partial class LibraryViewModel : ObservableObject
     private bool HasOwnSort => IsRecentlyAdded || IsContinueWatching || IsRecentlyWatched;
     private bool _restoringSort;
 
+    // ── 5.4.1: on an actor's page, how old they were in each film ──
+
+    private (string Actor, int Year)? _birthYear;
+
+    /// <summary>The actor's birth year (from TMDb); their films then say how old they were.</summary>
+    public void SetBirthYear(string actor, int year)
+    {
+        _birthYear = (actor, year);
+        foreach (var m in Movies) m.AgeInRole = AgeIn(m);
+    }
+
+    public int? AgeIn(MovieListItem m)
+        => _birthYear is (var actor, var born) && string.Equals(FilterActor, actor, StringComparison.OrdinalIgnoreCase)
+           && m.Year is int y && y >= born && y - born < 120 ? y - born : null;
+
+    // ── 5.4.0: the view to come back to (Back on a page opened from a movie or Statistics) ──
+
+    /// <summary>What the library shows, except the Watched and Audio filters, which
+    /// stay on across views anyway.</summary>
+    public sealed record ViewState(string SearchText, string SearchScope, SortKey SortKey, SortDir SortDir,
+        bool FavoritesOnly, string? DriveSerial, string? Genre, string? Actor, string? Director, string? Studio,
+        string? Writer, int? DecadeStart, string? RatingBand, bool Watchlist, bool ContinueWatching,
+        bool RecentlyWatched, bool RecentlyAdded, bool HasNote, bool FewCast, int? UserListId, int? TagId,
+        string? TagName, int? CollectionId, string PageTitle);
+
+    public ViewState CaptureView() => new(SearchText, SearchScope, SortKey, SortDir, FavoritesOnly, DriveSerial,
+        Genre, FilterActor, FilterDirector, FilterStudio, FilterWriter, FilterDecadeStart, FilterRatingBand,
+        IsWatchlistOnly, IsContinueWatching, IsRecentlyWatched, IsRecentlyAdded, HasNoteOnly, FewCastOnly,
+        UserListId, TagId, TagName, CollectionId, PageTitle);
+
+    private bool _restoringView;   // no loads or saved sort while the view is put back
+
+    /// <summary>Puts a captured view back and loads it once.</summary>
+    public Task RestoreView(ViewState v)
+    {
+        _restoringView = true;
+        try
+        {
+            (IsRecentlyAdded, IsContinueWatching, IsRecentlyWatched) = (v.RecentlyAdded, v.ContinueWatching, v.RecentlyWatched);
+            (FilterActor, FilterDirector, FilterStudio, FilterWriter) = (v.Actor, v.Director, v.Studio, v.Writer);
+            (Genre, DriveSerial, CollectionId, FilterDecadeStart, FilterRatingBand) = (v.Genre, v.DriveSerial, v.CollectionId, v.DecadeStart, v.RatingBand);
+            (FavoritesOnly, IsWatchlistOnly, HasNoteOnly, FewCastOnly) = (v.FavoritesOnly, v.Watchlist, v.HasNote, v.FewCast);
+            (UserListId, TagId, TagName) = (v.UserListId, v.TagId, v.TagName);
+            (SortKey, SortDir, SearchScope, SearchText) = (v.SortKey, v.SortDir, v.SearchScope, v.SearchText);
+            PageTitle = v.PageTitle;
+        }
+        finally { _restoringView = false; }
+        return LoadAsync();
+    }
+
     partial void OnSortKeyChanged(SortKey value)
     {
-        if (_restoringSort) return;   // whoever left the page reloads next
+        if (_restoringSort || _restoringView) return;   // whoever left the page reloads next
         if (!HasOwnSort) _state.SetPref("sortKey", value.ToString());
         _ = LoadAsync();
     }
 
     partial void OnSortDirChanged(SortDir value)
     {
-        if (_restoringSort) return;
+        if (_restoringSort || _restoringView) return;
         if (!HasOwnSort) _state.SetPref("sortDir", value.ToString());
         _ = LoadAsync();
     }
@@ -237,7 +288,7 @@ public partial class LibraryViewModel : ObservableObject
 
     private void RestoreSavedSort()
     {
-        if (HasOwnSort) return;
+        if (HasOwnSort || _restoringView) return;
         _restoringSort = true;
         try
         {
@@ -253,7 +304,7 @@ public partial class LibraryViewModel : ObservableObject
     }
 
     partial void OnWatchedFilterChanged(WatchedFilter value) => _ = LoadAsync();
-    partial void OnFavoritesOnlyChanged(bool value) => _ = LoadAsync();
+    partial void OnFavoritesOnlyChanged(bool value) { if (!_restoringView) _ = LoadAsync(); }
 
     // ── Navigation filters ───────────────────────────────────────────────────
 

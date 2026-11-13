@@ -346,6 +346,7 @@ public sealed partial class MovieCardControl : UserControl
             ApplyResume(Movie);
         }
         else if (e.PropertyName == nameof(MovieListItem.ResumeMs)) ApplyResume(Movie);
+        else if (e.PropertyName == nameof(MovieListItem.AgeInRole)) ApplyMeta(Movie);   // 5.4.1
         else if (e.PropertyName == nameof(MovieListItem.IsFavorite))
         {
             FavBadge.Visibility = Movie.IsFavorite ? Visibility.Visible : Visibility.Collapsed;
@@ -436,11 +437,7 @@ public sealed partial class MovieCardControl : UserControl
     {
         TitleText.Text = m.Title;
         ShowFullTitle(false);   // a recycled card may still show the last movie's
-        // v4.8.0: year and length; sorted by length, the length first
-        var length = m.Runtime is int r ? RuntimeText(r) : null;
-        string Join(params string?[] parts) => string.Join(" · ", parts.Where(p => !string.IsNullOrEmpty(p)));
-        MetaText.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0 ? m.ResumeText
-                      : m.ListedBy == "runtime" ? Join(length, m.Year?.ToString()) : Join(m.Year?.ToString() ?? "—", length);
+        ApplyMeta(m);
         var byRating = m.ListedBy == "rating";
         RatingInline.FontSize = byRating ? 14 : 12;
         RatingInline.FontWeight = byRating ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
@@ -500,6 +497,21 @@ public sealed partial class MovieCardControl : UserControl
     }
 
     private int _posterLoadToken;
+
+    /// <summary>
+    /// The line under the title. v4.8.0: year and length; sorted by length, the length first.
+    /// 5.4.0: on an actor's page the part they play, and 5.4.1 how old they were ("as Cobb, 35").
+    /// </summary>
+    private void ApplyMeta(MovieListItem m)
+    {
+        var length = m.Runtime is int r ? RuntimeText(r) : null;
+        string Join(params string?[] parts) => string.Join(" · ", parts.Where(p => !string.IsNullOrEmpty(p)));
+        var age = m.AgeInRole is int a ? a.ToString() : null;
+        MetaText.Text = m.ListedBy == "continue" && m.ResumeText.Length > 0 ? m.ResumeText
+                      : m.Role is { Length: > 0 } role ? Join(m.Year?.ToString(), age != null ? $"as {role}, {age}" : $"as {role}")
+                      : age != null ? Join(m.Year?.ToString(), $"aged {age}")
+                      : m.ListedBy == "runtime" ? Join(length, m.Year?.ToString()) : Join(m.Year?.ToString() ?? "—", length);
+    }
 
     /// <summary>v4.10.0: the line along the poster's foot, while it's part-way.</summary>
     private void ApplyResume(MovieListItem m)

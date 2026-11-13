@@ -217,6 +217,26 @@
                             </Grid>
                         </Button>
 
+                        <!-- Wishlist (5.4.0): films you want and don't have yet -->
+                        <Button x:Name="BtnWishlist" Style="{StaticResource NavItemStyle}" Click="OnNavWishlist">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xE719;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Wishlist" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="WishlistBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+
                         <!-- Favorites -->
                         <Button x:Name="BtnFavorites" Style="{StaticResource NavItemStyle}" Click="OnNavFavorites">
                             <StackPanel Orientation="Horizontal" Spacing="10">

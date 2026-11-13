@@ -346,6 +346,10 @@
                                                         </ItemsRepeater.Layout>
                                                         <ItemsRepeater.ItemTemplate>
                                                             <DataTemplate x:DataType="models:Actor">
+                                                                <!-- 5.4.0: click for the actor's page (their films and shows) -->
+                                                                <Button Click="OnCastClick" Tag="{x:Bind Name}" Padding="0"
+                                                                        Background="Transparent" BorderThickness="0" CornerRadius="8"
+                                                                        VerticalAlignment="Top">
                                                                 <StackPanel Width="100" Spacing="4" VerticalAlignment="Top">
                                                                     <Border Width="100" Height="150" CornerRadius="8"
                                                                             Background="#22FFFFFF"
@@ -367,6 +371,7 @@
                                                                                TextWrapping="WrapWholeWords" MaxLines="2"
                                                                                TextTrimming="CharacterEllipsis"/>
                                                                 </StackPanel>
+                                                                </Button>
                                                             </DataTemplate>
                                                         </ItemsRepeater.ItemTemplate>
                                                     </ItemsRepeater>

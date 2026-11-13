@@ -716,7 +716,10 @@ public sealed partial class StatisticsPage : Page
 
     private static void Go(Action<MainWindow> navigate)
     {
-        if (App.MainWindow is MainWindow mw) navigate(mw);
+        if (App.MainWindow is not MainWindow mw) return;
+        var back = mw.CaptureView();   // 5.4.0: the page it opens has ‹ Statistics
+        navigate(mw);
+        mw.SetLibraryBack("Statistics", back);
     }
 
     // the Browse page's names for its rating bands, so the library's title matches

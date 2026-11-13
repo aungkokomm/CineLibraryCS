@@ -42,6 +42,10 @@ public partial class MovieListItem : ObservableObject
     // v4.8.0: the sort All movies listed it under ("runtime", "rating", ...), or
     // "recently_added" on Recently Added; the card follows it. Null elsewhere.
     public string? ListedBy { get; set; }
+    // 5.4.0: on an actor's page, the part they play ("as Cobb" on the card)
+    public string? Role { get; set; }
+    // 5.4.1: on an actor's page, how old they were that year (from their TMDb birthday)
+    [ObservableProperty] private int? _ageInRole;
 
     [ObservableProperty] private bool _isFavorite;
     [ObservableProperty] private bool _isWatched;

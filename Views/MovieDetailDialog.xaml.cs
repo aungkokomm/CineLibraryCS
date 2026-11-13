@@ -979,7 +979,21 @@ public sealed partial class MovieDetailDialog : Window
     /// </summary>
     private void NavigateAndClose(Action<MainWindow> nav)
     {
-        if (App.MainWindow is MainWindow mw) nav(mw);
+        if (App.MainWindow is MainWindow mw)
+        {
+            // 5.4.0: the page it opens has ‹ Back: to the page under this window, and this
+            // movie's window again, stepping through the same movies
+            var under = mw.CaptureView();
+            var (id, ids, index) = (_movieId, _browseIds, _browseIndex);
+            nav(mw);
+            mw.SetLibraryBack(_movie?.Title is { Length: > 0 } title ? title : "Back", () =>
+            {
+                under();
+                var win = new MovieDetailDialog(id) { _browseIds = ids, _browseIndex = index };
+                win.WatchlistChanged += (_, _) => mw.RefreshSidebarCounts();
+                win.Activate();
+            });
+        }
         Close();
     }
 
@@ -1150,6 +1164,7 @@ public sealed partial class MovieDetailDialog : Window
         // v4.5.1 (#24): one source would only repeat the yellow chip
         if (m.AllRatings.Count >= 2 || m.UserRating != null)
             Add(DetailField.Ratings(m.AllRatings, m.UserRating));
+        if (_awards is { Count: > 0 } awards && _awardsFor == m.ImdbId) Add(AwardsTile(awards));   // 5.4.1
 
         var film = new List<(string, string)>();
         if (m.Runtime is > 0) film.Add(("Runtime", MovieCardControl.RuntimeText(m.Runtime.Value)));
@@ -1181,6 +1196,36 @@ public sealed partial class MovieDetailDialog : Window
         if (!string.IsNullOrWhiteSpace(m.TmdbId)) ids.Add(("TMDb", m.TmdbId!));
         if (ids.Count > 0) Add(DetailField.Ids(ids));
         FactsCard.Visibility = FactsStack.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (m.ImdbId != _awardsFor) { _awardsFor = m.ImdbId; _awards = null; _ = LoadAwardsAsync(m.ImdbId); }
+    }
+
+    // ── 5.4.1: the film's awards, from Wikidata (see Awards) ───────────────────
+
+    private string? _awardsFor;              // the IMDb id the awards are for
+    private List<Awards.Award>? _awards;
+
+    private async Task LoadAwardsAsync(string? imdbId)
+    {
+        var awards = await Awards.ForMovieAsync(imdbId);
+        if (_closed || _awardsFor != imdbId || awards is not { Count: > 0 }) return;
+        _awards = awards;
+        if (_movie is { } now && now.ImdbId == imdbId) PopulateFacts(now);
+    }
+
+    /// <summary>"7 Oscars · 27 wins · 14 nominations", and See all for the list.</summary>
+    private static StackPanel AwardsTile(List<Awards.Award> awards)
+    {
+        var tile = new StackPanel { Spacing = 6 };
+        tile.Children.Add(DetailField.Label("Awards", ThemeBrushes.Get("ImdbGoldBrush")));
+        tile.Children.Add(new TextBlock
+        {
+            Text = Awards.Summary(awards), FontSize = 13, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap, MaxWidth = 260, Foreground = ThemeBrushes.Get("TextBrush"),
+        });
+        var all = new HyperlinkButton { Content = "See all", Padding = new Thickness(0), FontSize = 13 };
+        all.Click += (sender, _) => AwardsView.Flyout(awards, forFilm: true).ShowAt((FrameworkElement)sender);
+        tile.Children.Add(all);
+        return tile;
     }
 
     private static string FormatBytes(long b)

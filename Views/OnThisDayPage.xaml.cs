@@ -81,8 +81,40 @@ public sealed partial class OnThisDayPage : Page
             (var w, var rel)  => $"{w} you've watched · {rel} released on this date.",
         };
 
-        EmptyState.Visibility = (watched.Count + released.Count) == 0
+        // 5.4.1: the actors and directors from your films born on this date
+        var born = BornToday();
+        BornRepeater.ItemsSource = born.Count > 0 ? born : null;
+        BornSection.Visibility = born.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        BornSub.Text = born.Count == 1 ? "1 person" : $"{born.Count} people";
+
+        if (watched.Count + released.Count == 0 && born.Count > 0)
+            SubText.Text = born.Count == 1 ? "Someone from your films was born on this date."
+                         : $"{born.Count} people from your films were born on this date.";
+
+        EmptyState.Visibility = (watched.Count + released.Count + born.Count) == 0
             ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>5.4.1: the people TMDb told us about (opened on their page) born on this date, the oldest first.</summary>
+    private static List<BirthdayPerson> BornToday()
+    {
+        var today = DateTime.Today;
+        return People.BornOn(AppState.Instance.Db.GetPeopleBornAround(today), today).Select(p =>
+        {
+            var photo = People.PhotoPath(p.Info.TmdbId);
+            return new BirthdayPerson(p.Name, People.BirthdayLine(p.Info, today),
+                File.Exists(photo) ? new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(photo)) { DecodePixelWidth = 224 } : null);
+        }).ToList();
+    }
+
+    /// <summary>Their page: as an actor, or as a director when they only direct; ‹ On This Day comes back.</summary>
+    private void OnBornClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string name } || App.MainWindow is not MainWindow mw) return;
+        var back = mw.CaptureView();
+        if (AppState.Instance.Db.IsOnlyDirector(name)) mw.NavigateLibraryByDirector(name);
+        else mw.NavigateLibraryByActor(name);
+        mw.SetLibraryBack("On This Day", back);
     }
 
     private void OnBackClick(object sender, RoutedEventArgs e)

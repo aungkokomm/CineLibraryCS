@@ -248,6 +248,41 @@ public sealed class TmdbClient : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// 5.4.0: a person's details, films (combined_credits) and IMDb id, as TMDb
+    /// sends them (People.Parse reads it). Null when TMDb has no such person.
+    /// </summary>
+    public async Task<string?> GetPersonJsonAsync(int personId)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync(WithLanguage(
+            $"{BaseUrl}/person/{personId}?api_key={_apiKey}&append_to_response=combined_credits,external_ids"));
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>5.4.0: a movie's credits, or a show's aggregate credits, as TMDb sends them. Null when TMDb has no such title.</summary>
+    public async Task<string?> GetCreditsJsonAsync(int tmdbId, bool tv)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync(
+            $"{BaseUrl}/{(tv ? "tv" : "movie")}/{tmdbId}/{(tv ? "aggregate_credits" : "credits")}?api_key={_apiKey}");
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>5.4.0: TMDb's people search by name, as TMDb sends it.</summary>
+    public async Task<string> SearchPersonJsonAsync(string name)
+    {
+        await RateLimitAsync();
+        var resp = await _http.GetAsync(
+            $"{BaseUrl}/search/person?api_key={_apiKey}&query={Uri.EscapeDataString(name)}&include_adult=false");
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync();
+    }
+
     private static int Int(JsonElement e, string name)
         => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : 0;
 

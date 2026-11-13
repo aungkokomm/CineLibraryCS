@@ -16,9 +16,9 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>5.3.2</Version>
-    <AssemblyVersion>5.3.2.0</AssemblyVersion>
-    <FileVersion>5.3.2.0</FileVersion>
+    <Version>5.4.1</Version>
+    <AssemblyVersion>5.4.1.0</AssemblyVersion>
+    <FileVersion>5.4.1.0</FileVersion>
 
     <!--
       v2.9.2 — faster cold start. ReadyToRun precompiles the app's IL to

@@ -716,6 +716,30 @@ CREATE TABLE IF NOT EXISTS imdb_nfo_pending (
     prefer_imdb INTEGER DEFAULT 1,
     PRIMARY KEY (kind, item_id)
 );
+-- 5.4.0: actors and directors as TMDb knows them, by their name in the library
+-- (see People); data is null when TMDb doesn't know them
+CREATE TABLE IF NOT EXISTS people_tmdb (
+    name       TEXT PRIMARY KEY COLLATE NOCASE,
+    tmdb_id    INTEGER DEFAULT 0,
+    data       TEXT,
+    fetched_at INTEGER DEFAULT (strftime('%s','now'))
+);
+-- 5.4.1: awards from Wikidata (see Awards), by IMDb id (nm... a person, tt... a film)
+CREATE TABLE IF NOT EXISTS awards_wikidata (
+    imdb_id    TEXT PRIMARY KEY,
+    data       TEXT,
+    fetched_at INTEGER DEFAULT (strftime('%s','now'))
+);
+-- 5.4.0: films you want and don't have yet (added from an actor's or director's page)
+CREATE TABLE IF NOT EXISTS wishlist (
+    tmdb_id        INTEGER PRIMARY KEY,
+    title          TEXT NOT NULL,
+    original_title TEXT,
+    release_date   TEXT,
+    poster_path    TEXT,
+    added_from     TEXT,                    -- whose page it was added on
+    added_at       INTEGER                  -- Unix milliseconds, so films added together keep their order
+);
 ");
         // Titles fetched before 4.6.0: the ones with a fetched poster or fanart (a
         // fetched actor photo is shared by every film with that actor, so it
@@ -2351,6 +2375,20 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 IsOnline = connected.ContainsKey(serial),
             }));
         }
+        r.Close();
+        // 5.4.0: on an actor's page, the part they play in each
+        if (opts.Actor != null && list.Count > 0)
+        {
+            using var rc = _conn.CreateCommand();
+            rc.CommandText = @"SELECT ma.movie_id, ma.role FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id
+                                WHERE LOWER(a.name)=LOWER(@actor) AND TRIM(COALESCE(ma.role, '')) != ''";
+            rc.Parameters.AddWithValue("@actor", opts.Actor);
+            var roles = new Dictionary<int, string>();
+            using (var rr = rc.ExecuteReader())
+                while (rr.Read()) roles[rr.GetInt32(0)] = rr.GetString(1).Trim();
+            foreach (var m in list)
+                if (roles.TryGetValue(m.Id, out var role)) m.Role = role;
+        }
         return list;
     }
 
@@ -2918,6 +2956,278 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                                FROM {(show ? "tv_shows" : "movies")} WHERE id=@id";
         cmd.Parameters.AddWithValue("@id", id);
         return Convert.ToInt32(cmd.ExecuteScalar() ?? 1) == 1;
+    }
+
+    // ── 5.4.0: actors and directors from TMDb (see People) ───────────────────
+
+    public record PersonCache(PersonInfo? Info, long FetchedAt);
+
+    /// <summary>What TMDb said about this person last time, or null if never asked.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public PersonCache? GetPersonCache(string name)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT data, fetched_at FROM people_tmdb WHERE name=@n";
+        cmd.Parameters.AddWithValue("@n", name.Trim());
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        PersonInfo? info = null;
+        if (!r.IsDBNull(0))
+            try { info = System.Text.Json.JsonSerializer.Deserialize<PersonInfo>(r.GetString(0)); }
+            catch (System.Text.Json.JsonException) { return null; }
+        return new PersonCache(info, r.IsDBNull(1) ? 0 : r.GetInt64(1));
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SavePersonCache(string name, PersonInfo? info)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"INSERT OR REPLACE INTO people_tmdb(name, tmdb_id, data, fetched_at)
+                            VALUES(@n, @i, @d, strftime('%s','now'))";
+        cmd.Parameters.AddWithValue("@n", name.Trim());
+        cmd.Parameters.AddWithValue("@i", info?.TmdbId ?? 0);
+        cmd.Parameters.AddWithValue("@d", info == null ? DBNull.Value : System.Text.Json.JsonSerializer.Serialize(info));
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>The TMDb or IMDb ids of a few of this person's movies and shows, to find
+    /// them in a TMDb cast list (movies as an actor or director first).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(bool Show, string? TmdbId, string? ImdbId)> GetPersonTitleIds(string name, int most = 4)
+    {
+        var list = new List<(bool, string?, string?)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT 0, m.tmdb_id, m.imdb_id FROM movies m
+ WHERE (COALESCE(m.tmdb_id, '') != '' OR COALESCE(m.imdb_id, '') != '')
+   AND (EXISTS (SELECT 1 FROM movie_actors ma JOIN actors a ON a.id=ma.actor_id WHERE ma.movie_id=m.id AND LOWER(a.name)=LOWER(@n))
+        OR EXISTS (SELECT 1 FROM movie_directors md JOIN directors d ON d.id=md.director_id WHERE md.movie_id=m.id AND LOWER(d.name)=LOWER(@n)))
+UNION ALL
+SELECT 1, s.tmdb_id, s.imdb_id FROM tv_shows s
+ WHERE COALESCE(s.tmdb_id, '') != ''
+   AND EXISTS (SELECT 1 FROM tv_show_actors sa JOIN actors a ON a.id=sa.actor_id WHERE sa.show_id=s.id AND LOWER(a.name)=LOWER(@n))
+LIMIT @most";
+        cmd.Parameters.AddWithValue("@n", name.Trim());
+        cmd.Parameters.AddWithValue("@most", most);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add((r.GetInt32(0) == 1, r.IsDBNull(1) ? null : r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2)));
+        return list;
+    }
+
+    // ── 5.4.1: awards (see Awards) ─────────────────────────────────────────────
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public (string Data, long FetchedAt)? GetAwardsCache(string imdbId)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT data, fetched_at FROM awards_wikidata WHERE imdb_id=@i";
+        cmd.Parameters.AddWithValue("@i", imdbId);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read() || r.IsDBNull(0)) return null;
+        return (r.GetString(0), r.IsDBNull(1) ? 0 : r.GetInt64(1));
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void SaveAwardsCache(string imdbId, string data)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT OR REPLACE INTO awards_wikidata(imdb_id, data, fetched_at) VALUES(@i, @d, strftime('%s','now'))";
+        cmd.Parameters.AddWithValue("@i", imdbId);
+        cmd.Parameters.AddWithValue("@d", data);
+        cmd.ExecuteNonQuery();
+    }
+
+    // ── 5.4.1: a person's films with you: the numbers, who they work with, birthdays ──
+
+    public record PersonStats(int Films, int Watched, double? AverageRating, int? FirstYear, int? LastYear);
+
+    private static string PersonLink(bool director) => director
+        ? "SELECT 1 FROM movie_directors l JOIN directors x ON x.id=l.director_id WHERE l.movie_id=m.id AND LOWER(x.name)=LOWER(@n)"
+        : "SELECT 1 FROM movie_actors l JOIN actors x ON x.id=l.actor_id WHERE l.movie_id=m.id AND LOWER(x.name)=LOWER(@n)";
+
+    /// <summary>The person's films (as an actor or the director), found from the person: quick on a big library.</summary>
+    private static string Mine(bool director) => director
+        ? @"WITH ids AS (SELECT id FROM directors WHERE LOWER(name)=LOWER(@n)),
+                mine AS (SELECT DISTINCT movie_id FROM movie_directors WHERE director_id IN (SELECT id FROM ids))"
+        : @"WITH ids AS (SELECT id FROM actors WHERE LOWER(name)=LOWER(@n)),
+                mine AS (SELECT DISTINCT movie_id FROM movie_actors WHERE actor_id IN (SELECT id FROM ids))";
+
+    /// <summary>The person's movies in the library: how many, how many watched, their average rating and years.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public PersonStats GetPersonStats(string name, bool director)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"{Mine(director)}
+            SELECT COUNT(*), COALESCE(SUM(m.is_watched), 0), AVG(NULLIF(m.rating, 0)),
+                   MIN(NULLIF(m.year, 0)), MAX(NULLIF(m.year, 0))
+              FROM movies m JOIN mine ON mine.movie_id = m.id
+             WHERE m.archived_at IS NULL AND m.volume_serial != '__archive__'";
+        cmd.Parameters.AddWithValue("@n", name.Trim());
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        return new PersonStats(r.GetInt32(0), r.GetInt32(1), r.IsDBNull(2) ? null : r.GetDouble(2),
+                               r.IsDBNull(3) ? null : r.GetInt32(3), r.IsDBNull(4) ? null : r.GetInt32(4));
+    }
+
+    /// <summary>Movies in the library marked watched (not Watched &amp; Gone, which are all seen).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public HashSet<int> GetWatchedMovieIds()
+    {
+        var set = new HashSet<int>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT id FROM movies WHERE is_watched=1 AND archived_at IS NULL";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) set.Add(r.GetInt32(0));
+        return set;
+    }
+
+    /// <summary>
+    /// Who the person works with most in your films (Watched &amp; Gone too), two films or more:
+    /// an actor's co-stars (the first ten billed) and directors, a director's actors.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(string Name, int Films, bool IsDirector)> GetCollaborators(string name, bool director)
+    {
+        var list = new List<(string, int, bool)>();
+        void Read(string join, bool isDirector, int most)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = $@"{Mine(director)}
+                SELECT o.name, COUNT(DISTINCT mine.movie_id) AS films FROM mine {join}
+                 GROUP BY o.id HAVING films >= 2 ORDER BY films DESC, o.name LIMIT {most}";
+            cmd.Parameters.AddWithValue("@n", name.Trim());
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add((r.GetString(0), r.GetInt32(1), isDirector));
+        }
+        // the first ten billed: a long cast's crowd isn't who they work with
+        const string costars = @"JOIN movie_actors oa ON oa.movie_id = mine.movie_id JOIN actors o ON o.id = oa.actor_id
+                                 WHERE oa.sort_order < 10 AND LOWER(o.name) != LOWER(@n)";
+        Read(costars, false, 8);
+        if (!director)
+            Read(@"JOIN movie_directors od ON od.movie_id = mine.movie_id JOIN directors o ON o.id = od.director_id
+                   WHERE LOWER(o.name) != LOWER(@n)", true, 4);
+        return list;
+    }
+
+    /// <summary>
+    /// The people TMDb told us about (opened on their page) whose birthday may be this day of
+    /// the year (29 February too, for the 28th), for On This Day; People.BornOn picks exactly.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(string Name, PersonInfo Info)> GetPeopleBornAround(DateTime day)
+    {
+        var list = new List<(string, PersonInfo)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT name, data FROM people_tmdb WHERE data IS NOT NULL AND (data LIKE @a OR data LIKE @b)";
+        cmd.Parameters.AddWithValue("@a", $"%\"Birthday\":\"____-{day:MM}-{day:dd}\"%");
+        cmd.Parameters.AddWithValue("@b", "%\"Birthday\":\"____-02-29\"%");
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            try
+            {
+                if (System.Text.Json.JsonSerializer.Deserialize<PersonInfo>(r.GetString(1)) is { } info)
+                    list.Add((r.GetString(0), info));
+            }
+            catch (System.Text.Json.JsonException) { }
+        return list;
+    }
+
+    /// <summary>Whether the person directed any movie in the library or Watched &amp; Gone (and acted in none).</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public bool IsOnlyDirector(string name)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"SELECT NOT EXISTS (SELECT 1 FROM movies m WHERE EXISTS ({PersonLink(false)}))
+                               AND EXISTS (SELECT 1 FROM movies m WHERE EXISTS ({PersonLink(true)}))";
+        cmd.Parameters.AddWithValue("@n", name.Trim());
+        return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+    }
+
+    // ── 5.4.0: Wishlist ───────────────────────────────────────────────────────
+
+    public record WishlistEntry(PersonFilm Film, string? AddedFrom, long AddedAt);
+
+    /// <summary>The wishlist, the latest added first.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<WishlistEntry> GetWishlist()
+    {
+        var list = new List<WishlistEntry>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT tmdb_id, title, original_title, release_date, poster_path, added_from, added_at
+                              FROM wishlist ORDER BY added_at DESC, title";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add(new WishlistEntry(new PersonFilm
+            {
+                TmdbId = r.GetInt32(0),
+                Title = r.GetString(1),
+                OriginalTitle = r.IsDBNull(2) ? null : r.GetString(2),
+                ReleaseDate = r.IsDBNull(3) ? null : r.GetString(3),
+                PosterPath = r.IsDBNull(4) ? null : r.GetString(4),
+            }, r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? 0 : r.GetInt64(6)));
+        return list;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public HashSet<int> GetWishlistIds()
+    {
+        var set = new HashSet<int>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT tmdb_id FROM wishlist";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) set.Add(r.GetInt32(0));
+        return set;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetWishlistCount() => (int)ScalarLong("SELECT COUNT(*) FROM wishlist");
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void AddToWishlist(PersonFilm film, string? addedFrom)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"INSERT OR IGNORE INTO wishlist(tmdb_id, title, original_title, release_date, poster_path, added_from, added_at)
+                            VALUES(@i, @t, @o, @d, @p, @f, MAX(@a, COALESCE((SELECT MAX(added_at) FROM wishlist), 0) + 1))";
+        cmd.Parameters.AddWithValue("@a", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        cmd.Parameters.AddWithValue("@i", film.TmdbId);
+        cmd.Parameters.AddWithValue("@t", film.Title);
+        cmd.Parameters.AddWithValue("@o", (object?)film.OriginalTitle ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@d", (object?)film.ReleaseDate ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@p", (object?)film.PosterPath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@f", (object?)addedFrom ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemoveFromWishlist(IEnumerable<int> tmdbIds)
+    {
+        using var tx = _conn.BeginTransaction();
+        foreach (var id in tmdbIds)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "DELETE FROM wishlist WHERE tmdb_id=@i";
+            cmd.Parameters.AddWithValue("@i", id);
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
+
+    /// <summary>Every movie in the library, or (<paramref name="gone"/>) every Watched &amp; Gone
+    /// record, to tell which of a person's films you have or had.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<(int Id, string? TmdbId, string? Title, string? OriginalTitle, int? Year)> GetMovieKeys(bool gone = false)
+    {
+        var list = new List<(int, string?, string?, string?, int?)>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"SELECT id, tmdb_id, title, original_title, year FROM movies
+                             WHERE {(gone ? "archived_at IS NOT NULL" : "archived_at IS NULL AND volume_serial != '__archive__'")}";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            list.Add((r.GetInt32(0), r.IsDBNull(1) ? null : r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2),
+                      r.IsDBNull(3) ? null : r.GetString(3), r.IsDBNull(4) ? null : r.GetInt32(4)));
+        return list;
     }
 
     // ── v4.6.0: Update IMDb ratings (see ImdbUpdate) ─────────────────────────
@@ -5105,6 +5415,23 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                AND EXISTS (SELECT 1 FROM tv_show_genres sg JOIN genres g ON g.id=sg.genre_id WHERE sg.show_id=s.id AND g.name=@genre)
              ORDER BY s.sort_title, s.title";
         cmd.Parameters.AddWithValue("@genre", genre);
+        return ReadShowListItems(cmd, connected);
+    }
+
+    /// <summary>5.4.0: an actor's TV shows, for their page; or (<paramref name="gone"/>) the ones in Watched &amp; Gone.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public List<Models.TvShowListItem> GetTvShowsWithActor(string actor, IReadOnlyDictionary<string, string> connected, bool gone = false)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $@"
+            SELECT {ShowListItemColumns}
+              FROM tv_shows s
+              LEFT JOIN drives d ON d.volume_serial = s.volume_serial
+             WHERE {(gone ? "s.archived_at IS NOT NULL" : "s.is_missing = 0 AND s.archived_at IS NULL")}
+               AND EXISTS (SELECT 1 FROM tv_show_actors sa JOIN actors a ON a.id=sa.actor_id
+                            WHERE sa.show_id=s.id AND LOWER(a.name)=LOWER(@actor))
+             ORDER BY s.sort_title, s.title";
+        cmd.Parameters.AddWithValue("@actor", actor);
         return ReadShowListItems(cmd, connected);
     }
 

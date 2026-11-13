@@ -62,13 +62,14 @@
                             Padding="10,6"
                             Height="36"
                             VerticalAlignment="Center"
-                            Visibility="Collapsed">
+                            Visibility="Collapsed"
+                            KeyboardAcceleratorPlacementMode="Hidden">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <TextBlock Text="‹" FontSize="18" FontWeight="Bold"
                                        VerticalAlignment="Center"
                                        Foreground="{ThemeResource TextBrush}"/>
                             <TextBlock x:Name="BackLabel" Text="Back" FontSize="13" FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
+                                       VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis"
                                        Foreground="{ThemeResource TextBrush}"/>
                         </StackPanel>
                     </Button>
@@ -277,6 +278,54 @@
                       VerticalScrollBarVisibility="Auto"
                       ViewChanged="OnScrollChanged">
           <StackPanel>
+            <!-- 5.4.0: who the actor or director is (TMDb), above their films -->
+            <Grid x:Name="PersonPanel" Visibility="Collapsed" Margin="24,4,24,16" ColumnSpacing="20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid Width="80" Height="120" CornerRadius="10" VerticalAlignment="Top"
+                      Background="{ThemeResource CardBrush}">
+                    <TextBlock x:Name="PersonInitials" FontSize="30" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{ThemeResource MutedBrush}"/>
+                    <Image x:Name="PersonPhoto" Stretch="UniformToFill"/>
+                </Grid>
+                <StackPanel Grid.Column="1" Spacing="6" MaxWidth="860" HorizontalAlignment="Left">
+                    <TextBlock x:Name="PersonLife" FontSize="13" TextWrapping="Wrap"
+                               Foreground="{ThemeResource MutedBrush}"/>
+                    <!-- born, age or died, and birthplace, coloured by kind as the movie window's details -->
+                    <controls:WrapPanel x:Name="PersonFacts" HorizontalSpacing="28" VerticalSpacing="10" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="PersonBio" FontSize="14" LineHeight="21" TextWrapping="Wrap"
+                               MaxLines="3" TextTrimming="WordEllipsis" IsTextSelectionEnabled="True"
+                               Foreground="{ThemeResource TextBrush}"
+                               IsTextTrimmedChanged="OnPersonBioTrimmed"/>
+                    <StackPanel x:Name="PersonLinks" Orientation="Horizontal" Spacing="4" Margin="-12,0,0,0">
+                        <HyperlinkButton x:Name="PersonMoreBtn" Content="More" Click="OnPersonMore" Visibility="Collapsed"/>
+                        <HyperlinkButton x:Name="PersonImdbBtn" Content="IMDb" Click="OnPersonLink"/>
+                        <HyperlinkButton x:Name="PersonTmdbBtn" Content="TMDb" Click="OnPersonLink"/>
+                    </StackPanel>
+                    <!-- 5.4.1: who they work with most in your films (ShowCollaborators) -->
+                    <controls:WrapPanel x:Name="PersonPeople" HorizontalSpacing="28" VerticalSpacing="10" Margin="0,4,0,0"/>
+                    <!-- 5.4.1: their awards, from Wikidata, opened from the Awards fact -->
+                    <Border x:Name="PersonAwardsPanel" Visibility="Collapsed" Margin="0,8,0,0" Padding="16,14"
+                            CornerRadius="10" Background="{ThemeResource CardBrush}"
+                            BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"/>
+                </StackPanel>
+            </Grid>
+            <!-- 5.4.0: a person's films in three parts, each with its heading: yours (green),
+                 Watched & Gone (amber, after the grid) and the ones you don't have (purple) -->
+            <Border x:Name="PersonOwnedHeader" Visibility="Collapsed" Margin="24,0,24,14">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Width="4" Height="20" CornerRadius="2" Background="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="In your library" FontSize="17" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+                    <Border x:Name="PersonOwnedCountPill" CornerRadius="10" Padding="8,1,8,2" Background="#3322C55E" VerticalAlignment="Center">
+                        <TextBlock x:Name="PersonOwnedCount" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="PersonOwnedNote" FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
             <!-- v2.9 — TV shows matching the current search query.
                  Sits at the very top of the page when the user types
                  something the search picks up across both movies and
@@ -438,6 +487,78 @@
                     </ItemsRepeater>
                 </Border>
             </Grid>
+            <!-- 5.4.0: the person's films and shows in Watched & Gone: seen, and let go -->
+            <StackPanel x:Name="PersonGoneSection" Visibility="Collapsed" Spacing="12" Margin="0,8,0,0">
+                <Border Margin="24,0,24,0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Width="4" Height="20" CornerRadius="2" Background="{ThemeResource NavBrowseIconBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="Watched &amp; Gone" FontSize="17" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+                    <Border x:Name="PersonGoneCountPill" CornerRadius="10" Padding="8,1,8,2" Background="#33F5B83D" VerticalAlignment="Center">
+                        <TextBlock x:Name="PersonGoneCount" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource NavBrowseIconBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="PersonGoneNote" FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+                </Border>
+                <ScrollViewer x:Name="PersonGoneShowsCards" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled"
+                              Padding="24,0,24,16">
+                    <ItemsRepeater x:Name="PersonGoneShowsRepeater" TabFocusNavigation="Once">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Horizontal" Spacing="24"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:TvShowListItem">
+                                <local:TvShowCard ArchiveMode="True" UsesLibrarySize="True" Show="{x:Bind}"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </ScrollViewer>
+                <Border x:Name="PersonGoneMovies" Padding="24,0,24,24">
+                    <ItemsRepeater x:Name="PersonGoneRepeater" TabFocusNavigation="Once">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:MovieListItem">
+                                <local:MovieCardControl Movie="{x:Bind}" ArchiveMode="True"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+            </StackPanel>
+            <!-- 5.4.0: the person's films that aren't in the library, after the ones that are,
+                 sized like the grid's cards (FitPersonFilms) -->
+            <StackPanel x:Name="PersonFilmsSection" Visibility="Collapsed" Spacing="12" Margin="0,8,0,0">
+                <Border Margin="24,0,24,0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Width="4" Height="20" CornerRadius="2" Background="{StaticResource BrandPurpleBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="Not in your library" FontSize="17" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center"/>
+                    <Border x:Name="PersonFilmsCountPill" CornerRadius="10" Padding="8,1,8,2" Background="#33A78BFA" VerticalAlignment="Center">
+                        <TextBlock x:Name="PersonFilmsCount" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrandPurpleBrush}"/>
+                    </Border>
+                    <TextBlock x:Name="PersonFilmsNote" FontSize="13" Foreground="{ThemeResource MutedBrush}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+                </Border>
+                <Border x:Name="PersonFilmsCards" Padding="24,0,24,24">
+                    <ItemsRepeater x:Name="PersonFilmsRepeater" TabFocusNavigation="Once">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
+                                               MinColumnSpacing="24" MinRowSpacing="28"
+                                               ItemsStretch="Uniform"/>
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:TmdbFilmItem">
+                                <local:TmdbFilmCard Item="{x:Bind}"/>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+            </StackPanel>
           </StackPanel>
         </ScrollViewer>
 

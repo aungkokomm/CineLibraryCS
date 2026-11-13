@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private TvShowsPage? _tvShowsPage;
     private OnThisDayPage? _onThisDayPage;
     private WatchedGonePage? _watchedGonePage;
+    private WishlistPage? _wishlistPage;   // 5.4.0
     private DeviceChangeWatcher? _deviceWatcher;
 
     public MainWindow()
@@ -116,6 +117,8 @@ public sealed partial class MainWindow : Window
         // v2.5 — drag-and-drop targets in the sidebar. Drag selected cards
         // onto Favorites / Watchlist to flip those flags in bulk; drop on
         // a user-list row to add. AllowDrop must be set per-target.
+        // 5.4.0: the Wishlist's count as films go on and off it
+        Wishlist.Changed += () => WishlistBadge.Text = AppState.Instance.Db.GetWishlistCount().ToString();
         WireSidebarDropTarget(BtnFavorites, ids =>
         {
             foreach (var mid in ids) AppState.Instance.Db.ToggleFavorite(mid);
@@ -156,6 +159,7 @@ public sealed partial class MainWindow : Window
             StartLog.Mark("main window closed");
             try { _deviceWatcher?.Dispose(); } catch { }
             _deviceWatcher = null;
+            try { _scanRequests?.Dispose(); } catch { }
             try { _vm.Shutdown(); } catch { }
             try { AppState.Instance.Db.Dispose(); } catch { }
         };
@@ -590,6 +594,59 @@ public sealed partial class MainWindow : Window
         try { await dialog.ShowAsync(); } catch { }
     }
 
+    // ── 5.4.0: Scan in CineLibrary (from CineLibrary Essentials) ────────────
+
+    private ScanRequests? _scanRequests;
+    private readonly List<string> _essentialsQueue = new();
+    private bool _essentialsScanning;
+
+    /// <summary>
+    /// Scans the folders CineLibrary Essentials sent, one request after another,
+    /// then shows the new details. Folders outside the ones CineLibrary scans are
+    /// named in the message rather than added.
+    /// </summary>
+    private async Task ScanFromEssentialsAsync(List<string> folders)
+    {
+        _essentialsQueue.AddRange(folders);
+        if (_essentialsScanning) return;   // the pass under way picks them up
+        _essentialsScanning = true;
+        try
+        {
+            while (_essentialsQueue.Count > 0)
+            {
+                var asked = _essentialsQueue.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                _essentialsQueue.Clear();
+                await Task.Run(() => AppState.Instance.RefreshConnected());
+                var work = ScanRequests.Plan(asked, AppState.Instance.Db.GetDrives(), AppState.Instance.Connected,
+                                             out var notCovered);
+                if (work.Count > 0)
+                    ShowToast($"Scanning what CineLibrary Essentials just scraped ({asked.Count} folder{(asked.Count == 1 ? "" : "s")})…");
+                foreach (var (serial, driveRoot, folder) in work)
+                    await AppState.Instance.Scanner.ScanAsync(serial, driveRoot, scanFolder: folder, incremental: true);
+
+                await RefreshSidebarAsync();
+                if (ContentFrame.Content == _libraryPage) _libraryPage?.Reload();
+                else if (ContentFrame.Content == _tvShowsPage) _tvShowsPage?.Load();
+
+                var message = work.Count > 0
+                    ? $"Up to date with CineLibrary Essentials: {asked.Count - notCovered.Count} folder{(asked.Count - notCovered.Count == 1 ? "" : "s")} read again."
+                    : string.Empty;
+                if (notCovered.Count > 0)
+                    message += $" {notCovered.Count} {(notCovered.Count == 1 ? "isn't" : "aren't")} in a folder CineLibrary scans, like "
+                               + $"{notCovered[0]}. Add the drive or folder on the Drives page first.";
+                ShowToast(message.Trim());
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Couldn't scan what CineLibrary Essentials sent: {ex.Message}");
+        }
+        finally
+        {
+            _essentialsScanning = false;
+        }
+    }
+
     private async Task InitAsync()
     {
         // AppState.Initialize() already ran synchronously in the ctor —
@@ -626,6 +683,11 @@ public sealed partial class MainWindow : Window
         StartLog.Mark("data loaded");
         RefreshSidebarImmediate();
         StartLog.Mark("sidebar filled");
+
+        // 5.4.0: CineLibrary Essentials' "Scan in CineLibrary", waiting or new
+        _scanRequests = new ScanRequests(AppState.Instance.DataDir,
+            folders => DispatcherQueue.TryEnqueue(() => _ = ScanFromEssentialsAsync(folders)));
+        _scanRequests.Start();
 
         // Fire-and-forget update check. Silent on no-network. Skipped versions
         // are remembered via the prefs table so the user isn't nagged.
@@ -803,6 +865,8 @@ public sealed partial class MainWindow : Window
                     + AppState.Instance.Db.GetTvShowPageCount(DatabaseService.TvShowPage.Watchlist)).ToString();
             }
 
+            WishlistBadge.Text = AppState.Instance.Db.GetWishlistCount().ToString();   // 5.4.0
+
             // Continue Watching badge (v1.8) — only show shortcut if there's anything to continue
             var cwCount = AppState.Instance.Db.GetContinueWatchingCount()
                         + AppState.Instance.Db.GetTvShowPageCount(DatabaseService.TvShowPage.ContinueWatching);
@@ -823,6 +887,7 @@ public sealed partial class MainWindow : Window
             try
             {
                 BtnOnThisDay.Visibility = AppState.Instance.Db.HasOnThisDayMatches()
+                    || People.BornOn(AppState.Instance.Db.GetPeopleBornAround(DateTime.Today), DateTime.Today).Count > 0   // 5.4.1: birthdays
                     ? Visibility.Visible : Visibility.Collapsed;
             } catch { BtnOnThisDay.Visibility = Visibility.Collapsed; }
 
@@ -1567,6 +1632,12 @@ public sealed partial class MainWindow : Window
             _collectionsPage.Load();
             ContentFrame.Content = _collectionsPage;
         }
+        else if (page == "wishlist")
+        {
+            _wishlistPage ??= new WishlistPage();
+            _wishlistPage.Load();
+            ContentFrame.Content = _wishlistPage;
+        }
         else if (page == "tags")
         {
             _tagsPage ??= new TagsPage();
@@ -1646,6 +1717,41 @@ public sealed partial class MainWindow : Window
     }
 
     public void OnLibraryBackRequested() => _libraryBackAction?.Invoke();
+
+    /// <summary>Shows ‹ <paramref name="label"/> on the library page, running <paramref name="back"/> when clicked.</summary>
+    public void SetLibraryBack(string label, Action back)
+    {
+        _libraryBackAction = back;
+        _libraryPage?.ShowBrowseBack(label);
+    }
+
+    /// <summary>
+    /// 5.4.0: how to put the main window back as it is now, for the ‹ Back of a page
+    /// opened from a movie's window or Statistics: its page and sidebar item, and on
+    /// the library its view (filters, sort, title, own ‹ Back and where it was scrolled).
+    /// </summary>
+    public Action CaptureView()
+    {
+        var (page, nav, navTag) = (ContentFrame.Content, _activeNavBtn, _activeTagId);
+        if (_libraryPage is not { } library || !ReferenceEquals(page, library))
+            return () => { ContentFrame.Content = page; SetActiveNav(nav, navTag); };
+        var view = library.ViewModel.CaptureView();
+        var (title, offset) = (library.PageTitle, library.ScrollOffset);
+        var (back, backLabel) = (_libraryBackAction, library.BackLabelShown);
+        return async () =>
+        {
+            ContentFrame.Content = library;
+            SetActiveNav(nav, navTag);
+            library.UpdatePageTitle(title);
+            if (back != null && backLabel != null) SetLibraryBack(backLabel, back);
+            else ClearLibraryBack();
+            await library.ViewModel.RestoreView(view);
+            await library.ScrollToAsync(offset);
+        };
+    }
+
+    /// <summary>The sidebar's counts again (a movie's window changed a list).</summary>
+    public void RefreshSidebarCounts() => _ = RefreshSidebarAsync();
 
     // ── Nav handlers ──────────────────────────────────────────────────────
 
@@ -2132,6 +2238,12 @@ public sealed partial class MainWindow : Window
         SetActiveNav(sender as Button ?? BtnWatchlist);
     }
 
+    private void OnNavWishlist(object sender, RoutedEventArgs e)
+    {
+        NavigateTo("wishlist");
+        SetActiveNav(sender as Button ?? BtnWishlist);
+    }
+
     private void OnNavNotes(object sender, RoutedEventArgs e)
     {
         if (_libraryPage == null) NavigateTo("library");
@@ -2575,7 +2687,7 @@ public sealed partial class MainWindow : Window
 
     private Button[] HideableNav => new[]
     {
-        BtnTvShows, BtnFavorites, BtnWatchlist, BtnNotes, BtnWatchedGone,
+        BtnTvShows, BtnFavorites, BtnWatchlist, BtnWishlist, BtnNotes, BtnWatchedGone,
         BtnContinueWatching, BtnRecentlyAdded, BtnRecentlyWatched, BtnOnThisDay,
         BtnBrowseGenre, BtnBrowseDecade, BtnBrowseRating, BtnCollections, BtnBrowseTags,
         BtnStatistics, BtnDupes, BtnFewCast, BtnBackupExport,

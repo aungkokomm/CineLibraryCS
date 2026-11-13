@@ -1,1420 +1,1491 @@
-# CineLibrary — User Guide
-
-> A native Windows catalog for your movie collection.
-> Browse, search, and track what you've watched across any number of drives.
-
-This guide walks you from a fresh install to running a catalog of thousands
-of movies in under five minutes.
-
----
-
-> **What's new in v2.8.0** — **TV Shows!** Folders with a `tvshow.nfo`
-> are now detected as shows, with a single show page (poster, plot,
-> cast, season-by-season episode rows, per-episode watched tracking,
-> and a "▶ Play next unwatched" button). See *TV Shows* below.
-
-## Contents
-
-1. [Before you start](#before-you-start)
-2. [Install and first launch](#install-and-first-launch)
-3. [Adding your movie folders](#adding-your-movie-folders)
-4. [Browsing your library](#browsing-your-library)
-5. [Search, filter, and sort](#search-filter-and-sort)
-6. [Tracking what you've watched](#tracking-what-youve-watched)
-7. [TV Shows](#tv-shows)
-8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
-9. [Tags — your own labels](#tags--your-own-labels)
-10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
-11. [Filling in missing details (TMDB)](#filling-in-missing-details-tmdb)
-12. [IMDb ratings](#imdb-ratings)
-13. [Finding duplicates (Dupes)](#finding-duplicates-dupes)
-14. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
-15. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
-16. [State that travels with your drives](#state-that-travels-with-your-drives)
-17. [Backup and restore](#backup-and-restore)
-18. [Statistics](#statistics)
-19. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
-20. [Themes and sidebar](#themes-and-sidebar)
-21. [Settings](#settings)
-22. [Keyboard shortcuts](#keyboard-shortcuts)
-23. [Exporting your catalog](#exporting-your-catalog)
-24. [Updates](#updates)
-25. [Where your data lives](#where-your-data-lives)
-26. [Troubleshooting](#troubleshooting)
-
----
-
-## Before you start
-
-CineLibrary is a **reader**, not a scraper. It expects your movie folders
-to be already scraped by [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) so
-each movie sits in its own folder with a `.nfo` file and poster images
-next to the video. A typical layout looks like this:
-
-```
-H:\Movies\
-├── Inception (2010)\
-│   ├── Inception.mkv
-│   ├── Inception.nfo
-│   ├── poster.jpg
-│   └── fanart.jpg
-├── The Matrix (1999)\
-│   ├── The Matrix.mp4
-│   ├── The Matrix.nfo
-│   └── poster.jpg
-└── ...
-```
-
-If you don't have `.nfo` files yet, run CineLibrary Essentials over your library first.
-Once your folders look like the example above, you're ready.
-
-You'll also need:
-
-- Windows 10 (build 19041) or Windows 11
-- ~150 MB free space for the app itself, plus a small amount for the
-  catalog database (a 10,000-movie library is around 50 MB)
-
----
-
-## Install and first launch
-
-1. Download the latest installer from the
-   [releases page](https://github.com/aungkokomm/CineLibraryCS/releases/latest)
-   — the file looks like `CineLibrary-vX.Y.Z-Portable-Setup.exe`.
-2. Run it. The installer is **portable** — it will ask where to put
-   CineLibrary (any folder you like — your `Documents`, an external
-   drive, a USB stick). The app and its database live next to each other
-   in that folder.
-3. Launch `CineLibrary.exe`. The first window is empty until you tell it
-   where your movies are — that's the next step.
-
-> **Why portable?** Your library data lives in `CineLibrary-Data\` next
-> to the executable. Move the folder, copy it to another machine, plug
-> the USB stick into a friend's PC — your catalog goes with it.
-
----
-
-## Adding your movie folders
-
-Open **Drives** with the drive button at the bottom of the sidebar (the
-first of the small buttons there).
-
-Click **Add folder** and point CineLibrary at the **root** of one of your
-movie collections (e.g. `H:\Movies` or `E:\Films`). CineLibrary will
-recursively scan that folder, read each `.nfo`, cache posters, and build
-the catalog. Progress shows in the toast bottom-right.
-
-A few tips:
-
-- **Add as many roots as you like.** Each external drive, each
-  subdivision of your collection — separate entries are fine.
-- **One folder for many.** Adding a folder that holds folders you added
-  before (say `G:\Serials`, after `G:\Serials\Mirzapur` and others)
-  replaces them in the list with that one folder. Nothing leaves your
-  library, and every show and movie under it is scanned.
-- **Leave a folder out.** Put an empty file named `.nomedia` in a
-  folder, as in Kodi, and CineLibrary skips that folder and everything
-  inside it, for movies and TV shows. Useful for episodes whose `.nfo`
-  calls them movies, or a folder you haven't sorted out yet. Anything
-  from it already in your library shows as missing after the next
-  Update; **Review N…** on the drive lets you remove it.
-- **Give drives friendly names.** Right-click a drive entry and rename
-  it (e.g. *"Seagate Red 5TB — Movies"*) so the sidebar reads cleanly.
-- **Re-scan after scraping again.** If you re-scrape metadata or add
-  new movies, hit **Rescan** on the drive entry; CineLibrary picks up
-  the new and changed files.
-- **Removing a drive is non-destructive** for your video files —
-  CineLibrary only forgets its own catalog entries.
-
-When the scan finishes, click **All Movies** in the sidebar.
-
----
-
-## Browsing your library
-
-The **All Movies** page is your home view. The sidebar shows shortcuts
-to slice the catalog; the main area shows the movies.
-
-### Grid view (default)
-
-Posters laid out in a fluid grid that auto-fits the window. Use the
-**Size** drop-down at the right of the top bar to pick the poster size
-(S, M, L or XL).
-The grid stretches to fill the available width — bigger window means
-more columns, automatically.
-
-**Point at** a poster for its genres, **▶ Play** (when its drive is
-connected; otherwise the card says which drive it's on), **View
-Details**, and the To Watch / Watched / Favorite icons in the corner.
-
-**Click** any poster to open the **movie detail** dialog. It opens
-maximized and shows cast, ratings from multiple sources (IMDb / TMDb /
-Rotten Tomatoes if your nfo has them), tech badges (resolution, codec,
-audio), file size and duration, and quick toggles for watched /
-favorite / To Watch. Press **Esc** to close, or use the close button
-in the sticky bar that appears as you scroll.
-
-The yellow **★** is the rating your `.nfo` marks as the main one
-(`default="true"`, as in Kodi; your scraper decides which source that
-is). When the `.nfo` has more than one source, each one is listed
-beside it with its votes.
-
-The genres sit as chips right under the rating, year, runtime and
-certification; click one to see every movie in that genre. A purple chip
-beside the runtime names the **edition** when the `.nfo` has one
-(Director's Cut, Extended, IMAX). Further down are the **Director**,
-**Writer** and **Studio** (a long list of writers shows the first four;
-point at it for the rest). A movie made by several studios lists them
-all; click any of them to see its movies. **Country** in the file details
-lists every country too.
-
-**🎞 Trailer** next to Play opens the movie's trailer in your web browser,
-when its `.nfo` has a trailer link.
-
-The cast lists everyone in the movie's `.nfo`, in billing order, with
-photos from the movie folder's `.actors` folder (or fetched from TMDB).
-A very big cast shows its first 24, and a low window one row; **Show all** brings the rest and **Show less** folds it back.
-
-Under the cast, a movie that's part of a collection shows **the rest of
-the collection** you own, in order, with a ✓ on the ones you've watched
-(for example "Part of the James Bond Collection"), and then **More by**
-its director: up to 12 of their other films you own, with **See all**
-for the rest. Click a poster to see that film in the same window.
-
-**Previous / next:** press **←** or **→**, or use the arrows at the top
-left of the banner (or in the bar that appears as you scroll), to step
-through the movies of the grid or list you opened the window from, in
-the same order and filter, without closing it. The banner shows where
-you are, like "12 of 340".
-
-The window uses its whole width and arranges itself to fit. In a wide
-window (a 1440p or 4K screen) the buttons and plot sit beside a larger
-poster, with the director, writer, studio, file details and your note in a
-column of their own, so most movies fit on one screen without scrolling.
-In a narrow window (a tablet held upright, or the window snapped to half
-the screen) everything stacks in one column.
-
-**Double-click** a poster to play the movie immediately via your default
-video player. If the movie's drive isn't connected, CineLibrary tells
-you which drive to plug in.
-
-### List view
-
-Click the **☰** toggle next to the **Size** drop-down for a compact list
-showing title, year, rating, runtime, and watched status — useful for
-scanning hundreds of titles at once.
-
-### Sidebar shortcuts
-
-The sidebar is grouped into sections:
-
-- **LIBRARY**: All Movies, Favorites, To Watch.
-- **DISCOVER**: Continue Watching, Recently Added, Recently Watched.
-- **MY LISTS**: your custom lists. Click **+** to add one.
-- **BROWSE**: banner-style pages: *By Genre*, *By Decade*, *By Rating*,
-  *Collections*, and the **Tags** page. Each entry shows count and a
-  representative cover; click to filter your library to that slice.
-- **TOOLS**: Statistics, Dupes, Missing cast (4.8.0: the movies with one
-  actor or none, shown while there are any) and Backup & Export.
-- **PINNED TAGS**: the tags you pinned on the Tags page.
-- **LIBRARIES**: one entry per drive root, with a live online/offline
-  dot and a count.
-
-My Lists, Pinned Tags and Libraries fold when you click their header, and
-stay folded (or open) the way you left them, after a restart too. Each
-section's icons have their own colour, so you can find your way at a
-glance.
-
-Don't use an item? Right-click it and choose **Hide from sidebar**.
-**Settings → Sidebar** lists what you hid and shows it again. The random
-pick (Surprise me) is the 🔀 button on the library's toolbar.
-
-The small buttons at the bottom of the sidebar are **Drives**, the theme
-switch, **Settings**, keyboard shortcuts and collapse sidebar.
-
-### Collections
-
-**Collections** (under Browse) shows each franchise in your library as a
-poster card, the same size as TV show cards, with its movie count and how
-many you've watched ("2/5") above a purple progress bar. A green **✓**
-means you've watched every movie in it. The toolbar works like the one
-on All Movies, and
-CineLibrary remembers your choices:
-
-- **Sort**: Name, number of Movies, Year (the newest movie in the
-  collection) or Date Added, either way.
-- **All / Unwatched / Watched**: Unwatched shows the collections with
-  movies left to watch; Watched shows the ones you've finished.
-- **Size**: S, M, L or XL posters.
-
-Click a collection to see its movies.
-
----
-
-## Search, filter, and sort
-
-### Search
-
-The search box lives in the **title bar** at the top of the window, so
-it's available from **every page** — start typing anywhere and
-CineLibrary jumps straight to the matching movies (and shows). It matches
-across **title, original title, year, actor, and director** (and
-collection names). It deliberately doesn't search plot text — a short
-word like "hit" appears in hundreds of plot summaries, which used to bury
-the titles you actually wanted. Title matches are ranked first, so the
-closest result is at the top. Type as you go — results update live. Press
-`Ctrl+F` from anywhere to jump into it; press `Esc` to clear it and step
-back out.
-
-The dropdown to the left of the search box sets the **scope**:
-**All** (the default), **Title** to match titles only, or **Cast &
-crew** to find everything an actor or director worked on.
-
-### Filter pills
-
-Below the title, three pills toggle watched status:
-
-- **All** — everything
-- **Unwatched** — what you haven't seen yet
-- **Watched** — your viewing history
-
-Combine the pills with sidebar shortcuts (e.g. *"Unwatched in Top Genre:
-Drama"*) to whittle down a long list quickly.
-
-### Sort
-
-The sort dropdown offers Title, Year, Rating, Runtime, and Date Added
-— each in ascending or descending order. CineLibrary remembers your
-last choice between sessions.
-
----
-
-## Tracking what you've watched
-
-Three personal flags, all toggle from the movie detail dialog, or from
-the round icons in the top corner of a movie card when you point at it
-(📌 To Watch, ✓ Watched, ♥ Favorite: dim when off, bright when on). A
-favorite keeps its ♥ on the card.
-
-- **Watched ✓** — mark a movie as seen. Affects the Watched / Unwatched
-  filters and the Statistics page.
-- **Favorite ♥** — pin to the **Favorites** view in the sidebar.
-- **To Watch 📌** — queue for later. Shows on the **To Watch** page with a
-  badge counter on the sidebar item.
-
-These flags are local to your CineLibrary install — they don't write
-back to your `.nfo` files, so a re-scrape won't disturb them.
-
----
-
-## TV Shows
-
-As of **v2.8.0**, CineLibrary catalogs TV shows alongside your movies.
-
-### What gets detected as a show
-
-Any folder that contains a **`tvshow.nfo`** is treated as a TV show.
-Episodes are the video files inside it (directly, or in season folders
-such as `Season 01`) whose names carry an `SxxExx` marker, each with a
-matching `.nfo` — exactly what CineLibrary Essentials
-produces:
-
-```
-H:\TV\Dark\
-├── tvshow.nfo                       ← show metadata
-├── poster.jpg  fanart.jpg
-├── .actors\                         ← cast thumbnails
-├── Dark - S01E01 - Secrets.mkv
-├── Dark - S01E01 - Secrets.nfo
-├── Dark - S01E01 - Secrets-thumb.jpg
-├── Dark - S01E02 - Lies.mkv
-└── …
-```
-
-Kodi's layout, with a folder per season, works the same way:
-
-```
-H:\TV\Dark\
-├── tvshow.nfo
-├── poster.jpg  fanart.jpg
-├── .actors\
-├── Season 01\
-│   ├── Dark - S01E01 - Secrets.mkv
-│   ├── Dark - S01E01 - Secrets.nfo
-│   ├── Dark - S01E01 - Secrets-thumb.jpg
-│   └── …
-└── Season 02\
-    └── …
-```
-
-Seasons are read from the `Sxx` in each filename, so season folders can
-be named however you like, or left out and every season kept flat in one
-place. (Season folders are read from v3.6.0 on; earlier versions only
-found episodes placed directly in the show folder.) Movies are unaffected —
-a single drive can hold both movies and shows.
-
-### Finding your shows
-
-Click **All TV Shows** in the sidebar (under All Movies). You get a
-grid of show cards, each with its poster, year, and a watched-progress
-bar. The sidebar badge shows how many shows you have.
-
-The toolbar works like the one on All Movies, and CineLibrary remembers
-your choices:
-
-- **Sort**: Title, Year, Rating, Date Added or Last Watched, either way.
-- **All / Unwatched / Watched**: Unwatched shows the shows that still
-  have episodes left; Watched shows the ones you've finished.
-- **Size**: S, M, L or XL show posters.
-
-A green **✓** on a show card means you've watched every episode.
-
-**Point at a show card** to see more without opening it: its genres, how
-many seasons, how much you've watched, and:
-
-- **▶ Play S01E04** plays the next episode straight away (the one ▶ Play
-  next on the show page would start) and marks it watched. If the drive
-  isn't connected, the card says where the next episode is instead.
-- The **📌** and **♥** icons in the top corner switch To Watch and
-  Favorite on and off. They're dim when off and bright when on.
-- The **✓** between them marks the whole show watched, every episode of
-  every season, after asking. It's green when you've watched them all;
-  click it then to mark them all unwatched.
-
-**Right-click a show card** for the rest: ▶ Play the next episode, Open
-show, Watched, Favorite, To Watch, 📑 Add to list, 📂 Open folder and
-Send to Watched & Gone (see *Watched & Gone*).
-
-A small grey dot in a card's corner means its drive isn't connected.
-
-Clicking anywhere else on the card opens the show. This works on every
-page with show cards: All TV Shows, Favorites, To Watch, Continue
-Watching, your lists and search.
-
-### The show page
-
-Click a show to open its page:
-
-- **Header**: the show's fanart as a banner across the top, with
-  **IMDb** and **TMDb** buttons that open the show's pages. Below it sit
-  the poster, the title (with the original title and tagline under it
-  when the `.nfo` has them), an info line (year, rating, certification
-  such as TV-14, status, how long an episode is, and a watched roll-up
-  like "12/62 watched"), each rating source with its votes when the
-  `.nfo` has more than one (IMDb and TMDb), the genre chips, the plot,
-  **Created by**, the studios and networks, the country, and
-  **Located on**: the show's drive, with a green dot and its letter while
-  it's connected, as in the movie details window. Then the buttons:
-  **📂 Open Folder**, **♡ Favorite**, **📌 To Watch** and **Add to list**,
-  and under them **📝 Add note**, **Fetch missing info from TMDB** (see
-  [Filling in missing details](#filling-in-missing-details-tmdb)) and
-  **Reload from .nfo**, with your tags beside them. Open Folder and
-  Reload from .nfo work while the show's drive is connected.
-- **📝 Add note**: a note of your own about the show. It appears under
-  the plot as **Your note**, and the show is listed on the **Notes**
-  page above your noted movies. Click **📝 Edit note** to change it;
-  clear the text and save to remove it. Episodes have their own notes
-  in the episode window.
-- **Cast**: photo cards with each actor's name and role, on one line
-  that scrolls sideways.
-- **▶ Play next** — jumps straight to the first unwatched episode
-  (by season, then episode). Reads "✓ All watched" once you're done.
-- **Season buttons**: one per season, with Specials last, each with its
-  number of episodes ("Season 1  10"). The page shows one season at a
-  time, so season 10 is one click away. It opens on the first season you
-  haven't finished. Beside them: how much of the season you've watched
-  and its total length, **▶ Play season** and **Mark all watched**.
-- **Episodes**: a list down the page, one row per episode: its number,
-  the picture, the title, the air date, length, quality and rating, and
-  up to three lines of the plot. **♡** and **✓** on the right mark it a
-  favorite or watched, and **▶ Play** shows on the picture when you point
-  at it. In a small window the picture gets smaller and the two buttons
-  sit one above the other.
-- **Missing episodes**: when the show has a TMDb id and you're online,
-  CineLibrary asks TMDb which episodes have aired. Each one you don't
-  have appears greyed in its season's list, marked **Not in your library**
-  with its air date, and the season's line says how many are missing
-  ("3 of 8 watched · 2 missing"). Seasons you have none of are listed under
-  the season buttons, like "Not in your library: Season 4 (10 episodes)".
-  Specials and episodes that haven't aired yet never count, a file that
-  holds two episodes (`S01E01E02`) counts as both, and a show kept in one
-  folder per season counts every folder. Offline, the page simply shows
-  what you have. To turn the check off, use **Settings → Show missing
-  episodes**.
-
-### Watching episodes
-
-- **Double-click** an episode (or its **▶ Play**) to open it in
-  your default video player. Playing also marks it watched.
-- **Single-click** an episode to open its **details** — full plot,
-  air date, rating, runtime, plus tech info pulled from the `.nfo`
-  (resolution, HDR, video/audio codec, audio languages, subtitles,
-  container, file size). The dialog has Play and Mark-watched buttons.
-  It's dark like the show page's header in both themes, with the show's
-  name above the episode's, and a note box for the episode.
-- The **✓** button on each episode flips watched state without
-  playing. The show's progress roll-up updates instantly.
-- Beside the season buttons: **▶ Play season** (first unwatched in that
-  season) and **Mark all watched / unwatched**.
-
-### Adding shows to lists
-
-My Lists are independent buckets — a list can hold **movies and shows
-together**. Use **📑 Add to list** in the show header. When you open
-that list from the sidebar, its shows appear in a row at the top and
-its movies in the grid below. (See *My Lists*.)
-
-### TV in Statistics
-
-The Statistics page has a **TV shows** section once you have shows (see
-*Statistics*), counts your shows and episodes in its summary, and its
-**Watched so far** card has an episodes ring next to the movies one.
-Episodes count in **Watched per month** too.
-
-### Favorite / To Watch for shows
-
-Favorite and To Watch are **show-level** (you favorite *the show*,
-not one episode), set from the buttons in the show header. Watched is
-**per-episode**.
-
-Favorite and on To Watch shows appear in a **TV shows** row at the top
-of **Favorites** and **To Watch**, above the movies; shows you're partway
-through appear the same way on **Continue Watching**, where each card
-says which episode is next ("Next: S01E04", the one ▶ Play next starts).
-**Recently Added** has the row too, with the shows added since the oldest
-movie on it, newest first, and so does a genre's page from **By Genre**,
-which counts each genre's shows and has the genres only shows have
-(like Sci-Fi & Fantasy).
-Click a show to open it. The **To Watch** and **Continue Watching** counts in the
-sidebar include these shows. The cards in this row take the page's
-**Size** (S, M, L or XL), like the movies under them.
-
-### Shows travel with the drive too
-
-Just like movies, a show's personal state (favorite / To Watch /
-note / per-episode watched) is mirrored into a `cinelibrary-state.json`
-in the show folder. Remove the drive and re-add it later — your
-progress comes right back. See *State that travels with your drives*.
-
----
-
-## My Lists — group movies your way
-
-Built-in flags (Favorites / To Watch) are just on/off. For everything
-in between — *"Marvel chronological"*, *"Date-night picks"*, *"Top 10
-of 2024"*, *"Movies I lent to Sai"* — make your own list under **MY
-LISTS** in the sidebar.
-
-### Creating a list
-
-Two ways:
-
-1. **From any movie** — right-click a poster (or open the detail
-   dialog) → **📑 Add to list → + New list…** → type a name → Create.
-   The movie is added to the new list automatically.
-2. **Empty list first** — open the detail dialog of any movie, click
-   **📑 Add to list → + New list…**, then immediately remove that
-   movie if you only wanted the list itself.
-
-A new entry appears under **MY LISTS** in the sidebar with a 📑 icon
-and a count badge.
-
-### Adding a movie to one or more lists
-
-Right-click any poster (or open its detail dialog) → **📑 Add to list**.
-The submenu shows every list you have, with a ✓ next to the ones the
-movie is already in. Click a list to add; click a checked list to
-remove. The movie can belong to as many lists as you like.
-
-The detail dialog also shows a row of **📑 chips** under the action
-buttons — one chip per list this movie is on. Tap the **✕** on any
-chip to remove the movie from that list instantly.
-
-### Renaming or deleting a list
-
-Right-click the list in the sidebar:
-
-- **Rename** — type a new name; the count and contents stay intact.
-- **Delete list** — removes the list. Your movies are *not* deleted —
-  they just leave that list.
-- **📂 Copy movies to folder…** — bucket-export every online movie's
-  source folder to a destination you pick. Useful for handing a
-  curated set to a friend on a thumb drive.
-
-### Viewing and editing a list
-
-Click a list in the sidebar to switch the main view to just its
-movies. From there you can:
-
-- Right-click any poster → **Remove from this list** (via the same
-  Add-to-list submenu — the list is already checked, click it to
-  uncheck).
-- Multi-select and bulk-remove (see next section).
-
-### Sharing a list
-
-Right-click any list in the sidebar to get two sharing actions:
-
-- **📂 Copy movies to folder…** — copy the actual on-disk movie folders
-  (videos + nfo + posters) to a destination drive. Use this when you
-  want to take a list with you on a USB stick.
-- **📤 Export as image…** — save a clean poster-grid PNG of the list
-  with its name, count, and date. Use this to share "my top 10 heist
-  movies" anywhere. Doesn't touch your video files.
-
----
-
-## Tags — your own labels
-
-Lists are great for curated buckets ("Movies for movie night"). **Tags**
-are for cross-cutting labels you might apply to many movies that don't
-belong together: "rewatched", "comfort", "Christmas", "long-haul flight",
-"director's cut". Tags differ from lists in three ways:
-
-- A movie can have many tags
-- Tags have no order — they're just labels
-- Adding a tag is one click + a name
-
-### Adding a tag
-
-In the movie detail dialog, look for the **🏷 + Add tag** button under
-the action row. Click it, start typing — existing tags suggest as you
-go. Press Enter to apply. The same flow works for TV shows on the show
-page.
-
-### Filtering by tag
-
-**Tags** (under Browse) shows every tag with how many movies and shows
-have it. Search them, sort by most used or A to Z, and show **All**,
-**Your tags** or the ones **From .nfo files**. Click any tag → the library
-filters to that tag, with a **‹ Tags** button to go back. A removable
-filter chip appears at the top.
-
-Right-click a tag to **Pin to sidebar**: pinned tags sit under **PINNED
-TAGS** in the sidebar for one-click access. Right-click one of your own
-tags to **Rename** it (on every movie and show that has it; renaming it to
-a tag you already have joins the two) or **Delete** it (it's taken off
-everything; no files change).
-
-You can also click a tag chip in the detail dialog to jump straight to
-that filtered view.
-
-### Removing a tag
-
-In the detail dialog, click the **✕** on any tag chip. That movie or
-show drops the tag; if no items still carry the tag, it disappears from
-the Tags page.
-
-### Tags travel with the drive
-
-Like lists, favorites, and notes, tags are saved into the drive's
-sidecar file. Plug the drive into another PC running CineLibrary and
-your tags come back on the next scan.
-
-### Tags from your .nfo files
-
-Tags that are already in a movie's or show's `.nfo` (for example ones
-you added in CineLibrary Essentials' editor) show after your own, with an
-outline and no **✕**. They work like yours: click one to see every movie
-with it, and they're on the **Tags** page. They change with the
-`.nfo`, so edit them where you made them; after the next scan (or
-**Reload from .nfo**) CineLibrary follows. They're not written to the
-sidecar file or your backups, since the `.nfo` already carries them.
-
-A note that's already in a movie's or show's `.nfo` (tinyMediaManager
-writes one as `<user_note>`, and so does CineLibrary Essentials' editor)
-shows as **Your note** when you haven't written one in CineLibrary. Write
-your own and it shows instead; clear yours and the `.nfo`'s note is back.
-Titles with either kind of note are on the **Notes** page. Like the tags,
-the `.nfo`'s note follows the file after the next scan or **Reload from
-.nfo**. A show's play count in its `tvshow.nfo` shows as **Played** on
-the show page.
-
-A movie whose `.nfo` says it's watched (`<watched>true</watched>`, as
-tinyMediaManager and CineLibrary Essentials' editor write it) or has a
-play count is marked **Watched**, the way Kodi counts it. The `.nfo` never
-marks a movie unwatched. If you mark one unwatched here, the next scan or
-**Reload from .nfo** marks it watched again, so untick **Watched** in
-CineLibrary Essentials' editor too.
-
----
-
-## Watched & Gone
-
-A movie library isn't just what you own — it's what you've *seen*. You
-download a film, watch it, and sometimes decide it isn't worth keeping on
-the drive. But deleting it shouldn't erase the memory: the fact you've
-seen it (so you don't re-download by mistake), and the **note** you wrote
-about why you loved or disliked it. **Watched & Gone** is that memory
-keeper.
-
-### Sending a movie to Watched & Gone
-
-**Right-click any movie** (in grid or list view) → **Send to Watched &
-Gone**. To do several at once, select multiple cards and use the
-**Watched & Gone** button on the selection bar.
-
-The movie leaves your main library and becomes a **record**: its poster,
-all its details, your **notes**, watched state, tags and watch history
-are kept intact. **Your files on the drive are never touched** — archiving
-only changes CineLibrary's catalog. Delete the actual file whenever you
-like; do it before or after, it doesn't matter.
-
-A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
-count, the moment you have your first record.
-
-### TV shows too
-
-**Right-click a show card** → **Send to Watched & Gone**. The show
-becomes a record the same way: its poster, details, episodes, your notes
-and every episode you've watched are kept, and it leaves All TV Shows,
-Favorites, lists, search and Statistics. Your files aren't touched.
-
-Show records sit in a **TV shows** row at the top of the Watched & Gone
-page, above the movies. Right-click one to **Restore to library** or
-**Delete record permanently**; click it to open the show. A show record
-comes back by itself, like a movie, when the show turns up in another
-folder or on another drive.
-
-### Add a movie you watched somewhere else
-
-You don't only watch films off your own drives. You catch one **at the
-cinema**, on a **streaming service**, or from a **friend's copy** — there's
-no file to add, but you still want it on record. That's the gap **Add
-watched movie** fills.
-
-On the **Watched & Gone** page, click **+ Add watched movie**:
-
-1. **Search** the title (add a year to narrow it). CineLibrary looks it up
-   on **TMDb** and lists matching films with poster, year and rating.
-2. **Pick** the right one.
-3. Optionally add your **note**, **tags**, and the **date you watched it**.
-4. **Add to Watched & Gone**.
-
-CineLibrary downloads the poster and top-billed cast and saves it as a
-watched record — exactly like an archived movie, but it never needed to be
-on a drive. This is one of only two places CineLibrary reaches the
-internet, and only when you ask it to; offline, it simply tells you so.
-
-### The Watched & Gone page
-
-Open it from the sidebar to see your records as a poster wall. You can:
-
-- **Search** records and **sort** them — *Recently gone* (newest first),
-  Title, Year or Rating.
-- **Open details** on any record — everything is still there, notes first.
-- **Restore to library** — brings a record back into your library (handy
-  if you archived something by mistake, or re-downloaded it).
-- **Delete record permanently** — removes the record and its cached poster
-  for good (double-confirmed; this one can't be undone).
-- **Export** the list to **CSV** — a portable log of everything you've
-  watched and let go.
-
-Records are **completely isolated**: they never appear in All Movies,
-search, Browse, Collections, Statistics, drive counts, lists, tags, or any
-Discovery row. The Statistics page's Movies tile notes how many are kept
-there ("22 in Watched & Gone").
-
-### When files go missing
-
-When a drive scan notices movies it can no longer find on disk, the Drives
-page shows a **Review N…** button. Click it to see exactly what's missing,
-each with a **Keep** checkbox — **watched and noted movies are pre-ticked**.
-
-- **Ticked** movies and TV shows become Watched & Gone records.
-- **Unticked** ones are removed from CineLibrary.
-
-Quick **Keep all / Keep none** links make bulk choices easy. As always,
-your files aren't touched — this only decides what CineLibrary remembers.
-
-### If a movie comes back
-
-Records are smart about returning movies. On the next scan, if a movie
-matching a record turns up:
-
-- **Same drive, same folder** (the file was still sitting there) → it
-  **stays** a record. Letting the file linger doesn't undo your decision.
-- **A different folder or a different drive** (you moved it, or
-  re-downloaded it) → the record **comes back to life** in your library at
-  its new home — with your notes, watched state, tags and history intact.
-  No duplicate, no lost memory.
-
-Matching uses the movie's IMDb / TMDb id (and falls back to title + year),
-so it's reliable across drives.
-
-### Where records live
-
-Records are part of your portable CineLibrary data — move the whole folder
-to another PC and your Watched & Gone history comes with it. A **Backup**
-also remembers which movies and shows are records.
-
----
-
-## Filling in missing details (TMDB)
-
-Some movies come in only **partly scraped** — maybe a poster but no plot,
-or details but no cast photos. CineLibrary can fill those gaps on demand,
-without you leaving the app.
-
-Open any movie's **details** and click **Fetch missing info from TMDB**:
-
-- It matches the movie by its **TMDb id** when the `.nfo` already has one
-  (instant), or shows a small picker so you confirm the right film.
-- It fills **only what's missing** — a blank poster, plot, year, runtime,
-  cast, and so on. **Anything already there is left untouched**, so your
-  scraped data and your own edits are safe.
-- Cast photos and artwork are cached with the app immediately, and the
-  details window refreshes in place.
-- A cast photo that only lives on the drive (in the folder's `.actors`
-  folder) is replaced by the fetched one too, so the actor's face shows
-  while the drive is unplugged. The photo on the drive itself is never
-  changed.
-
-**TV shows too.** A show's page has the same button. It fills a show's
-blank poster, fanart, plot, year, rating, certification, status, network,
-genres and cast (with photos), matched by the show's TMDb id or confirmed
-in the same picker. A rescan keeps what was fetched: your `.nfo` wins
-wherever it has a value, and a fetched value stays only where it's blank.
-A show's fetched pictures go onto the drive like a movie's (below); its
-other fetched details live in CineLibrary's own library data.
-
-**Several movies at once (4.8.0).** Select the movies (Ctrl+click,
-Shift+click or Ctrl+A) and press **Fetch missing info** in the selection
-bar. CineLibrary fetches them one after another, in a progress window you
-can stop. With no picker to ask, it takes only a sure match: the movie's
-TMDb id, else its IMDb id, else a TMDb search that finds exactly one film
-of the same title and year. The others are listed at the end, so you can
-open each one and pick the match. To give every movie with one actor or
-none its cast, open **Tools → Missing cast**, press **Ctrl+A** and then
-**Fetch missing info**. Fetch takes up to 50 cast members from TMDb, as
-CineLibrary Essentials does.
-
-**Saved onto the drive by itself.** Right after a fetch, CineLibrary copies
-the fetched poster, fanart and cast photos into the movie's or show's
-folder (`poster.jpg`, `fanart.jpg`, `.actors\First_Last.jpg`), and a
-movie's fetched details into its CineLibrary state file there. The message
-next to the button says "saved to the movie's folder". Only files that
-aren't there yet are added.
-
-**Into the movie's `.nfo` too (4.8.0).** The movie's `.nfo` gets what it
-was missing, the way Kodi writes it, so Kodi, CineLibrary Essentials and the next scan
-see it as well: an empty plot, genres, director, writers, studio, cast and
-so on are filled in. A tag that has a value is never changed and nothing is
-taken out. A cast of 15 or fewer gets the people TMDb has that it doesn't
-(a longer cast is the `.nfo`'s own and stays as it is). An `<actor>` that holds a whole cast (some tools write it that
-way, and Kodi then reads only the first name) is split into one `<actor>`
-per person, and genres inside a `<genres>` wrapper move to where Kodi
-reads them. Ratings are left to **Update IMDb ratings**. If the
-title's drive isn't connected, the message says so, and everything goes
-onto the drive the next time you plug it in (or start CineLibrary with it
-connected). A drive that's read-only or full is simply tried again later.
-To keep CineLibrary from writing to your drives, turn off **Settings →
-Save fetched info to your drives**.
-
-**Sync to drive (state + fetched art)** on the Drives page does it for a
-whole drive at once, whatever that setting says. It also covers movies
-fetched before version 4.6.0 that only got cast photos. After that the
-drive holds everything, and an **Update** reads it straight back.
-
-**Changed a title in CineLibrary Essentials?** Click **Reload from .nfo**
-in the movie window or on the show page. CineLibrary reads that one folder
-again (the details, the pictures and, for a show, its episodes) without
-updating the whole drive. It needs the drive connected.
-
-> This, **Add watched movie**, **Update IMDb ratings** and the
-> missing-episodes check on a show page (when you open a show that has a
-> TMDb id; you can turn it off in Settings) are the only features that use
-> the internet. Everything else in CineLibrary is fully offline.
-
----
-
-## IMDb ratings
-
-Movies and shows scraped with CineLibrary Essentials 1.3 or later already
-carry their IMDb rating. For the rest of your library, click
-**Update IMDb ratings** at the top of the **Drives** page:
-
-- CineLibrary gets the IMDb rating and votes of every movie and show from
-  IMDb's daily ratings, 100 titles at a time. A title whose `.nfo` only has
-  a TMDb id (CineLibrary Essentials before 1.1.10 wrote those) gets its
-  IMDb id from TMDb first.
-- With **Make IMDb the main rating** ticked (it is to begin with), IMDb's
-  becomes the **★** on cards and in the windows.
-- The ratings show in CineLibrary right away, for titles on unplugged
-  drives too.
-- They're written into each `.nfo`, as CineLibrary Essentials' Refresh
-  IMDb ratings does: only the ratings change (and the IMDb id is added
-  where it was missing), so other players and Essentials see them too.
-  Connected drives get them at once; the others the next time you plug
-  them in, or start CineLibrary with them connected. **Cancel** while the
-  files are being written finishes the rest later in the same way.
-- Run it again any time to bring the votes up to date.
-
-In the movie window and on a show's page, each rating source is listed with
-its votes when there's more than one: IMDb's in gold, like the ★, and
-TMDb's in green.
-
----
-
-## Finding duplicates (Dupes)
-
-Collect movies across drives for a while and the same film can quietly end up
-on your shelf twice: a re-download you forgot about, or a quality upgrade you
-never cleaned up. **Tools → Dupes** finds them and helps you reclaim the space,
-without touching the copies you keep on purpose.
-
-**How it matches.** Films are grouped by their TMDb / IMDb id, falling back to
-title + year. Two different movies that share a name (for example *Solaris* from
-1972 and *Solaris* from 2002) are never merged.
-
-**What it leaves alone.** If you deliberately keep the same film in different
-**audio languages** (a Hindi dub and the original, or Tamil / Telugu / Hindi) or
-different **editions** (Director's Cut versus Theatrical), Dupes labels them
-**✓ kept on purpose** and never flags them. Only genuine same-version copies are
-surfaced as **⚠ possible duplicates**.
-
-For each possible duplicate, Dupes:
-
-- **Recommends a keeper.** The best copy (highest resolution, then largest file)
-  is tagged **✓ keep**; the others are the removable candidates.
-- **Shows what you'd save.** A green "~X GB reclaimable" on each set, plus a
-  running total at the top.
-- **Lets you check and act.** **Open folder** on any copy to inspect it, or
-  **→ Watched & Gone** to drop a copy while keeping its record. CineLibrary
-  never deletes your files; you remove them yourself.
-- **Remembers your choices.** **Ignore set** hides a group you're happy with,
-  and it stays hidden across rescans. A **Show ignored** box brings them back.
-
-After you delete a copy in Explorer and switch back to the app, the set
-re-checks itself and drops off once only one copy remains. A **Rescan** button
-forces the same re-check on demand.
-
----
-
-## Discovery
-
-Three places to find things to watch without browsing the whole grid.
-
-### 🕓 Recently Watched
-
-Sidebar entry under DISCOVER. Lists everything you've played, freshest
-first. Hidden when you've never watched anything yet.
-
-### 📅 On This Day
-
-Sidebar entry that only appears when there's something to surface for
-today. Click it for a dedicated page split into two sections:
-
-- **🎞 You watched on this date** — movies you've played on this
-  calendar date in past years.
-- **🎬 Released on this date** — films that came out on this date in
-  past years (cinema anniversaries — works even on a fresh install,
-  with no watch history of your own).
-
-Both fall on the *same day of the year*, regardless of year. Comes
-back tomorrow with a different set.
-
-### 🎲 Surprise me
-
-Two flavours:
-
-- **Sidebar "Surprise me"** — random pick from anything unwatched in
-  your library. Use when you have no filter set and just want a pick.
-- **🎲 button on the Library toolbar** — *filter-aware*. Honours
-  whatever you're currently looking at — random comedy from the 90s,
-  random movie in this list, random tagged "rewatched". If nothing
-  matches the filter, you'll get a toast.
-
-Both prefer movies on online drives so you can actually play the pick.
-
----
-
-## Multi-select — pick many, act once
-
-Lots of common chores (mark 12 movies as watched, add a director's
-filmography to a list, favorite a whole decade) are tedious one card
-at a time. CineLibrary's multi-select fixes that.
-
-### Selecting cards
-
-- **Ctrl+click** a card → toggle it into the selection. Selected cards
-  show a purple outline + a corner ✓.
-- **Shift+click** → range-select from your last clicked card to this
-  one.
-- **Ctrl+A** → select every movie in the view, the ones further down that
-  haven't loaded yet too (4.8.0).
-- **Esc** → clear the selection.
-- **Plain click** while a selection is active just clears it (so you
-  don't accidentally open a detail dialog when trying to escape
-  select-mode). With no active selection, plain click opens details
-  as usual.
-
-### The action bar
-
-As soon as one or more cards are selected, a purple pill bar appears
-at the bottom of the library:
-
-> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 To Watch · ♥ Favorite · Fetch missing info · 🗑 Remove from list · ✕
-
-- **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
-  Picking one adds *every* selected movie to that list.
-- **Fetch missing info** (4.8.0) looks every selected movie up on TMDb
-  and fills in only what's missing (see
-  [Filling in missing details](#filling-in-missing-details-tmdb)).
-- **✓ Watched / 📌 To Watch / ♥ Favorite** are smart toggles — if
-  *any* selected movie doesn't yet have the flag, the action sets it
-  on all of them; if every selected movie already has it, the action
-  removes it from all of them.
-- **🗑 Remove from list** only shows when you're currently viewing one
-  of your lists. It removes the selected movies from *that* list (the
-  movies themselves stay in your library and any other lists).
-- Every bulk action shows a toast with an **Undo** button for ~6
-  seconds. Click Undo to put everything back exactly as it was.
-
-### Drag-and-drop
-
-You don't even have to use the action bar — just **drag any selected
-card onto a sidebar entry**:
-
-- Drop on a **user list** → adds the whole selection to that list.
-- Drop on **Favorites** → favorites everything in the selection.
-- Drop on **To Watch** → adds everything to To Watch.
-
-The target row lights up purple while you hover over it. If you drag
-a card that isn't part of the current selection, only that one card
-gets added (and other selected cards stay selected — your selection
-isn't disturbed).
-
----
-
-## State that travels with your drives
-
-Your watched marks, favorites, To Watch, list memberships, and notes
-are personal — they're the only things CineLibrary can't rebuild for
-you by re-reading a `.nfo`. Losing them when you remove and re-add a
-drive would be no fun, so as of **v2.7.0** they ride along **with the
-drive itself**.
-
-### How it works
-
-For every movie that has any personal state (watched, favorited,
-on To Watch, played at least once, sitting in one of your lists, or
-carrying a note), CineLibrary writes a tiny file called
-**`cinelibrary-state.json`** into that movie's folder, right next to
-the `.nfo`. It looks something like this:
-
-```json
-{
-  "version": 1,
-  "watched": true,
-  "favorite": true,
-  "lastPlayedUnix": 1747576800,
-  "playCount": 3,
-  "lists": ["All Time Great"]
-}
-```
-
-Three things happen automatically:
-
-- **Every time you mark / unmark / play / list / note** a movie, the
-  file gets rewritten. Best effort — if the drive is offline at the
-  moment, nothing breaks; the sync will catch up on the next sweep.
-- **When you scan or rescan a drive**, CineLibrary reads any
-  `cinelibrary-state.json` it finds and merges the values back into
-  its library. This is what makes the "remove a drive then re-add it"
-  flow non-destructive.
-- **On startup**, a quiet background sweep makes sure every movie
-  with personal state has an up-to-date file on disk.
-
-### The "Remove Drive" dialog
-
-When you click 🗑 Remove Drive on the Drives page, you'll now see how
-many movies on that drive have personal state attached, plus a
-checkbox: **"Save that state to the drive first"** (default ON).
-Leaving it ticked guarantees that re-adding the drive later restores
-everything.
-
-If the drive is **offline** when you try to remove it, the dialog
-warns you that the state can't be saved and recommends cancelling
-until you reconnect.
-
-### The "Sync to drive (state + fetched art)" button
-
-Each drive card on the Drives page has a **Sync to drive (state + fetched
-art)** action. It does two jobs in one pass, for every movie on that drive:
-
-- **Personal state** → written to the per-folder sidecar (as above).
-- **Fetched art & details** → if you used **Fetch missing info from TMDB**
-  on a movie, this copies the fetched **poster**, **fanart** and **cast
-  photos** into the movie's folder and records the fetched text (plot,
-  year, cast, …) in the same sidecar — so the next scan reads it back and
-  the drive, not just the app, holds your filled-in details.
-
-It only ever **adds** files that aren't already there, and it **never
-rewrites your `.nfo`**. It runs only when you click it (the automatic
-background mirroring still handles personal state on its own), and it's
-greyed out when the drive is offline. It's also useful when:
-
-- You want to manually push everything to disk right now (e.g. you're
-  about to hand the drive to someone).
-- You restored from a backup of `CineLibrary-Data\cinelibrary.db` on a
-  new machine and want to make sure the drives reflect the DB.
-- A bunch of edits happened while the drive was offline; this forces
-  the catch-up.
-
-### Conflict rule
-
-If you ever end up with both a DB row and a sidecar file with
-different values (e.g. you marked something watched on machine A,
-then plugged the drive into machine B which already had its own
-copy), the **DB wins where it already has a value**. Lists are
-**additive** — joining a missing list, never silently removing.
-
-### What this doesn't touch
-
-Your **video files are never modified**. An `.nfo` changes only when you
-ask: **Update IMDb ratings** writes the rating, and **Fetch missing info**
-fills the tags it was missing. The
-sidecar `cinelibrary-state.json` is written automatically; poster /
-fanart / `.actors\` images are only written by the on-demand **Sync to
-drive** action above, and only when they're missing from the folder.
-Everything CineLibrary writes is safe to delete — it re-creates what it
-needs on the next change or sync.
-
----
-
-## Backup and restore
-
-The sidecars give you per-drive resilience. **Backup & Export → Backup
-or restore…** under **TOOLS** in the sidebar gives you whole-library resilience: one JSON
-file covers every favorite, To Watch entry, note, list, tag, watched
-flag, last-played time, per-episode favorite/note, and watch-history
-event.
-
-### Export a backup
-
-Click **Backup** → **📤 Export backup…** → pick a destination
-(Documents, OneDrive, anywhere). You get a single `.json` file with the
-current date in its name. Save it where your usual backups live.
-
-### Restore on a new PC (or after a wipe)
-
-On the new install, first scan in your drives the normal way so the
-catalog rebuilds. Then click **Backup** → **📥 Import backup…** → pick
-the file. The summary line tells you what merged:
-
-```
-Imported: 47 movies, 6 shows, 89 episodes, 2 new lists,
-4 new tags, 312 history events. Skipped: 3 (drive not mounted).
-```
-
-Anything skipped is on a drive that isn't currently plugged in —
-re-import after mounting it and the rest will merge in.
-
-### Conflict rule
-
-Backup imports are **additive — your DB wins on conflicts**:
-
-- Re-importing the same file is a no-op.
-- A movie marked watched in either the DB or the backup ends up
-  watched. Same for favorite and To Watch.
-- Notes that are non-empty in the DB are preserved; otherwise the
-  backup note fills in.
-- `last_played_at` becomes the most recent of the two values.
-- Lists and tags are union-merged (created if missing, additively
-  linked).
-- Watch-history events are always appended.
-
-Nothing is ever removed by an import.
-
----
-
-## Statistics
-
-The **Statistics** page (sidebar) is your collection at a glance:
-
-- **Summary**: movies, TV shows and episodes, the space they take, their
-  running time, and how much you've watched.
-- **Quality and storage**: picture quality (4K, 1080p, 720p, SD), each
-  drive with its space and movie count, video formats, and sound
-  (stereo, 5.1, 7.1, and the audio formats).
-- **What's in it**: release decades with the average rating of each,
-  ratings, length, genres, countries, certifications and your biggest
-  collections.
-- **TV shows**: how many you've finished, are partway through or haven't
-  started, their status (Ended, Returning Series, Canceled), genres,
-  studios and networks, the shows with the most episodes, and the
-  episodes' picture quality.
-- **Your watching**: what you watched each month (from CineLibrary's
-  watch log, so it starts when the log began), how much of your movies
-  and episodes you've watched, and the movies you watched last.
-- **People**: the actors and directors you have the most movies of, and
-  how many of those you've watched.
-- **Worth watching next**: the best-rated movies you haven't watched.
-
-Click a decade, a rating, a genre, a collection, a drive or a person to
-see those movies; a poster opens the movie. In the TV section, a genre
-opens its page with its shows, **In progress** opens Continue Watching,
-and a show opens the show.
-
-Numbers update as you toggle watched/favorite or add new drives. Use
-this page to spot gaps ("hey, I have nothing from the 70s") or as
-casual fun.
-
----
-
-## Multiple drives — online and offline
-
-CineLibrary is built for the case where your movies live on a stack of
-external drives that aren't all plugged in at once.
-
-- When a drive is **connected**, its entry in the sidebar shows a
-  green dot, and its movies render in full color.
-- When a drive is **disconnected**, the dot goes grey, and its movies
-  show an `OFFLINE` overlay in the grid. They stay in the catalog and
-  remain searchable — you just can't play them until you plug the
-  drive back in.
-
-Drive arrival and removal is **detected instantly** via Windows device
-events — no polling, no lag. Plug a drive in mid-session and its
-movies snap back to color within a second.
-
----
-
-## Themes and sidebar
-
-### Theme
-
-Click the theme button in the bottom of the sidebar to cycle between
-**System → Dark → Light**. CineLibrary uses Mica backdrop on Windows 11
-for a native feel and remembers your choice between sessions. You can
-also set the theme from **Settings** (below).
-
-### Collapsing the sidebar
-
-`Ctrl+B` collapses or expands the sidebar (or click the `⮜` button at
-the bottom). Collapsed, the sidebar is a slim strip of icons: hover one
-for its name, click it to go there, and the strip's last two icons are
-Drives and Settings. It gives the grid more room, which helps on small
-displays.
-
----
-
-## Settings
-
-Click the **⚙️ gear icon** at the bottom of the sidebar to open
-**Settings**. Everything here is saved between sessions and applies
-instantly — no restart.
-
-### Theme
-
-Light / Dark / System — the same choice as the quick theme button,
-shown as a simple picker.
-
-### Background material (Mica)
-
-Controls how much of the Windows **Mica** material — your desktop
-wallpaper, softly tinted — shows behind the sidebar:
-
-- **Off** — a flat, solid background; the lightest option on the GPU.
-- **Subtle** *(default)* — a gentle wash of wallpaper colour.
-- **Strong** — a bolder, more translucent look.
-
-The scrolling poster area always stays solid for smooth scrolling, so the
-choice never costs you any performance there. The change applies instantly.
-
-### Card drop shadows
-
-**Off by default.** Turn this on to give each movie card a soft shadow
-that lifts it off the grid. It's a small touch of depth — purely
-cosmetic.
-
-Why it's off by default: a resting shadow on every card adds a little
-work while you scroll. On most machines you'll never notice, but
-leaving it off keeps scrolling as smooth as possible on every PC. If
-you like the look and your scrolling stays buttery, turn it on and
-enjoy.
-
-### Reduce motion
-
-**Off by default.** When on, hovering a movie card no longer zooms and
-lifts it — the card stays still and just shows its quick-action
-buttons. Turn this on if the hover animation bothers you, or to shave a
-little extra work on lower-end graphics.
-
-### Video player
-
-**Windows default unless you choose one.** Click **Choose…** and pick the
-program you want **Play** to use, for example `vlc.exe`, MPC-HC,
-PotPlayer or mpv. Every Play button (movie cards, the list view, the
-details window and TV episodes) then opens videos there. **Use Windows
-default** goes back to whatever Windows opens video files with. If the
-chosen program is later uninstalled, Play falls back to the Windows
-default by itself.
-
-### Save fetched info to your drives
-
-**On by default.** After **Fetch missing info from TMDB**, CineLibrary
-copies the fetched poster, fanart and cast photos into the movie's or
-show's folder, and a movie's details into its CineLibrary state file
-there, now or the next time that drive is connected (see
-[Filling in missing details](#filling-in-missing-details-tmdb)). Only
-missing files are added, and a movie's `.nfo` only gets the tags it was
-missing. Turn it off and
-CineLibrary never writes them to your drives by itself; turning it back
-on catches up.
-
-### Show missing episodes
-
-**On by default.** When you open a show, CineLibrary asks TMDb which aired
-episodes aren't in your library and shows them greyed (see
-[The show page](#the-show-page)). It's the only thing CineLibrary goes
-online for by itself. Turn it off to keep CineLibrary fully offline unless
-you click **Fetch missing info from TMDB**. It applies the next time you
-open a show.
-
----
-
-## Keyboard shortcuts
-
-| Shortcut         | Action                                       |
-|------------------|----------------------------------------------|
-| `/`              | Focus the search box                         |
-| `Ctrl+F`         | Focus the search box (alternate)             |
-| `Esc`            | Clear search, then clear multi-select        |
-| `F`              | Toggle favorite on the current selection     |
-| `W`              | Toggle To Watch on the current selection    |
-| `Delete`         | Remove selection from the current list view  |
-| `Ctrl+A`         | Select every card currently visible          |
-| `Ctrl+click`     | Toggle a single card into the selection      |
-| `Shift+click`    | Range-select from the last clicked card      |
-| `Ctrl+B`         | Toggle sidebar                               |
-| `Ctrl+Q`         | Quit                                         |
-| `Ctrl+Shift+/`   | Show this shortcuts list in-app              |
-| `PgDn` / `PgUp`  | Scroll the movie grid one viewport up/down   |
-| `Home` / `End`   | Jump to the top / bottom of the movie list   |
-| `↑` / `↓`        | Scroll by one row of cards                   |
-
-Card shortcuts (`F`, `W`, `Delete`) operate on the **current
-multi-selection**. Select one or more cards first with click,
-Ctrl+click, or Shift+click — then the key applies to all of them.
-
-The card shortcuts and `/` are gated on text-edit focus, so typing
-those letters into the search box still works normally.
-
-Navigation shortcuts skip themselves when the search box has focus, so
-typing in the search field still works normally.
-
----
-
-## Exporting your catalog
-
-Click **Backup & Export** under **Tools** in the sidebar and choose:
-
-- **All movies** as CSV or HTML: every movie in your library.
-- **This view** as CSV or HTML: shown when All Movies is filtered,
-  searched or showing a list. It writes every movie in that view, in its
-  sort order, not just the ones loaded on screen.
-
-The two formats:
-
-- **CSV** — spreadsheet-friendly, one row per movie, columns for
-  title, year, runtime, rating, genre, drive, watched status, and
-  file path. Open in Excel or Numbers.
-- **HTML** — a single self-contained HTML file with poster thumbnails
-  inline. Useful for sharing your catalog with someone who doesn't
-  have CineLibrary installed.
-
-To export only your To Watch, open *To Watch* first, then choose
-**Export** › **This view**.
-
----
-
-## Updates
-
-CineLibrary checks GitHub on startup for new releases. When a new
-version is out, you'll see a quiet toast bottom-right:
-
-> *CineLibrary vX.Y.Z is available* &nbsp;&nbsp; **[ Download ]**
-
-- Click **Download** to open the release page in your browser.
-  CineLibrary never installs updates silently.
-- Click **✕** to dismiss. CineLibrary remembers that you skipped this
-  version and won't ask again until the next release.
-
-If your machine is offline, the update check fails silently and the
-app behaves normally.
-
----
-
-## Where your data lives
-
-Everything CineLibrary knows about your library lives in
-`CineLibrary-Data\` next to the executable:
-
-```
-<install folder>\
-├── CineLibrary.exe
-├── CineLibrary-Data\
-│   ├── cinelibrary.db        # SQLite catalog (movies, drives, prefs)
-│   └── cache\                # Compressed poster/thumb cache
-└── ...
-```
-
-That folder is **portable**. Copy or move the install folder anywhere
-— another machine, a USB stick, an external drive — and the app and
-catalog go together. There is **no telemetry**, no cloud sync, no
-account required. Your library data never leaves your machine.
-
----
-
-## Troubleshooting
-
-### A movie I just added isn't showing up
-
-Hit **Rescan** on the drive that contains it. CineLibrary catalogs
-folders that have a `.nfo` file inside; if that movie hasn't been scraped
-yet, it won't show up.
-
-### Posters are missing or look wrong
-
-CineLibrary reads `poster.jpg` (or `folder.jpg`, or the largest image
-file alongside the `.nfo`) per the Kodi convention. Re-scrape with
-CineLibrary Essentials and rescan the drive in CineLibrary.
-
-### Movies are showing OFFLINE even though the drive is plugged in
-
-Open the **Drives** page and check the connection dot. If it's grey
-despite the drive being plugged in, the drive's volume serial may have
-changed (common after a re-format or partition change). Remove the
-drive entry and re-add the same root — CineLibrary will reconcile.
-
-### CineLibrary won't launch / crashes immediately
-
-- Check that you're on Windows 10 build 19041 or later (`winver`).
-- Make sure the install folder is on a local or external drive, not
-  a network share — WinUI has rough edges with UNC paths.
-- If the issue persists, open an issue on
-  [GitHub](https://github.com/aungkokomm/CineLibraryCS/issues) with
-  the exit code from the launcher script and a short description of
-  what you were doing. Don't include personal paths in the title.
-
-### I want to start over with a clean catalog
-
-Close CineLibrary. Delete the `CineLibrary-Data\` folder next to the
-executable. Re-launch — CineLibrary will create a fresh database. Your
-movie files are untouched.
-
----
-
-## Where to next
-
-- **Found a bug or have an idea?**
-  [Open an issue.](https://github.com/aungkokomm/CineLibraryCS/issues)
-- **Want to see what's coming?** Check the
-  [releases page](https://github.com/aungkokomm/CineLibraryCS/releases)
-  for changelogs.
-- **Want to contribute?** PRs are welcome. The codebase is C# / WinUI 3
-  with `Microsoft.Data.Sqlite` and not much else — easy to dive into.
-
-Happy cataloging. 🎬
+# CineLibrary — User Guide
+
+> A native Windows catalog for your movie collection.
+> Browse, search, and track what you've watched across any number of drives.
+
+This guide walks you from a fresh install to running a catalog of thousands
+of movies in under five minutes.
+
+---
+
+> **What's new in v2.8.0** — **TV Shows!** Folders with a `tvshow.nfo`
+> are now detected as shows, with a single show page (poster, plot,
+> cast, season-by-season episode rows, per-episode watched tracking,
+> and a "▶ Play next unwatched" button). See *TV Shows* below.
+
+## Contents
+
+1. [Before you start](#before-you-start)
+2. [Install and first launch](#install-and-first-launch)
+3. [Adding your movie folders](#adding-your-movie-folders)
+4. [Browsing your library](#browsing-your-library)
+5. [Search, filter, and sort](#search-filter-and-sort)
+6. [Tracking what you've watched](#tracking-what-youve-watched)
+7. [TV Shows](#tv-shows)
+8. [My Lists — group movies your way](#my-lists--group-movies-your-way)
+9. [Tags — your own labels](#tags--your-own-labels)
+10. [Watched & Gone — keep a record of movies you've let go](#watched--gone)
+11. [Filling in missing details (TMDB)](#filling-in-missing-details-tmdb)
+12. [IMDb ratings](#imdb-ratings)
+13. [Finding duplicates (Dupes)](#finding-duplicates-dupes)
+14. [Discovery: Recently Watched, On This Day, Surprise Me](#discovery)
+15. [Multi-select — pick many, act once](#multi-select--pick-many-act-once)
+16. [State that travels with your drives](#state-that-travels-with-your-drives)
+17. [Backup and restore](#backup-and-restore)
+18. [Statistics](#statistics)
+19. [Multiple drives — online and offline](#multiple-drives--online-and-offline)
+20. [Themes and sidebar](#themes-and-sidebar)
+21. [Settings](#settings)
+22. [Keyboard shortcuts](#keyboard-shortcuts)
+23. [Exporting your catalog](#exporting-your-catalog)
+24. [Updates](#updates)
+25. [Where your data lives](#where-your-data-lives)
+26. [Troubleshooting](#troubleshooting)
+
+---
+
+## Before you start
+
+CineLibrary is a **reader**, not a scraper. It expects your movie folders
+to be already scraped by [CineLibrary Essentials](https://github.com/aungkokomm/CineLibraryEssentials) so
+each movie sits in its own folder with a `.nfo` file and poster images
+next to the video. A typical layout looks like this:
+
+```
+H:\Movies\
+├── Inception (2010)\
+│   ├── Inception.mkv
+│   ├── Inception.nfo
+│   ├── poster.jpg
+│   └── fanart.jpg
+├── The Matrix (1999)\
+│   ├── The Matrix.mp4
+│   ├── The Matrix.nfo
+│   └── poster.jpg
+└── ...
+```
+
+If you don't have `.nfo` files yet, run CineLibrary Essentials over your library first.
+Once your folders look like the example above, you're ready.
+
+You'll also need:
+
+- Windows 10 (build 19041) or Windows 11
+- ~150 MB free space for the app itself, plus a small amount for the
+  catalog database (a 10,000-movie library is around 50 MB)
+
+---
+
+## Install and first launch
+
+1. Download the latest installer from the
+   [releases page](https://github.com/aungkokomm/CineLibraryCS/releases/latest)
+   — the file looks like `CineLibrary-vX.Y.Z-Portable-Setup.exe`.
+2. Run it. The installer is **portable** — it will ask where to put
+   CineLibrary (any folder you like — your `Documents`, an external
+   drive, a USB stick). The app and its database live next to each other
+   in that folder.
+3. Launch `CineLibrary.exe`. The first window is empty until you tell it
+   where your movies are — that's the next step.
+
+> **Why portable?** Your library data lives in `CineLibrary-Data\` next
+> to the executable. Move the folder, copy it to another machine, plug
+> the USB stick into a friend's PC — your catalog goes with it.
+
+---
+
+## Adding your movie folders
+
+Open **Drives** with the drive button at the bottom of the sidebar (the
+first of the small buttons there).
+
+Click **Add folder** and point CineLibrary at the **root** of one of your
+movie collections (e.g. `H:\Movies` or `E:\Films`). CineLibrary will
+recursively scan that folder, read each `.nfo`, cache posters, and build
+the catalog. Progress shows in the toast bottom-right.
+
+A few tips:
+
+- **Add as many roots as you like.** Each external drive, each
+  subdivision of your collection — separate entries are fine.
+- **One folder for many.** Adding a folder that holds folders you added
+  before (say `G:\Serials`, after `G:\Serials\Mirzapur` and others)
+  replaces them in the list with that one folder. Nothing leaves your
+  library, and every show and movie under it is scanned.
+- **Leave a folder out.** Put an empty file named `.nomedia` in a
+  folder, as in Kodi, and CineLibrary skips that folder and everything
+  inside it, for movies and TV shows. Useful for episodes whose `.nfo`
+  calls them movies, or a folder you haven't sorted out yet. Anything
+  from it already in your library shows as missing after the next
+  Update; **Review N…** on the drive lets you remove it.
+- **Give drives friendly names.** Right-click a drive entry and rename
+  it (e.g. *"Seagate Red 5TB — Movies"*) so the sidebar reads cleanly.
+- **Re-scan after scraping again.** If you re-scrape metadata or add
+  new movies, hit **Rescan** on the drive entry; CineLibrary picks up
+  the new and changed files.
+- **Or let CineLibrary Essentials tell it (5.4.1).** After a scrape,
+  Essentials offers **Scan in CineLibrary** (also in its **⋯** menu).
+  CineLibrary, opened for it when it isn't running, reads just those
+  folders and shows them right away. Only folders inside the ones you
+  added here are read; for others it says which, so you can add the
+  drive or folder first.
+- **Removing a drive is non-destructive** for your video files —
+  CineLibrary only forgets its own catalog entries.
+
+When the scan finishes, click **All Movies** in the sidebar.
+
+---
+
+## Browsing your library
+
+The **All Movies** page is your home view. The sidebar shows shortcuts
+to slice the catalog; the main area shows the movies.
+
+### Grid view (default)
+
+Posters laid out in a fluid grid that auto-fits the window. Use the
+**Size** drop-down at the right of the top bar to pick the poster size
+(S, M, L or XL).
+The grid stretches to fill the available width — bigger window means
+more columns, automatically.
+
+**Point at** a poster for its genres, **▶ Play** (when its drive is
+connected; otherwise the card says which drive it's on), **View
+Details**, and the To Watch / Watched / Favorite icons in the corner.
+
+**Click** any poster to open the **movie detail** dialog. It opens
+maximized and shows cast, ratings from multiple sources (IMDb / TMDb /
+Rotten Tomatoes if your nfo has them), tech badges (resolution, codec,
+audio), file size and duration, and quick toggles for watched /
+favorite / To Watch. Press **Esc** to close, or use the close button
+in the sticky bar that appears as you scroll.
+
+The yellow **★** is the rating your `.nfo` marks as the main one
+(`default="true"`, as in Kodi; your scraper decides which source that
+is). When the `.nfo` has more than one source, each one is listed
+beside it with its votes.
+
+The genres sit as chips right under the rating, year, runtime and
+certification; click one to see every movie in that genre. A purple chip
+beside the runtime names the **edition** when the `.nfo` has one
+(Director's Cut, Extended, IMAX). Further down are the **Director**,
+**Writer** and **Studio** (a long list of writers shows the first four;
+point at it for the rest). A movie made by several studios lists them
+all; click any of them to see its movies. **Country** in the file details
+lists every country too.
+
+**🎞 Trailer** next to Play opens the movie's trailer in your web browser,
+when its `.nfo` has a trailer link.
+
+The cast lists everyone in the movie's `.nfo`, in billing order, with
+photos from the movie folder's `.actors` folder (or fetched from TMDB).
+A very big cast shows its first 24, and a low window one row; **Show all** brings the rest and **Show less** folds it back.
+
+Under the cast, a movie that's part of a collection shows **the rest of
+the collection** you own, in order, with a ✓ on the ones you've watched
+(for example "Part of the James Bond Collection"), and then **More by**
+its director: up to 12 of their other films you own, with **See all**
+for the rest. Click a poster to see that film in the same window.
+
+**Who they are (5.4.1):** click an actor in the cast, or the director,
+and their page opens with them at the top: their photo, when and where
+they were born (and died) and their age, coloured like the movie
+window's details, and their biography from TMDB, with **More** for the
+rest and links to IMDb and TMDB. Their films come in three parts, each
+with a coloured heading and how many:
+
+- **In your library** (green): your movies and TV shows with them.
+- **Watched & Gone** (amber): the records of theirs you watched and let
+  go, found by the cast kept with each record and by their films on
+  TMDB. Right-click one to open, restore or delete it, as on the
+  Watched & Gone page.
+- **Not in your library** (purple): for a director every film they
+  made, the newest and the ones still to come first; for an actor their
+  best-known films. The ones you have or have seen aren't in it. Click
+  a poster to open it on TMDB.
+
+The first look needs the internet; after that it shows at once, offline
+too, and is checked again after a month.
+
+**‹ Back to the movie (5.4.1):** a page you open from a movie's window
+(an actor, the director, a writer, studio, genre or tag) has **‹** and
+the movie's name at the top left. It opens the movie again, still
+stepping with ← and → through the list you came from, and that list is
+back under it as you left it. A page opened from Statistics has
+**‹ Statistics**. The mouse's back button, **Alt+←** and the keyboard's
+Back key do the same.
+
+On an actor's page each card says the part they play and how old they
+were ("2010 · as Cobb, 35"), and the TV shows of theirs you have are in
+a row above their films. On a show's page, click anyone in the cast for
+their page; **‹** and the show's name take you back to it.
+
+**Awards and your history with them (5.4.1):**
+
+- **Awards** (gold, with the other facts): what they won and were
+  nominated for, like "2 Oscars · 12 wins · 8 nominations". Click it for
+  the list by award, the Oscars first: each line **WON** or
+  **NOMINATED**, what for, the film and the year. The awards come from
+  Wikidata, found by the person's IMDb id, and are kept for a month. A
+  movie's window has an **Awards** tile too, with **See all**.
+- **In your library** says how many of theirs you've watched, their
+  average rating and the years they span. A director's page shows
+  **Seen**: how many of their films you've watched, in your library or
+  in Watched & Gone, with a bar.
+- **Often with** (and on an actor's page **Often directed by**): who they
+  work with most in your films, two films or more, with how many. Click
+  a name for their page.
+
+**Wishlist (5.4.1):** **+** under a film you don't have, on an actor's
+or director's page, puts it on your **Wishlist** in the sidebar, which
+counts them. Click ✓ (or right-click, **Take off the wishlist**) to take
+it off, with **Undo** for a moment after. The Wishlist lists them the
+latest first, with the year and whose page you added each from, and
+keeps their posters, so it shows offline too. A film you've since added
+to your library is shown first, marked **IN YOUR LIBRARY**, with **Take
+these off the wishlist**. **Copy list** copies the rest, one per line
+with the year, to paste into a note or a search. Click a poster to open
+the film on TMDB. The Wishlist is kept in **Backup & Export** too.
+
+**Previous / next:** press **←** or **→**, or use the arrows at the top
+left of the banner (or in the bar that appears as you scroll), to step
+through the movies of the grid or list you opened the window from, in
+the same order and filter, without closing it. The banner shows where
+you are, like "12 of 340".
+
+The window uses its whole width and arranges itself to fit. In a wide
+window (a 1440p or 4K screen) the buttons and plot sit beside a larger
+poster, with the director, writer, studio, file details and your note in a
+column of their own, so most movies fit on one screen without scrolling.
+In a narrow window (a tablet held upright, or the window snapped to half
+the screen) everything stacks in one column.
+
+**Double-click** a poster to play the movie immediately via your default
+video player. If the movie's drive isn't connected, CineLibrary tells
+you which drive to plug in.
+
+### List view
+
+Click the **☰** toggle next to the **Size** drop-down for a compact list
+showing title, year, rating, runtime, and watched status — useful for
+scanning hundreds of titles at once.
+
+### Sidebar shortcuts
+
+The sidebar is grouped into sections:
+
+- **LIBRARY**: All Movies, Favorites, To Watch, Wishlist.
+- **DISCOVER**: Continue Watching, Recently Added, Recently Watched.
+- **MY LISTS**: your custom lists. Click **+** to add one.
+- **BROWSE**: banner-style pages: *By Genre*, *By Decade*, *By Rating*,
+  *Collections*, and the **Tags** page. Each entry shows count and a
+  representative cover; click to filter your library to that slice.
+- **TOOLS**: Statistics, Dupes, Missing cast (4.8.0: the movies with one
+  actor or none, shown while there are any) and Backup & Export.
+- **PINNED TAGS**: the tags you pinned on the Tags page.
+- **LIBRARIES**: one entry per drive root, with a live online/offline
+  dot and a count.
+
+My Lists, Pinned Tags and Libraries fold when you click their header, and
+stay folded (or open) the way you left them, after a restart too. Each
+section's icons have their own colour, so you can find your way at a
+glance.
+
+Don't use an item? Right-click it and choose **Hide from sidebar**.
+**Settings → Sidebar** lists what you hid and shows it again. The random
+pick (Surprise me) is the 🔀 button on the library's toolbar.
+
+The small buttons at the bottom of the sidebar are **Drives**, the theme
+switch, **Settings**, keyboard shortcuts and collapse sidebar.
+
+### Collections
+
+**Collections** (under Browse) shows each franchise in your library as a
+poster card, the same size as TV show cards, with its movie count and how
+many you've watched ("2/5") above a purple progress bar. A green **✓**
+means you've watched every movie in it. The toolbar works like the one
+on All Movies, and
+CineLibrary remembers your choices:
+
+- **Sort**: Name, number of Movies, Year (the newest movie in the
+  collection) or Date Added, either way.
+- **All / Unwatched / Watched**: Unwatched shows the collections with
+  movies left to watch; Watched shows the ones you've finished.
+- **Size**: S, M, L or XL posters.
+
+Click a collection to see its movies.
+
+---
+
+## Search, filter, and sort
+
+### Search
+
+The search box lives in the **title bar** at the top of the window, so
+it's available from **every page** — start typing anywhere and
+CineLibrary jumps straight to the matching movies (and shows). It matches
+across **title, original title, year, actor, and director** (and
+collection names). It deliberately doesn't search plot text — a short
+word like "hit" appears in hundreds of plot summaries, which used to bury
+the titles you actually wanted. Title matches are ranked first, so the
+closest result is at the top. Type as you go — results update live. Press
+`Ctrl+F` from anywhere to jump into it; press `Esc` to clear it and step
+back out.
+
+The dropdown to the left of the search box sets the **scope**:
+**All** (the default), **Title** to match titles only, or **Cast &
+crew** to find everything an actor or director worked on.
+
+### Filter pills
+
+Below the title, three pills toggle watched status:
+
+- **All** — everything
+- **Unwatched** — what you haven't seen yet
+- **Watched** — your viewing history
+
+Combine the pills with sidebar shortcuts (e.g. *"Unwatched in Top Genre:
+Drama"*) to whittle down a long list quickly.
+
+### Sort
+
+The sort dropdown offers Title, Year, Rating, Runtime, and Date Added
+— each in ascending or descending order. CineLibrary remembers your
+last choice between sessions.
+
+---
+
+## Tracking what you've watched
+
+Three personal flags, all toggle from the movie detail dialog, or from
+the round icons in the top corner of a movie card when you point at it
+(📌 To Watch, ✓ Watched, ♥ Favorite: dim when off, bright when on). A
+favorite keeps its ♥ on the card.
+
+- **Watched ✓** — mark a movie as seen. Affects the Watched / Unwatched
+  filters and the Statistics page.
+- **Favorite ♥** — pin to the **Favorites** view in the sidebar.
+- **To Watch 📌** — queue for later. Shows on the **To Watch** page with a
+  badge counter on the sidebar item.
+
+These flags are local to your CineLibrary install — they don't write
+back to your `.nfo` files, so a re-scrape won't disturb them.
+
+---
+
+## TV Shows
+
+As of **v2.8.0**, CineLibrary catalogs TV shows alongside your movies.
+
+### What gets detected as a show
+
+Any folder that contains a **`tvshow.nfo`** is treated as a TV show.
+Episodes are the video files inside it (directly, or in season folders
+such as `Season 01`) whose names carry an `SxxExx` marker, each with a
+matching `.nfo` — exactly what CineLibrary Essentials
+produces:
+
+```
+H:\TV\Dark\
+├── tvshow.nfo                       ← show metadata
+├── poster.jpg  fanart.jpg
+├── .actors\                         ← cast thumbnails
+├── Dark - S01E01 - Secrets.mkv
+├── Dark - S01E01 - Secrets.nfo
+├── Dark - S01E01 - Secrets-thumb.jpg
+├── Dark - S01E02 - Lies.mkv
+└── …
+```
+
+Kodi's layout, with a folder per season, works the same way:
+
+```
+H:\TV\Dark\
+├── tvshow.nfo
+├── poster.jpg  fanart.jpg
+├── .actors\
+├── Season 01\
+│   ├── Dark - S01E01 - Secrets.mkv
+│   ├── Dark - S01E01 - Secrets.nfo
+│   ├── Dark - S01E01 - Secrets-thumb.jpg
+│   └── …
+└── Season 02\
+    └── …
+```
+
+Seasons are read from the `Sxx` in each filename, so season folders can
+be named however you like, or left out and every season kept flat in one
+place. (Season folders are read from v3.6.0 on; earlier versions only
+found episodes placed directly in the show folder.) Movies are unaffected —
+a single drive can hold both movies and shows.
+
+### Finding your shows
+
+Click **All TV Shows** in the sidebar (under All Movies). You get a
+grid of show cards, each with its poster, year, and a watched-progress
+bar. The sidebar badge shows how many shows you have.
+
+The toolbar works like the one on All Movies, and CineLibrary remembers
+your choices:
+
+- **Sort**: Title, Year, Rating, Date Added or Last Watched, either way.
+- **All / Unwatched / Watched**: Unwatched shows the shows that still
+  have episodes left; Watched shows the ones you've finished.
+- **Size**: S, M, L or XL show posters.
+
+A green **✓** on a show card means you've watched every episode.
+
+**Point at a show card** to see more without opening it: its genres, how
+many seasons, how much you've watched, and:
+
+- **▶ Play S01E04** plays the next episode straight away (the one ▶ Play
+  next on the show page would start) and marks it watched. If the drive
+  isn't connected, the card says where the next episode is instead.
+- The **📌** and **♥** icons in the top corner switch To Watch and
+  Favorite on and off. They're dim when off and bright when on.
+- The **✓** between them marks the whole show watched, every episode of
+  every season, after asking. It's green when you've watched them all;
+  click it then to mark them all unwatched.
+
+**Right-click a show card** for the rest: ▶ Play the next episode, Open
+show, Watched, Favorite, To Watch, 📑 Add to list, 📂 Open folder and
+Send to Watched & Gone (see *Watched & Gone*).
+
+A small grey dot in a card's corner means its drive isn't connected.
+
+Clicking anywhere else on the card opens the show. This works on every
+page with show cards: All TV Shows, Favorites, To Watch, Continue
+Watching, your lists and search.
+
+### The show page
+
+Click a show to open its page:
+
+- **Header**: the show's fanart as a banner across the top, with
+  **IMDb** and **TMDb** buttons that open the show's pages. Below it sit
+  the poster, the title (with the original title and tagline under it
+  when the `.nfo` has them), an info line (year, rating, certification
+  such as TV-14, status, how long an episode is, and a watched roll-up
+  like "12/62 watched"), each rating source with its votes when the
+  `.nfo` has more than one (IMDb and TMDb), the genre chips, the plot,
+  **Created by**, the studios and networks, the country, and
+  **Located on**: the show's drive, with a green dot and its letter while
+  it's connected, as in the movie details window. Then the buttons:
+  **📂 Open Folder**, **♡ Favorite**, **📌 To Watch** and **Add to list**,
+  and under them **📝 Add note**, **Fetch missing info from TMDB** (see
+  [Filling in missing details](#filling-in-missing-details-tmdb)) and
+  **Reload from .nfo**, with your tags beside them. Open Folder and
+  Reload from .nfo work while the show's drive is connected.
+- **📝 Add note**: a note of your own about the show. It appears under
+  the plot as **Your note**, and the show is listed on the **Notes**
+  page above your noted movies. Click **📝 Edit note** to change it;
+  clear the text and save to remove it. Episodes have their own notes
+  in the episode window.
+- **Cast**: photo cards with each actor's name and role, on one line
+  that scrolls sideways.
+- **▶ Play next** — jumps straight to the first unwatched episode
+  (by season, then episode). Reads "✓ All watched" once you're done.
+- **Season buttons**: one per season, with Specials last, each with its
+  number of episodes ("Season 1  10"). The page shows one season at a
+  time, so season 10 is one click away. It opens on the first season you
+  haven't finished. Beside them: how much of the season you've watched
+  and its total length, **▶ Play season** and **Mark all watched**.
+- **Episodes**: a list down the page, one row per episode: its number,
+  the picture, the title, the air date, length, quality and rating, and
+  up to three lines of the plot. **♡** and **✓** on the right mark it a
+  favorite or watched, and **▶ Play** shows on the picture when you point
+  at it. In a small window the picture gets smaller and the two buttons
+  sit one above the other.
+- **Missing episodes**: when the show has a TMDb id and you're online,
+  CineLibrary asks TMDb which episodes have aired. Each one you don't
+  have appears greyed in its season's list, marked **Not in your library**
+  with its air date, and the season's line says how many are missing
+  ("3 of 8 watched · 2 missing"). Seasons you have none of are listed under
+  the season buttons, like "Not in your library: Season 4 (10 episodes)".
+  Specials and episodes that haven't aired yet never count, a file that
+  holds two episodes (`S01E01E02`) counts as both, and a show kept in one
+  folder per season counts every folder. Offline, the page simply shows
+  what you have. To turn the check off, use **Settings → Show missing
+  episodes**.
+
+### Watching episodes
+
+- **Double-click** an episode (or its **▶ Play**) to open it in
+  your default video player. Playing also marks it watched.
+- **Single-click** an episode to open its **details** — full plot,
+  air date, rating, runtime, plus tech info pulled from the `.nfo`
+  (resolution, HDR, video/audio codec, audio languages, subtitles,
+  container, file size). The dialog has Play and Mark-watched buttons.
+  It's dark like the show page's header in both themes, with the show's
+  name above the episode's, and a note box for the episode.
+- The **✓** button on each episode flips watched state without
+  playing. The show's progress roll-up updates instantly.
+- Beside the season buttons: **▶ Play season** (first unwatched in that
+  season) and **Mark all watched / unwatched**.
+
+### Adding shows to lists
+
+My Lists are independent buckets — a list can hold **movies and shows
+together**. Use **📑 Add to list** in the show header. When you open
+that list from the sidebar, its shows appear in a row at the top and
+its movies in the grid below. (See *My Lists*.)
+
+### TV in Statistics
+
+The Statistics page has a **TV shows** section once you have shows (see
+*Statistics*), counts your shows and episodes in its summary, and its
+**Watched so far** card has an episodes ring next to the movies one.
+Episodes count in **Watched per month** too.
+
+### Favorite / To Watch for shows
+
+Favorite and To Watch are **show-level** (you favorite *the show*,
+not one episode), set from the buttons in the show header. Watched is
+**per-episode**.
+
+Favorite and on To Watch shows appear in a **TV shows** row at the top
+of **Favorites** and **To Watch**, above the movies; shows you're partway
+through appear the same way on **Continue Watching**, where each card
+says which episode is next ("Next: S01E04", the one ▶ Play next starts).
+**Recently Added** has the row too, with the shows added since the oldest
+movie on it, newest first, and so does a genre's page from **By Genre**,
+which counts each genre's shows and has the genres only shows have
+(like Sci-Fi & Fantasy).
+Click a show to open it. The **To Watch** and **Continue Watching** counts in the
+sidebar include these shows. The cards in this row take the page's
+**Size** (S, M, L or XL), like the movies under them.
+
+### Shows travel with the drive too
+
+Just like movies, a show's personal state (favorite / To Watch /
+note / per-episode watched) is mirrored into a `cinelibrary-state.json`
+in the show folder. Remove the drive and re-add it later — your
+progress comes right back. See *State that travels with your drives*.
+
+---
+
+## My Lists — group movies your way
+
+Built-in flags (Favorites / To Watch) are just on/off. For everything
+in between — *"Marvel chronological"*, *"Date-night picks"*, *"Top 10
+of 2024"*, *"Movies I lent to Sai"* — make your own list under **MY
+LISTS** in the sidebar.
+
+### Creating a list
+
+Two ways:
+
+1. **From any movie** — right-click a poster (or open the detail
+   dialog) → **📑 Add to list → + New list…** → type a name → Create.
+   The movie is added to the new list automatically.
+2. **Empty list first** — open the detail dialog of any movie, click
+   **📑 Add to list → + New list…**, then immediately remove that
+   movie if you only wanted the list itself.
+
+A new entry appears under **MY LISTS** in the sidebar with a 📑 icon
+and a count badge.
+
+### Adding a movie to one or more lists
+
+Right-click any poster (or open its detail dialog) → **📑 Add to list**.
+The submenu shows every list you have, with a ✓ next to the ones the
+movie is already in. Click a list to add; click a checked list to
+remove. The movie can belong to as many lists as you like.
+
+The detail dialog also shows a row of **📑 chips** under the action
+buttons — one chip per list this movie is on. Tap the **✕** on any
+chip to remove the movie from that list instantly.
+
+### Renaming or deleting a list
+
+Right-click the list in the sidebar:
+
+- **Rename** — type a new name; the count and contents stay intact.
+- **Delete list** — removes the list. Your movies are *not* deleted —
+  they just leave that list.
+- **📂 Copy movies to folder…** — bucket-export every online movie's
+  source folder to a destination you pick. Useful for handing a
+  curated set to a friend on a thumb drive.
+
+### Viewing and editing a list
+
+Click a list in the sidebar to switch the main view to just its
+movies. From there you can:
+
+- Right-click any poster → **Remove from this list** (via the same
+  Add-to-list submenu — the list is already checked, click it to
+  uncheck).
+- Multi-select and bulk-remove (see next section).
+
+### Sharing a list
+
+Right-click any list in the sidebar to get two sharing actions:
+
+- **📂 Copy movies to folder…** — copy the actual on-disk movie folders
+  (videos + nfo + posters) to a destination drive. Use this when you
+  want to take a list with you on a USB stick.
+- **📤 Export as image…** — save a clean poster-grid PNG of the list
+  with its name, count, and date. Use this to share "my top 10 heist
+  movies" anywhere. Doesn't touch your video files.
+
+---
+
+## Tags — your own labels
+
+Lists are great for curated buckets ("Movies for movie night"). **Tags**
+are for cross-cutting labels you might apply to many movies that don't
+belong together: "rewatched", "comfort", "Christmas", "long-haul flight",
+"director's cut". Tags differ from lists in three ways:
+
+- A movie can have many tags
+- Tags have no order — they're just labels
+- Adding a tag is one click + a name
+
+### Adding a tag
+
+In the movie detail dialog, look for the **🏷 + Add tag** button under
+the action row. Click it, start typing — existing tags suggest as you
+go. Press Enter to apply. The same flow works for TV shows on the show
+page.
+
+### Filtering by tag
+
+**Tags** (under Browse) shows every tag with how many movies and shows
+have it. Search them, sort by most used or A to Z, and show **All**,
+**Your tags** or the ones **From .nfo files**. Click any tag → the library
+filters to that tag, with a **‹ Tags** button to go back. A removable
+filter chip appears at the top.
+
+Right-click a tag to **Pin to sidebar**: pinned tags sit under **PINNED
+TAGS** in the sidebar for one-click access. Right-click one of your own
+tags to **Rename** it (on every movie and show that has it; renaming it to
+a tag you already have joins the two) or **Delete** it (it's taken off
+everything; no files change).
+
+You can also click a tag chip in the detail dialog to jump straight to
+that filtered view.
+
+### Removing a tag
+
+In the detail dialog, click the **✕** on any tag chip. That movie or
+show drops the tag; if no items still carry the tag, it disappears from
+the Tags page.
+
+### Tags travel with the drive
+
+Like lists, favorites, and notes, tags are saved into the drive's
+sidecar file. Plug the drive into another PC running CineLibrary and
+your tags come back on the next scan.
+
+### Tags from your .nfo files
+
+Tags that are already in a movie's or show's `.nfo` (for example ones
+you added in CineLibrary Essentials' editor) show after your own, with an
+outline and no **✕**. They work like yours: click one to see every movie
+with it, and they're on the **Tags** page. They change with the
+`.nfo`, so edit them where you made them; after the next scan (or
+**Reload from .nfo**) CineLibrary follows. They're not written to the
+sidecar file or your backups, since the `.nfo` already carries them.
+
+A note that's already in a movie's or show's `.nfo` (tinyMediaManager
+writes one as `<user_note>`, and so does CineLibrary Essentials' editor)
+shows as **Your note** when you haven't written one in CineLibrary. Write
+your own and it shows instead; clear yours and the `.nfo`'s note is back.
+Titles with either kind of note are on the **Notes** page. Like the tags,
+the `.nfo`'s note follows the file after the next scan or **Reload from
+.nfo**. A show's play count in its `tvshow.nfo` shows as **Played** on
+the show page.
+
+A movie whose `.nfo` says it's watched (`<watched>true</watched>`, as
+tinyMediaManager and CineLibrary Essentials' editor write it) or has a
+play count is marked **Watched**, the way Kodi counts it. The `.nfo` never
+marks a movie unwatched. If you mark one unwatched here, the next scan or
+**Reload from .nfo** marks it watched again, so untick **Watched** in
+CineLibrary Essentials' editor too.
+
+---
+
+## Watched & Gone
+
+A movie library isn't just what you own — it's what you've *seen*. You
+download a film, watch it, and sometimes decide it isn't worth keeping on
+the drive. But deleting it shouldn't erase the memory: the fact you've
+seen it (so you don't re-download by mistake), and the **note** you wrote
+about why you loved or disliked it. **Watched & Gone** is that memory
+keeper.
+
+### Sending a movie to Watched & Gone
+
+**Right-click any movie** (in grid or list view) → **Send to Watched &
+Gone**. To do several at once, select multiple cards and use the
+**Watched & Gone** button on the selection bar.
+
+The movie leaves your main library and becomes a **record**: its poster,
+all its details, your **notes**, watched state, tags and watch history
+are kept intact. **Your files on the drive are never touched** — archiving
+only changes CineLibrary's catalog. Delete the actual file whenever you
+like; do it before or after, it doesn't matter.
+
+A **Watched & Gone** entry appears in the sidebar (under LIBRARY) with a
+count, the moment you have your first record.
+
+### TV shows too
+
+**Right-click a show card** → **Send to Watched & Gone**. The show
+becomes a record the same way: its poster, details, episodes, your notes
+and every episode you've watched are kept, and it leaves All TV Shows,
+Favorites, lists, search and Statistics. Your files aren't touched.
+
+Show records sit in a **TV shows** row at the top of the Watched & Gone
+page, above the movies. Right-click one to **Restore to library** or
+**Delete record permanently**; click it to open the show. A show record
+comes back by itself, like a movie, when the show turns up in another
+folder or on another drive.
+
+### Add a movie you watched somewhere else
+
+You don't only watch films off your own drives. You catch one **at the
+cinema**, on a **streaming service**, or from a **friend's copy** — there's
+no file to add, but you still want it on record. That's the gap **Add
+watched movie** fills.
+
+On the **Watched & Gone** page, click **+ Add watched movie**:
+
+1. **Search** the title (add a year to narrow it). CineLibrary looks it up
+   on **TMDb** and lists matching films with poster, year and rating.
+2. **Pick** the right one.
+3. Optionally add your **note**, **tags**, and the **date you watched it**.
+4. **Add to Watched & Gone**.
+
+CineLibrary downloads the poster and top-billed cast and saves it as a
+watched record — exactly like an archived movie, but it never needed to be
+on a drive. This is one of only two places CineLibrary reaches the
+internet, and only when you ask it to; offline, it simply tells you so.
+
+### The Watched & Gone page
+
+Open it from the sidebar to see your records as a poster wall. You can:
+
+- **Search** records and **sort** them — *Recently gone* (newest first),
+  Title, Year or Rating.
+- **Open details** on any record — everything is still there, notes first.
+- **Restore to library** — brings a record back into your library (handy
+  if you archived something by mistake, or re-downloaded it).
+- **Delete record permanently** — removes the record and its cached poster
+  for good (double-confirmed; this one can't be undone).
+- **Export** the list to **CSV** — a portable log of everything you've
+  watched and let go.
+
+Records are **completely isolated**: they never appear in All Movies,
+search, Browse, Collections, Statistics, drive counts, lists, tags, or any
+Discovery row. The Statistics page's Movies tile notes how many are kept
+there ("22 in Watched & Gone").
+
+### When files go missing
+
+When a drive scan notices movies it can no longer find on disk, the Drives
+page shows a **Review N…** button. Click it to see exactly what's missing,
+each with a **Keep** checkbox — **watched and noted movies are pre-ticked**.
+
+- **Ticked** movies and TV shows become Watched & Gone records.
+- **Unticked** ones are removed from CineLibrary.
+
+Quick **Keep all / Keep none** links make bulk choices easy. As always,
+your files aren't touched — this only decides what CineLibrary remembers.
+
+### If a movie comes back
+
+Records are smart about returning movies. On the next scan, if a movie
+matching a record turns up:
+
+- **Same drive, same folder** (the file was still sitting there) → it
+  **stays** a record. Letting the file linger doesn't undo your decision.
+- **A different folder or a different drive** (you moved it, or
+  re-downloaded it) → the record **comes back to life** in your library at
+  its new home — with your notes, watched state, tags and history intact.
+  No duplicate, no lost memory.
+
+Matching uses the movie's IMDb / TMDb id (and falls back to title + year),
+so it's reliable across drives.
+
+### Where records live
+
+Records are part of your portable CineLibrary data — move the whole folder
+to another PC and your Watched & Gone history comes with it. A **Backup**
+also remembers which movies and shows are records.
+
+---
+
+## Filling in missing details (TMDB)
+
+Some movies come in only **partly scraped** — maybe a poster but no plot,
+or details but no cast photos. CineLibrary can fill those gaps on demand,
+without you leaving the app.
+
+Open any movie's **details** and click **Fetch missing info from TMDB**:
+
+- It matches the movie by its **TMDb id** when the `.nfo` already has one
+  (instant), or shows a small picker so you confirm the right film.
+- It fills **only what's missing** — a blank poster, plot, year, runtime,
+  cast, and so on. **Anything already there is left untouched**, so your
+  scraped data and your own edits are safe.
+- Cast photos and artwork are cached with the app immediately, and the
+  details window refreshes in place.
+- A cast photo that only lives on the drive (in the folder's `.actors`
+  folder) is replaced by the fetched one too, so the actor's face shows
+  while the drive is unplugged. The photo on the drive itself is never
+  changed.
+
+**TV shows too.** A show's page has the same button. It fills a show's
+blank poster, fanart, plot, year, rating, certification, status, network,
+genres and cast (with photos), matched by the show's TMDb id or confirmed
+in the same picker. A rescan keeps what was fetched: your `.nfo` wins
+wherever it has a value, and a fetched value stays only where it's blank.
+A show's fetched pictures go onto the drive like a movie's (below); its
+other fetched details live in CineLibrary's own library data.
+
+**Several movies at once (4.8.0).** Select the movies (Ctrl+click,
+Shift+click or Ctrl+A) and press **Fetch missing info** in the selection
+bar. CineLibrary fetches them one after another, in a progress window you
+can stop. With no picker to ask, it takes only a sure match: the movie's
+TMDb id, else its IMDb id, else a TMDb search that finds exactly one film
+of the same title and year. The others are listed at the end, so you can
+open each one and pick the match. To give every movie with one actor or
+none its cast, open **Tools → Missing cast**, press **Ctrl+A** and then
+**Fetch missing info**. Fetch takes up to 50 cast members from TMDb, as
+CineLibrary Essentials does.
+
+**Saved onto the drive by itself.** Right after a fetch, CineLibrary copies
+the fetched poster, fanart and cast photos into the movie's or show's
+folder (`poster.jpg`, `fanart.jpg`, `.actors\First_Last.jpg`), and a
+movie's fetched details into its CineLibrary state file there. The message
+next to the button says "saved to the movie's folder". Only files that
+aren't there yet are added.
+
+**Into the movie's `.nfo` too (4.8.0).** The movie's `.nfo` gets what it
+was missing, the way Kodi writes it, so Kodi, CineLibrary Essentials and the next scan
+see it as well: an empty plot, genres, director, writers, studio, cast and
+so on are filled in. A tag that has a value is never changed and nothing is
+taken out. A cast of 15 or fewer gets the people TMDb has that it doesn't
+(a longer cast is the `.nfo`'s own and stays as it is). An `<actor>` that holds a whole cast (some tools write it that
+way, and Kodi then reads only the first name) is split into one `<actor>`
+per person, and genres inside a `<genres>` wrapper move to where Kodi
+reads them. Ratings are left to **Update IMDb ratings**. If the
+title's drive isn't connected, the message says so, and everything goes
+onto the drive the next time you plug it in (or start CineLibrary with it
+connected). A drive that's read-only or full is simply tried again later.
+To keep CineLibrary from writing to your drives, turn off **Settings →
+Save fetched info to your drives**.
+
+**Sync to drive (state + fetched art)** on the Drives page does it for a
+whole drive at once, whatever that setting says. It also covers movies
+fetched before version 4.6.0 that only got cast photos. After that the
+drive holds everything, and an **Update** reads it straight back.
+
+**Changed a title in CineLibrary Essentials?** Click **Reload from .nfo**
+in the movie window or on the show page. CineLibrary reads that one folder
+again (the details, the pictures and, for a show, its episodes) without
+updating the whole drive. It needs the drive connected.
+
+> This, **Add watched movie**, **Update IMDb ratings** and the
+> missing-episodes check on a show page (when you open a show that has a
+> TMDb id; you can turn it off in Settings) are the only features that use
+> the internet. Everything else in CineLibrary is fully offline.
+
+---
+
+## IMDb ratings
+
+Movies and shows scraped with CineLibrary Essentials 1.3 or later already
+carry their IMDb rating. For the rest of your library, click
+**Update IMDb ratings** at the top of the **Drives** page:
+
+- CineLibrary gets the IMDb rating and votes of every movie and show from
+  IMDb's daily ratings, 100 titles at a time. A title whose `.nfo` only has
+  a TMDb id (CineLibrary Essentials before 1.1.10 wrote those) gets its
+  IMDb id from TMDb first.
+- With **Make IMDb the main rating** ticked (it is to begin with), IMDb's
+  becomes the **★** on cards and in the windows.
+- The ratings show in CineLibrary right away, for titles on unplugged
+  drives too.
+- They're written into each `.nfo`, as CineLibrary Essentials' Refresh
+  IMDb ratings does: only the ratings change (and the IMDb id is added
+  where it was missing), so other players and Essentials see them too.
+  Connected drives get them at once; the others the next time you plug
+  them in, or start CineLibrary with them connected. **Cancel** while the
+  files are being written finishes the rest later in the same way.
+- Run it again any time to bring the votes up to date.
+
+In the movie window and on a show's page, each rating source is listed with
+its votes when there's more than one: IMDb's in gold, like the ★, and
+TMDb's in green.
+
+---
+
+## Finding duplicates (Dupes)
+
+Collect movies across drives for a while and the same film can quietly end up
+on your shelf twice: a re-download you forgot about, or a quality upgrade you
+never cleaned up. **Tools → Dupes** finds them and helps you reclaim the space,
+without touching the copies you keep on purpose.
+
+**How it matches.** Films are grouped by their TMDb / IMDb id, falling back to
+title + year. Two different movies that share a name (for example *Solaris* from
+1972 and *Solaris* from 2002) are never merged.
+
+**What it leaves alone.** If you deliberately keep the same film in different
+**audio languages** (a Hindi dub and the original, or Tamil / Telugu / Hindi) or
+different **editions** (Director's Cut versus Theatrical), Dupes labels them
+**✓ kept on purpose** and never flags them. Only genuine same-version copies are
+surfaced as **⚠ possible duplicates**.
+
+For each possible duplicate, Dupes:
+
+- **Recommends a keeper.** The best copy (highest resolution, then largest file)
+  is tagged **✓ keep**; the others are the removable candidates.
+- **Shows what you'd save.** A green "~X GB reclaimable" on each set, plus a
+  running total at the top.
+- **Lets you check and act.** **Open folder** on any copy to inspect it, or
+  **→ Watched & Gone** to drop a copy while keeping its record. CineLibrary
+  never deletes your files; you remove them yourself.
+- **Remembers your choices.** **Ignore set** hides a group you're happy with,
+  and it stays hidden across rescans. A **Show ignored** box brings them back.
+
+After you delete a copy in Explorer and switch back to the app, the set
+re-checks itself and drops off once only one copy remains. A **Rescan** button
+forces the same re-check on demand.
+
+---
+
+## Discovery
+
+Three places to find things to watch without browsing the whole grid.
+
+### 🕓 Recently Watched
+
+Sidebar entry under DISCOVER. Lists everything you've played, freshest
+first. Hidden when you've never watched anything yet.
+
+### 📅 On This Day
+
+Sidebar entry that only appears when there's something to surface for
+today. Click it for a dedicated page split into two sections:
+
+- **🎞 You watched on this date** — movies you've played on this
+  calendar date in past years.
+- **🎬 Released on this date** — films that came out on this date in
+  past years (cinema anniversaries — works even on a fresh install,
+  with no watch history of your own).
+
+Both fall on the *same day of the year*, regardless of year. Comes
+back tomorrow with a different set.
+
+**🎂 Born on this date (5.4.1):** the actors and directors from your
+films born on this day, with their age today (or the age they would
+have been). It knows the people you've opened on their page, as their
+birthday comes from TMDB then. Click one for their page.
+
+### 🎲 Surprise me
+
+Two flavours:
+
+- **Sidebar "Surprise me"** — random pick from anything unwatched in
+  your library. Use when you have no filter set and just want a pick.
+- **🎲 button on the Library toolbar** — *filter-aware*. Honours
+  whatever you're currently looking at — random comedy from the 90s,
+  random movie in this list, random tagged "rewatched". If nothing
+  matches the filter, you'll get a toast.
+
+Both prefer movies on online drives so you can actually play the pick.
+
+---
+
+## Multi-select — pick many, act once
+
+Lots of common chores (mark 12 movies as watched, add a director's
+filmography to a list, favorite a whole decade) are tedious one card
+at a time. CineLibrary's multi-select fixes that.
+
+### Selecting cards
+
+- **Ctrl+click** a card → toggle it into the selection. Selected cards
+  show a purple outline + a corner ✓.
+- **Shift+click** → range-select from your last clicked card to this
+  one.
+- **Ctrl+A** → select every movie in the view, the ones further down that
+  haven't loaded yet too (4.8.0).
+- **Esc** → clear the selection.
+- **Plain click** while a selection is active just clears it (so you
+  don't accidentally open a detail dialog when trying to escape
+  select-mode). With no active selection, plain click opens details
+  as usual.
+
+### The action bar
+
+As soon as one or more cards are selected, a purple pill bar appears
+at the bottom of the library:
+
+> **X selected** · 📑 Add to list ▾ · ✓ Watched · 📌 To Watch · ♥ Favorite · Fetch missing info · 🗑 Remove from list · ✕
+
+- **📑 Add to list ▾** opens a menu of your lists (plus *+ New list…*).
+  Picking one adds *every* selected movie to that list.
+- **Fetch missing info** (4.8.0) looks every selected movie up on TMDb
+  and fills in only what's missing (see
+  [Filling in missing details](#filling-in-missing-details-tmdb)).
+- **✓ Watched / 📌 To Watch / ♥ Favorite** are smart toggles — if
+  *any* selected movie doesn't yet have the flag, the action sets it
+  on all of them; if every selected movie already has it, the action
+  removes it from all of them.
+- **🗑 Remove from list** only shows when you're currently viewing one
+  of your lists. It removes the selected movies from *that* list (the
+  movies themselves stay in your library and any other lists).
+- Every bulk action shows a toast with an **Undo** button for ~6
+  seconds. Click Undo to put everything back exactly as it was.
+
+### Drag-and-drop
+
+You don't even have to use the action bar — just **drag any selected
+card onto a sidebar entry**:
+
+- Drop on a **user list** → adds the whole selection to that list.
+- Drop on **Favorites** → favorites everything in the selection.
+- Drop on **To Watch** → adds everything to To Watch.
+
+The target row lights up purple while you hover over it. If you drag
+a card that isn't part of the current selection, only that one card
+gets added (and other selected cards stay selected — your selection
+isn't disturbed).
+
+---
+
+## State that travels with your drives
+
+Your watched marks, favorites, To Watch, list memberships, and notes
+are personal — they're the only things CineLibrary can't rebuild for
+you by re-reading a `.nfo`. Losing them when you remove and re-add a
+drive would be no fun, so as of **v2.7.0** they ride along **with the
+drive itself**.
+
+### How it works
+
+For every movie that has any personal state (watched, favorited,
+on To Watch, played at least once, sitting in one of your lists, or
+carrying a note), CineLibrary writes a tiny file called
+**`cinelibrary-state.json`** into that movie's folder, right next to
+the `.nfo`. It looks something like this:
+
+```json
+{
+  "version": 1,
+  "watched": true,
+  "favorite": true,
+  "lastPlayedUnix": 1747576800,
+  "playCount": 3,
+  "lists": ["All Time Great"]
+}
+```
+
+Three things happen automatically:
+
+- **Every time you mark / unmark / play / list / note** a movie, the
+  file gets rewritten. Best effort — if the drive is offline at the
+  moment, nothing breaks; the sync will catch up on the next sweep.
+- **When you scan or rescan a drive**, CineLibrary reads any
+  `cinelibrary-state.json` it finds and merges the values back into
+  its library. This is what makes the "remove a drive then re-add it"
+  flow non-destructive.
+- **On startup**, a quiet background sweep makes sure every movie
+  with personal state has an up-to-date file on disk.
+
+### The "Remove Drive" dialog
+
+When you click 🗑 Remove Drive on the Drives page, you'll now see how
+many movies on that drive have personal state attached, plus a
+checkbox: **"Save that state to the drive first"** (default ON).
+Leaving it ticked guarantees that re-adding the drive later restores
+everything.
+
+If the drive is **offline** when you try to remove it, the dialog
+warns you that the state can't be saved and recommends cancelling
+until you reconnect.
+
+### The "Sync to drive (state + fetched art)" button
+
+Each drive card on the Drives page has a **Sync to drive (state + fetched
+art)** action. It does two jobs in one pass, for every movie on that drive:
+
+- **Personal state** → written to the per-folder sidecar (as above).
+- **Fetched art & details** → if you used **Fetch missing info from TMDB**
+  on a movie, this copies the fetched **poster**, **fanart** and **cast
+  photos** into the movie's folder and records the fetched text (plot,
+  year, cast, …) in the same sidecar — so the next scan reads it back and
+  the drive, not just the app, holds your filled-in details.
+
+It only ever **adds** files that aren't already there, and it **never
+rewrites your `.nfo`**. It runs only when you click it (the automatic
+background mirroring still handles personal state on its own), and it's
+greyed out when the drive is offline. It's also useful when:
+
+- You want to manually push everything to disk right now (e.g. you're
+  about to hand the drive to someone).
+- You restored from a backup of `CineLibrary-Data\cinelibrary.db` on a
+  new machine and want to make sure the drives reflect the DB.
+- A bunch of edits happened while the drive was offline; this forces
+  the catch-up.
+
+### Conflict rule
+
+If you ever end up with both a DB row and a sidecar file with
+different values (e.g. you marked something watched on machine A,
+then plugged the drive into machine B which already had its own
+copy), the **DB wins where it already has a value**. Lists are
+**additive** — joining a missing list, never silently removing.
+
+### What this doesn't touch
+
+Your **video files are never modified**. An `.nfo` changes only when you
+ask: **Update IMDb ratings** writes the rating, and **Fetch missing info**
+fills the tags it was missing. The
+sidecar `cinelibrary-state.json` is written automatically; poster /
+fanart / `.actors\` images are only written by the on-demand **Sync to
+drive** action above, and only when they're missing from the folder.
+Everything CineLibrary writes is safe to delete — it re-creates what it
+needs on the next change or sync.
+
+---
+
+## Backup and restore
+
+The sidecars give you per-drive resilience. **Backup & Export → Backup
+or restore…** under **TOOLS** in the sidebar gives you whole-library resilience: one JSON
+file covers every favorite, To Watch entry, note, list, tag, watched
+flag, last-played time, per-episode favorite/note, and watch-history
+event.
+
+### Export a backup
+
+Click **Backup** → **📤 Export backup…** → pick a destination
+(Documents, OneDrive, anywhere). You get a single `.json` file with the
+current date in its name. Save it where your usual backups live.
+
+### Restore on a new PC (or after a wipe)
+
+On the new install, first scan in your drives the normal way so the
+catalog rebuilds. Then click **Backup** → **📥 Import backup…** → pick
+the file. The summary line tells you what merged:
+
+```
+Imported: 47 movies, 6 shows, 89 episodes, 2 new lists,
+4 new tags, 312 history events. Skipped: 3 (drive not mounted).
+```
+
+Anything skipped is on a drive that isn't currently plugged in —
+re-import after mounting it and the rest will merge in.
+
+### Conflict rule
+
+Backup imports are **additive — your DB wins on conflicts**:
+
+- Re-importing the same file is a no-op.
+- A movie marked watched in either the DB or the backup ends up
+  watched. Same for favorite and To Watch.
+- Notes that are non-empty in the DB are preserved; otherwise the
+  backup note fills in.
+- `last_played_at` becomes the most recent of the two values.
+- Lists and tags are union-merged (created if missing, additively
+  linked).
+- Watch-history events are always appended.
+
+Nothing is ever removed by an import.
+
+---
+
+## Statistics
+
+The **Statistics** page (sidebar) is your collection at a glance:
+
+- **Summary**: movies, TV shows and episodes, the space they take, their
+  running time, and how much you've watched.
+- **Quality and storage**: picture quality (4K, 1080p, 720p, SD), each
+  drive with its space and movie count, video formats, and sound
+  (stereo, 5.1, 7.1, and the audio formats).
+- **What's in it**: release decades with the average rating of each,
+  ratings, length, genres, countries, certifications and your biggest
+  collections.
+- **TV shows**: how many you've finished, are partway through or haven't
+  started, their status (Ended, Returning Series, Canceled), genres,
+  studios and networks, the shows with the most episodes, and the
+  episodes' picture quality.
+- **Your watching**: what you watched each month (from CineLibrary's
+  watch log, so it starts when the log began), how much of your movies
+  and episodes you've watched, and the movies you watched last.
+- **People**: the actors and directors you have the most movies of, and
+  how many of those you've watched.
+- **Worth watching next**: the best-rated movies you haven't watched.
+
+Click a decade, a rating, a genre, a collection, a drive or a person to
+see those movies; a poster opens the movie. In the TV section, a genre
+opens its page with its shows, **In progress** opens Continue Watching,
+and a show opens the show.
+
+Numbers update as you toggle watched/favorite or add new drives. Use
+this page to spot gaps ("hey, I have nothing from the 70s") or as
+casual fun.
+
+---
+
+## Multiple drives — online and offline
+
+CineLibrary is built for the case where your movies live on a stack of
+external drives that aren't all plugged in at once.
+
+- When a drive is **connected**, its entry in the sidebar shows a
+  green dot, and its movies render in full color.
+- When a drive is **disconnected**, the dot goes grey, and its movies
+  show an `OFFLINE` overlay in the grid. They stay in the catalog and
+  remain searchable — you just can't play them until you plug the
+  drive back in.
+
+Drive arrival and removal is **detected instantly** via Windows device
+events — no polling, no lag. Plug a drive in mid-session and its
+movies snap back to color within a second.
+
+---
+
+## Themes and sidebar
+
+### Theme
+
+Click the theme button in the bottom of the sidebar to cycle between
+**System → Dark → Light**. CineLibrary uses Mica backdrop on Windows 11
+for a native feel and remembers your choice between sessions. You can
+also set the theme from **Settings** (below).
+
+### Collapsing the sidebar
+
+`Ctrl+B` collapses or expands the sidebar (or click the `⮜` button at
+the bottom). Collapsed, the sidebar is a slim strip of icons: hover one
+for its name, click it to go there, and the strip's last two icons are
+Drives and Settings. It gives the grid more room, which helps on small
+displays.
+
+---
+
+## Settings
+
+Click the **⚙️ gear icon** at the bottom of the sidebar to open
+**Settings**. Everything here is saved between sessions and applies
+instantly — no restart.
+
+### Theme
+
+Light / Dark / System — the same choice as the quick theme button,
+shown as a simple picker.
+
+### Background material (Mica)
+
+Controls how much of the Windows **Mica** material — your desktop
+wallpaper, softly tinted — shows behind the sidebar:
+
+- **Off** — a flat, solid background; the lightest option on the GPU.
+- **Subtle** *(default)* — a gentle wash of wallpaper colour.
+- **Strong** — a bolder, more translucent look.
+
+The scrolling poster area always stays solid for smooth scrolling, so the
+choice never costs you any performance there. The change applies instantly.
+
+### Card drop shadows
+
+**Off by default.** Turn this on to give each movie card a soft shadow
+that lifts it off the grid. It's a small touch of depth — purely
+cosmetic.
+
+Why it's off by default: a resting shadow on every card adds a little
+work while you scroll. On most machines you'll never notice, but
+leaving it off keeps scrolling as smooth as possible on every PC. If
+you like the look and your scrolling stays buttery, turn it on and
+enjoy.
+
+### Reduce motion
+
+**Off by default.** When on, hovering a movie card no longer zooms and
+lifts it — the card stays still and just shows its quick-action
+buttons. Turn this on if the hover animation bothers you, or to shave a
+little extra work on lower-end graphics.
+
+### Video player
+
+**Windows default unless you choose one.** Click **Choose…** and pick the
+program you want **Play** to use, for example `vlc.exe`, MPC-HC,
+PotPlayer or mpv. Every Play button (movie cards, the list view, the
+details window and TV episodes) then opens videos there. **Use Windows
+default** goes back to whatever Windows opens video files with. If the
+chosen program is later uninstalled, Play falls back to the Windows
+default by itself.
+
+### Save fetched info to your drives
+
+**On by default.** After **Fetch missing info from TMDB**, CineLibrary
+copies the fetched poster, fanart and cast photos into the movie's or
+show's folder, and a movie's details into its CineLibrary state file
+there, now or the next time that drive is connected (see
+[Filling in missing details](#filling-in-missing-details-tmdb)). Only
+missing files are added, and a movie's `.nfo` only gets the tags it was
+missing. Turn it off and
+CineLibrary never writes them to your drives by itself; turning it back
+on catches up.
+
+### Show missing episodes
+
+**On by default.** When you open a show, CineLibrary asks TMDb which aired
+episodes aren't in your library and shows them greyed (see
+[The show page](#the-show-page)). It's the only thing CineLibrary goes
+online for by itself. Turn it off to keep CineLibrary fully offline unless
+you click **Fetch missing info from TMDB**. It applies the next time you
+open a show.
+
+---
+
+## Keyboard shortcuts
+
+| Shortcut         | Action                                       |
+|------------------|----------------------------------------------|
+| `/`              | Focus the search box                         |
+| `Ctrl+F`         | Focus the search box (alternate)             |
+| `Esc`            | Clear search, then clear multi-select        |
+| `F`              | Toggle favorite on the current selection     |
+| `W`              | Toggle To Watch on the current selection    |
+| `Delete`         | Remove selection from the current list view  |
+| `Ctrl+A`         | Select every card currently visible          |
+| `Ctrl+click`     | Toggle a single card into the selection      |
+| `Shift+click`    | Range-select from the last clicked card      |
+| `Ctrl+B`         | Toggle sidebar                               |
+| `Ctrl+Q`         | Quit                                         |
+| `Ctrl+Shift+/`   | Show this shortcuts list in-app              |
+| `PgDn` / `PgUp`  | Scroll the movie grid one viewport up/down   |
+| `Home` / `End`   | Jump to the top / bottom of the movie list   |
+| `↑` / `↓`        | Scroll by one row of cards                   |
+
+Card shortcuts (`F`, `W`, `Delete`) operate on the **current
+multi-selection**. Select one or more cards first with click,
+Ctrl+click, or Shift+click — then the key applies to all of them.
+
+The card shortcuts and `/` are gated on text-edit focus, so typing
+those letters into the search box still works normally.
+
+Navigation shortcuts skip themselves when the search box has focus, so
+typing in the search field still works normally.
+
+---
+
+## Exporting your catalog
+
+Click **Backup & Export** under **Tools** in the sidebar and choose:
+
+- **All movies** as CSV or HTML: every movie in your library.
+- **This view** as CSV or HTML: shown when All Movies is filtered,
+  searched or showing a list. It writes every movie in that view, in its
+  sort order, not just the ones loaded on screen.
+
+The two formats:
+
+- **CSV** — spreadsheet-friendly, one row per movie, columns for
+  title, year, runtime, rating, genre, drive, watched status, and
+  file path. Open in Excel or Numbers.
+- **HTML** — a single self-contained HTML file with poster thumbnails
+  inline. Useful for sharing your catalog with someone who doesn't
+  have CineLibrary installed.
+
+To export only your To Watch, open *To Watch* first, then choose
+**Export** › **This view**.
+
+---
+
+## Updates
+
+CineLibrary checks GitHub on startup for new releases. When a new
+version is out, you'll see a quiet toast bottom-right:
+
+> *CineLibrary vX.Y.Z is available* &nbsp;&nbsp; **[ Download ]**
+
+- Click **Download** to open the release page in your browser.
+  CineLibrary never installs updates silently.
+- Click **✕** to dismiss. CineLibrary remembers that you skipped this
+  version and won't ask again until the next release.
+
+If your machine is offline, the update check fails silently and the
+app behaves normally.
+
+---
+
+## Where your data lives
+
+Everything CineLibrary knows about your library lives in
+`CineLibrary-Data\` next to the executable:
+
+```
+<install folder>\
+├── CineLibrary.exe
+├── CineLibrary-Data\
+│   ├── cinelibrary.db        # SQLite catalog (movies, drives, prefs)
+│   └── cache\                # Compressed poster/thumb cache
+└── ...
+```
+
+That folder is **portable**. Copy or move the install folder anywhere
+— another machine, a USB stick, an external drive — and the app and
+catalog go together. There is **no telemetry**, no cloud sync, no
+account required. Your library data never leaves your machine.
+
+---
+
+## Troubleshooting
+
+### A movie I just added isn't showing up
+
+Hit **Rescan** on the drive that contains it. CineLibrary catalogs
+folders that have a `.nfo` file inside; if that movie hasn't been scraped
+yet, it won't show up.
+
+### Posters are missing or look wrong
+
+CineLibrary reads `poster.jpg` (or `folder.jpg`, or the largest image
+file alongside the `.nfo`) per the Kodi convention. Re-scrape with
+CineLibrary Essentials and rescan the drive in CineLibrary.
+
+### Movies are showing OFFLINE even though the drive is plugged in
+
+Open the **Drives** page and check the connection dot. If it's grey
+despite the drive being plugged in, the drive's volume serial may have
+changed (common after a re-format or partition change). Remove the
+drive entry and re-add the same root — CineLibrary will reconcile.
+
+### CineLibrary won't launch / crashes immediately
+
+- Check that you're on Windows 10 build 19041 or later (`winver`).
+- Make sure the install folder is on a local or external drive, not
+  a network share — WinUI has rough edges with UNC paths.
+- If the issue persists, open an issue on
+  [GitHub](https://github.com/aungkokomm/CineLibraryCS/issues) with
+  the exit code from the launcher script and a short description of
+  what you were doing. Don't include personal paths in the title.
+
+### I want to start over with a clean catalog
+
+Close CineLibrary. Delete the `CineLibrary-Data\` folder next to the
+executable. Re-launch — CineLibrary will create a fresh database. Your
+movie files are untouched.
+
+---
+
+## Where to next
+
+- **Found a bug or have an idea?**
+  [Open an issue.](https://github.com/aungkokomm/CineLibraryCS/issues)
+- **Want to see what's coming?** Check the
+  [releases page](https://github.com/aungkokomm/CineLibraryCS/releases)
+  for changelogs.
+- **Want to contribute?** PRs are welcome. The codebase is C# / WinUI 3
+  with `Microsoft.Data.Sqlite` and not much else — easy to dive into.
+
+Happy cataloging. 🎬

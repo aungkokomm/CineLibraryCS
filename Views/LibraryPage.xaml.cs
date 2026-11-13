@@ -127,6 +127,27 @@ public sealed partial class LibraryPage : Page
         _vm.PropertyChanged += OnVmPropertyChanged;
         _vm.Movies.CollectionChanged += (_, _) => UpdateEmptyState();
 
+        // 5.4.0: a person's films show whether they're on the Wishlist, as it changes elsewhere
+        Wishlist.Changed += () =>
+        {
+            if (PersonFilmsRepeater.ItemsSource is not List<TmdbFilmItem> films) return;
+            var wished = AppState.Instance.Db.GetWishlistIds();
+            foreach (var film in films) film.Wished = wished.Contains(film.Film.TmdbId);
+        };
+
+        // 5.4.0: Alt+Left, the keyboard's Back key and the mouse's back button do ‹ Back too,
+        // when the page has one. The keys are added here: XAML can't read "GoBack" as a key
+        // (it stopped this page from loading).
+        BackToggleBtn.KeyboardAccelerators.Add(new KeyboardAccelerator { Key = VirtualKey.Left, Modifiers = VirtualKeyModifiers.Menu });
+        BackToggleBtn.KeyboardAccelerators.Add(new KeyboardAccelerator { Key = VirtualKey.GoBack });
+        AddHandler(PointerPressedEvent, new PointerEventHandler((_, e) =>
+        {
+            if (BackToggleBtn.Visibility != Visibility.Visible
+                || !e.GetCurrentPoint(this).Properties.IsXButton1Pressed) return;
+            e.Handled = true;
+            (App.MainWindow as MainWindow)?.OnLibraryBackRequested();
+        }), handledEventsToo: true);
+
         // v4.0.0: the page is cached and put back on screen as it is, so
         // re-query the shows row each time; a show may have been made a
         // favorite (or finished) on its own page meanwhile.
@@ -488,6 +509,8 @@ public sealed partial class LibraryPage : Page
         DispatcherQueue.Post(() =>
         {
             _ = _vm.LoadAsync();
+            _personKey = null;   // 5.4.0: a person's Watched & Gone and other films again
+            RefreshPerson();
             SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -755,6 +778,9 @@ public sealed partial class LibraryPage : Page
         KeyboardAccelerators.Add(acc);
     }
 
+    /// <summary>5.4.0: the cards again from the database, after a scan in the background.</summary>
+    public void Reload() => _ = _vm.LoadAsync();
+
     public void FocusSearchBox()
     {
         (App.MainWindow as CineLibraryCS.MainWindow)?.FocusTitleSearch();
@@ -840,7 +866,8 @@ public sealed partial class LibraryPage : Page
     {
         // v4.0.0: a page whose only items are TV shows (the row above) isn't empty.
         var empty = _vm.Movies.Count == 0 && !_vm.IsLoading
-                    && _rowShowCount == 0;
+                    && _rowShowCount == 0
+                    && _vm.FilterActor == null && _vm.FilterDirector == null;   // 5.4.0: a person's page has its own parts
         EmptyState.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         GridBorder.Opacity = empty ? 0 : 1;
         ListBorder.Opacity = empty ? 0 : 1;
@@ -961,6 +988,9 @@ public sealed partial class LibraryPage : Page
         MovieCardControl.SetGlobalDensity(tag);
         TvShowCard.SetLibraryDensity(tag);
         Controls.CardCell.FitGrid(GridLayout, (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight), tag);
+        foreach (var personGrid in new[] { PersonFilmsRepeater, PersonGoneRepeater })   // 5.4.0: a person's other films
+            Controls.CardCell.FitGrid((UniformGridLayout)personGrid.Layout,
+                (MovieCardControl.GlobalCardWidth, MovieCardControl.GlobalCardHeight), tag);
         // the show rows above the grid: spaced like it, and as far from it as its rows
         // (v4.9.0: counting the room under them for their scroll bar)
         ((StackLayout)ShowsInSearchRepeater.Layout).Spacing = ((StackLayout)ShowsInListRepeater.Layout).Spacing = Controls.CardCell.GapFor(tag);
@@ -1005,7 +1035,7 @@ public sealed partial class LibraryPage : Page
         ContinueGroups.Visibility == Visibility.Visible
             ? Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(ContinueGroups).Width - ContinueGroups.Padding.Left - ContinueGroups.Padding.Right
             : Microsoft.UI.Xaml.Controls.Primitives.LayoutInformation.GetAvailableSize(GridRepeater).Width,
-        [ShowsInListRepeater, ShowsInSearchRepeater, .. ContinueRepeaters]);
+        [ShowsInListRepeater, ShowsInSearchRepeater, PersonGoneShowsRepeater, .. ContinueRepeaters]);
 
     private ItemsRepeater[] ContinueRepeaters => new[] { ContinueWeek, ContinueMonth, ContinueEarlier };
     private bool? _continueList;   // cards or rows in the groups now; null to lay them out afresh
@@ -1204,6 +1234,8 @@ public sealed partial class LibraryPage : Page
             UpdateFilterChips();
             RefreshShowsInList();
             RefreshShowsInSearch();
+            RefreshPerson();
+            UpdatePersonSections();
             // v2.9 — Recently Added / Recently Watched / On This Day are
             // accessed via sidebar entries instead of home rows now; the
             // horizontal rows interfered with vertical scrolling through
@@ -1226,6 +1258,291 @@ public sealed partial class LibraryPage : Page
         _vm.ShowContinueWatching();
         _shownRowKey = "";
         RefreshShowsInList();
+    }
+
+    // ── 5.4.0: the actor or director above their films ───────────────────────
+
+    private string? _personKey;
+    private PersonInfo? _person;
+    private bool _personBioOpen;
+    private bool _personFilms;   // the "not in your library" part is ready to show
+    private int _personGoneCount;
+    private DatabaseService.PersonStats? _personStats;   // 5.4.1: the numbers under "In your library"
+    private int _personGen;                              // which opening of a person a late answer belongs to
+    private int _baseFacts;                              // born, age, birthplace: Awards go after them
+
+    /// <summary>
+    /// On "Movies with" an actor or "Directed by" a director: their photo, facts and
+    /// biography from TMDb, then their films in three parts: in your library (the grid),
+    /// in Watched &amp; Gone, and not in your library (a director's every film, an actor's
+    /// best known). Kept after the first look (see People), so it shows at once and
+    /// offline after that.
+    /// </summary>
+    private async void RefreshPerson()
+    {
+        var name = _vm.FilterActor ?? _vm.FilterDirector;
+        var director = _vm.FilterActor == null && name != null;
+        var key = name == null ? null : $"{(director ? "d" : "a")}:{name}";
+        if (key == _personKey) return;
+        _personKey = key;
+        _person = null;
+        _personBioOpen = false;
+        _personFilms = false;
+        PersonPanel.Visibility = PersonOwnedHeader.Visibility = Visibility.Collapsed;
+        PersonGoneSection.Visibility = PersonFilmsSection.Visibility = Visibility.Collapsed;
+        PersonFilmsRepeater.ItemsSource = PersonGoneRepeater.ItemsSource = PersonGoneShowsRepeater.ItemsSource = null;
+        _personGoneCount = 0;
+        PersonFacts.Children.Clear();
+        PersonPeople.Children.Clear();
+        PersonAwardsPanel.Child = null;
+        PersonAwardsPanel.Visibility = Visibility.Collapsed;
+        _personStats = null;
+        var gen = ++_personGen;
+        if (name == null) return;
+
+        // 5.4.1: from the library at once: the numbers under "In your library", and who they work with
+        _personStats = AppState.Instance.Db.GetPersonStats(name, director);
+        ShowCollaborators(name, director);
+
+        // Their Watched & Gone records by the cast and crew kept with them (offline too)
+        ShowPersonGone(name, director, null);
+
+        // While TMDb answers (at once when it's kept): the initials and a line saying so
+        PersonInitials.Text = Initials(name);
+        PersonPhoto.Source = null;
+        PersonLife.Text = "Looking them up on TMDb…";
+        PersonLife.Visibility = Visibility.Visible;
+        PersonBio.Visibility = PersonLinks.Visibility = Visibility.Collapsed;
+        PersonPanel.Visibility = Visibility.Visible;
+        UpdatePersonSections();
+
+        var (info, offline) = await People.GetAsync(name);
+        if (_personKey != key) return;   // another person was opened meanwhile
+        if (info == null)
+        {
+            if (offline) PersonLife.Text = "Connect to the internet to see who they are and their other films.";
+            else if (PersonPeople.Children.Count > 0) PersonLife.Text = director ? "Director" : "Actor";   // TMDb doesn't know them
+            else PersonPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        _person = info;
+
+        var photo = People.PhotoPath(info.TmdbId);
+        if (File.Exists(photo)) PersonPhoto.Source = new BitmapImage(new Uri(photo)) { DecodePixelWidth = 192 };
+        var today = DateTime.Today;
+        ShowFacts(info, today);
+        _baseFacts = PersonFacts.Children.Count;
+        if (!director && People.BirthYear(info) is int born) _vm.SetBirthYear(name, born);   // 5.4.1: their age in each film
+        _ = ShowPersonAwardsAsync(info.ImdbId, gen);
+        PersonLife.Text = director ? "Director" : "Actor";
+        PersonLife.Visibility = PersonFacts.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        PersonBio.Text = info.Biography.Length > 0 ? info.Biography : "TMDb has no biography for them yet.";
+        PersonBio.MaxLines = 3;
+        PersonMoreBtn.Content = "More";
+        PersonMoreBtn.Visibility = Visibility.Collapsed;   // shown when the text is cut (OnPersonBioTrimmed)
+        PersonImdbBtn.Visibility = string.IsNullOrEmpty(info.ImdbId) ? Visibility.Collapsed : Visibility.Visible;
+        PersonBio.Visibility = PersonLinks.Visibility = Visibility.Visible;
+        PersonBio.UpdateLayout();
+        if (PersonBio.IsTextTrimmed) PersonMoreBtn.Visibility = Visibility.Visible;
+
+        // Their films you had: Watched & Gone records that are films of theirs on TMDb too
+        var db = AppState.Instance.Db;
+        var owned = new OwnedMovies(db.GetMovieKeys());
+        var gone = new OwnedMovies(db.GetMovieKeys(gone: true));
+        ShowPersonGone(name, director, (director ? info.Directed : info.Acted).Select(gone.Find).OfType<int>().ToHashSet());
+
+        // and the ones you don't have and haven't seen
+        var (missing, total, _, _) = People.Strip(info, director, owned, gone, today);
+        // 5.4.1: how many of a director's films you've seen (watched in the library, or in Watched & Gone)
+        if (director && info.Directed.Where(f => People.IsReleased(f, today)).ToList() is { Count: > 0 } released)
+        {
+            var watched = db.GetWatchedMovieIds();
+            var seen = released.Count(f => owned.Find(f) is int row && watched.Contains(row) || gone.Has(f));
+            var green = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentGreenBrush"];
+            PersonFacts.Children.Add(Fact(green, "Seen", SeenBar(seen, released.Count, green)));
+        }
+        _personFilms = director ? total > 0 : missing.Count > 0;
+        string Films(int n) => n == 1 ? "film" : "films";
+        PersonFilmsCount.Text = missing.Count.ToString("N0");
+        PersonFilmsCountPill.Visibility = missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PersonFilmsNote.Text = !director ? "Their best-known films"
+            : missing.Count == 0 ? $"You have or have seen all {total} {Films(total)} they directed"
+            : $"of the {total} {Films(total)} they directed";
+        var wished = db.GetWishlistIds();
+        PersonFilmsRepeater.ItemsSource = missing.Select(f => new TmdbFilmItem(f, People.YearText(f, today),
+            Wishlist.Poster(f), info.Name.Length > 0 ? info.Name : name, wished.Contains(f.TmdbId))).ToList();
+        PersonFilmsCards.Visibility = missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdatePersonSections();
+    }
+
+    /// <summary>5.4.1: a label in its colour over a value with the bar beside it, as DetailField.Field, in any colour.</summary>
+    private static StackPanel Fact(Microsoft.UI.Xaml.Media.Brush brush, string label, UIElement value)
+    {
+        var fact = new StackPanel { Spacing = 5 };
+        fact.Children.Add(DetailField.Label(label, brush));
+        fact.Children.Add(new Border { BorderBrush = brush, BorderThickness = new Thickness(2, 0, 0, 0), Padding = new Thickness(10, 0, 0, 0), Child = value });
+        return fact;
+    }
+
+    /// <summary>5.4.1: "7 of their 12 films" over a bar.</summary>
+    private static StackPanel SeenBar(int seen, int total, Microsoft.UI.Xaml.Media.Brush brush)
+    {
+        var panel = new StackPanel { Spacing = 6 };
+        panel.Children.Add(new TextBlock { Text = $"{seen} of their {total} {(total == 1 ? "film" : "films")}", FontSize = 14, Foreground = ThemeBrushes.Get("TextBrush") });
+        panel.Children.Add(new ProgressBar { Width = 180, Maximum = total, Value = seen, Foreground = brush, HorizontalAlignment = HorizontalAlignment.Left });
+        return panel;
+    }
+
+    /// <summary>
+    /// 5.4.1: who they work with most in your films: an actor's co-stars and directors, a
+    /// director's actors, each with how many films; click one for their page (‹ Back to this one).
+    /// </summary>
+    private void ShowCollaborators(string name, bool director)
+    {
+        PersonPeople.Children.Clear();
+        var people = AppState.Instance.Db.GetCollaborators(name, director);
+        void Add(string label, string brushKey, List<(string Name, int Films, bool IsDirector)> list)
+        {
+            if (list.Count == 0) return;
+            var shown = list.Select(p => $"{p.Name} ({p.Films})").ToList();
+            var person = shown.Zip(list).ToDictionary(x => x.First, x => x.Second);
+            var brush = ThemeBrushes.Get(brushKey);
+            var names = DetailField.Names(shown, s => { if (person.TryGetValue(s, out var p)) GoToPerson(p.Name, p.IsDirector); },
+                                          fontSize: 14, hover: brush);
+            names.MaxWidth = 560;
+            PersonPeople.Children.Add(Fact(brush, label, names));
+        }
+        Add(director ? "Often cast" : "Often with", "DetailPeopleBrush", people.Where(p => !p.IsDirector).ToList());
+        Add("Often directed by", "DetailProductionBrush", people.Where(p => p.IsDirector).ToList());
+    }
+
+    private void GoToPerson(string person, bool isDirector)
+    {
+        if (App.MainWindow is not MainWindow mw) return;
+        var label = _vm.FilterActor ?? _vm.FilterDirector ?? "Back";
+        var back = mw.CaptureView();
+        if (isDirector) mw.NavigateLibraryByDirector(person);
+        else mw.NavigateLibraryByActor(person);
+        mw.SetLibraryBack(label, back);
+    }
+
+    /// <summary>5.4.1: their awards from Wikidata: a summary among the facts that opens the list.</summary>
+    private async Task ShowPersonAwardsAsync(string? imdbId, int gen)
+    {
+        var awards = await Awards.ForPersonAsync(imdbId);
+        if (gen != _personGen || awards is not { Count: > 0 }) return;
+        var link = new HyperlinkButton { Content = Awards.Summary(awards), Padding = new Thickness(0), FontSize = 14 };
+        link.Click += (_, _) => PersonAwardsPanel.Visibility =
+            PersonAwardsPanel.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        ToolTipService.SetToolTip(link, "Show or hide their awards (from Wikidata)");
+        PersonFacts.Children.Insert(Math.Min(_baseFacts, PersonFacts.Children.Count), Fact(ThemeBrushes.Get("ImdbGoldBrush"), "Awards", link));
+        PersonAwardsPanel.Child = AwardsView.List(awards, forFilm: false);
+    }
+
+    /// <summary>Born, age or died, and birthplace, coloured by kind as the movie window's details.</summary>
+    private void ShowFacts(PersonInfo info, DateTime today)
+    {
+        PersonFacts.Children.Clear();
+        foreach (var (kind, label, value) in People.Facts(info, today))
+        {
+            var colour = kind switch
+            {
+                "born" => DetailField.Kind.People,
+                "age" => DetailField.Kind.Production,
+                "died" => DetailField.Kind.Story,
+                _ => DetailField.Kind.File,
+            };
+            PersonFacts.Children.Add(DetailField.Field(colour, label, new TextBlock
+            {
+                Text = value, FontSize = 14, TextWrapping = TextWrapping.Wrap, MaxWidth = 420,
+                Foreground = ThemeBrushes.Get("TextBrush"),
+            }));
+        }
+    }
+
+    /// <summary>
+    /// The person's films and shows in Watched &amp; Gone: the records with them in the cast
+    /// (or as the director) kept with the record, and <paramref name="matched"/>, the records
+    /// that are their films on TMDb. Newest first.
+    /// </summary>
+    private void ShowPersonGone(string name, bool director, IReadOnlySet<int>? matched)
+    {
+        var db = AppState.Instance.Db;
+        var connected = AppState.Instance.Connected;
+        var movies = db.GetMovies(new DatabaseService.ListOptions(ArchivedOnly: true,
+            Actor: director ? null : name, Director: director ? name : null,
+            SortKey: "year", SortDir: "desc", Limit: 10000), connected);
+        if (matched is { Count: > 0 })
+        {
+            var have = movies.Select(m => m.Id).ToHashSet();
+            var more = db.GetMovies(new DatabaseService.ListOptions(ArchivedOnly: true, SortKey: "year", SortDir: "desc",
+                Limit: 10000), connected).Where(m => matched.Contains(m.Id) && !have.Contains(m.Id));
+            movies = movies.Concat(more).OrderByDescending(m => m.Year ?? 0).ToList();
+        }
+        var shows = director ? new List<TvShowListItem>() : db.GetTvShowsWithActor(name, connected, gone: true);
+        PersonGoneRepeater.ItemsSource = movies.Count > 0 ? movies : null;
+        PersonGoneShowsRepeater.ItemsSource = shows.Count > 0 ? shows : null;
+        PersonGoneMovies.Visibility = movies.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PersonGoneShowsCards.Visibility = shows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var m in movies) m.AgeInRole = _vm.AgeIn(m);   // 5.4.1: once their birthday is known
+        _personGoneCount = movies.Count + shows.Count;
+        PersonGoneCount.Text = _personGoneCount.ToString("N0");
+        PersonGoneNote.Text = "Watched and let go, kept as records";
+        UpdatePersonSections();
+    }
+
+    /// <summary>
+    /// The headings and parts of a person's page. Watched &amp; Gone and the films not in
+    /// the library come after every one of theirs in it, so only once the grid holds them all.
+    /// </summary>
+    private void UpdatePersonSections()
+    {
+        var person = _personKey != null;
+        var loaded = person && !_vm.HasMore && !_vm.IsLoading;
+        var (movies, shows) = (_vm.FilterTotal, _rowShowCount);
+        // (not while the first of their films load: the count would be the last page's)
+        PersonOwnedHeader.Visibility = person && (_vm.Movies.Count > 0 || !_vm.IsLoading) ? Visibility.Visible : Visibility.Collapsed;
+        PersonOwnedCount.Text = (movies + shows).ToString("N0");
+        var note = new List<string>();
+        if (movies + shows == 0) note.Add("None of theirs yet");
+        else if (shows > 0) note.Add($"{movies:N0} {(movies == 1 ? "movie" : "movies")}, {shows:N0} TV {(shows == 1 ? "show" : "shows")}");
+        if (_personStats is { Films: > 0 } st)   // 5.4.1: your history with them
+        {
+            note.Add($"{st.Watched:N0} watched");
+            if (st.AverageRating is double avg) note.Add($"★ {avg.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)} average");
+            if (st.FirstYear is int first && st.LastYear is int last) note.Add(first == last ? $"{first}" : $"{first}-{last}");
+        }
+        PersonOwnedNote.Text = string.Join(" · ", note);
+        PersonGoneSection.Visibility = loaded && _personGoneCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PersonFilmsSection.Visibility = loaded && _personFilms ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 0 ? "?"
+             : parts.Length == 1 ? parts[0][..1].ToUpperInvariant()
+             : (parts[0][..1] + parts[^1][..1]).ToUpperInvariant();
+    }
+
+    private void OnPersonBioTrimmed(TextBlock sender, IsTextTrimmedChangedEventArgs e)
+    {
+        PersonMoreBtn.Visibility = sender.IsTextTrimmed || _personBioOpen ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnPersonMore(object sender, RoutedEventArgs e)
+    {
+        _personBioOpen = !_personBioOpen;
+        PersonBio.MaxLines = _personBioOpen ? 0 : 3;
+        PersonMoreBtn.Content = _personBioOpen ? "Less" : "More";
+    }
+
+    private async void OnPersonLink(object sender, RoutedEventArgs e)
+    {
+        if (_person is not { } p) return;
+        var url = ReferenceEquals(sender, PersonImdbBtn) ? $"https://www.imdb.com/name/{p.ImdbId}/"
+                                                         : $"https://www.themoviedb.org/person/{p.TmdbId}";
+        try { await Launcher.LaunchUriAsync(new Uri(url)); } catch { }
     }
 
     // ── v2.9 TV-in-search row ────────────────────────────────────────────────
@@ -1308,6 +1625,7 @@ public sealed partial class LibraryPage : Page
             _vm.IsRecentlyAdded    ? DatabaseService.TvShowPage.RecentlyAdded : null;   // v4.8.0 (#25)
         var key = _vm.UserListId is int listId ? $"list:{listId}"
                 : _vm.Genre is string genreKey ? $"genre:{genreKey}"
+                : _vm.FilterActor is string actorKey ? $"actor:{actorKey}"
                 : page?.ToString();
         key = $"{key}|{_vm.WatchedFilter}|{_vm.FilterAudio}";
         if (key == _shownRowKey) { ApplyContinueGroups(); return; }
@@ -1316,6 +1634,7 @@ public sealed partial class LibraryPage : Page
         var db = AppState.Instance.Db;
         var shows = _vm.UserListId is int id ? db.GetTvShowsInList(id, AppState.Instance.Connected)
                   : _vm.Genre is string genre ? db.GetTvShowsInGenre(genre, AppState.Instance.Connected)   // v4.8.0 (#25): By Genre
+                  : _vm.FilterActor is string actor ? db.GetTvShowsWithActor(actor, AppState.Instance.Connected)   // 5.4.0: their shows
                   : page is { } p ? db.GetTvShowsForPage(p, AppState.Instance.Connected)
                   : new List<TvShowListItem>();
         shows = ByWatched(shows);
@@ -1608,6 +1927,24 @@ public sealed partial class LibraryPage : Page
     }
 
     public void HideBrowseBack() => BackToggleBtn.Visibility = Visibility.Collapsed;
+
+    // 5.4.0: what MainWindow.CaptureView keeps, to come back to this view
+    public string PageTitle => PageTitleText.Text;
+    public string? BackLabelShown => BackToggleBtn.Visibility == Visibility.Visible ? BackLabel.Text : null;
+    public double ScrollOffset => MainScroller.VerticalOffset;
+
+    /// <summary>Scrolls to where the view was, loading more of it first when that was further down.</summary>
+    public async Task ScrollToAsync(double offset)
+    {
+        for (var i = 0; i < 30 && _vm.HasMore; i++)
+        {
+            MainScroller.UpdateLayout();
+            if (MainScroller.ScrollableHeight >= offset) break;
+            await _vm.LoadMoreAsync();
+        }
+        MainScroller.UpdateLayout();
+        MainScroller.ChangeView(null, offset, null, true);
+    }
 }
 
 

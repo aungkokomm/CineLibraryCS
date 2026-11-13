@@ -49,6 +49,18 @@ public static class BackupService
         [JsonPropertyName("movies")]   public List<MovieEntry> Movies { get; set; } = new();
         [JsonPropertyName("shows")]    public List<ShowEntry> Shows { get; set; } = new();
         [JsonPropertyName("events")]   public List<WatchEvent> Events { get; set; } = new();
+        [JsonPropertyName("wishlist")] public List<WishlistFilm>? Wishlist { get; set; }   // 5.4.0
+    }
+
+    /// <summary>5.4.0: a film on the Wishlist, by its TMDb id.</summary>
+    public class WishlistFilm
+    {
+        [JsonPropertyName("tmdbId")]        public int TmdbId { get; set; }
+        [JsonPropertyName("title")]         public string Title { get; set; } = "";
+        [JsonPropertyName("originalTitle")] public string? OriginalTitle { get; set; }
+        [JsonPropertyName("releaseDate")]   public string? ReleaseDate { get; set; }
+        [JsonPropertyName("posterPath")]    public string? PosterPath { get; set; }
+        [JsonPropertyName("addedFrom")]     public string? AddedFrom { get; set; }
     }
 
     public class MovieEntry
@@ -311,6 +323,15 @@ public static class BackupService
             }
         }
 
+        // 5.4.0: the Wishlist (oldest first, so an import keeps its order)
+        var wishlist = db.GetWishlist();
+        if (wishlist.Count > 0)
+            b.Wishlist = wishlist.AsEnumerable().Reverse().Select(w => new WishlistFilm
+            {
+                TmdbId = w.Film.TmdbId, Title = w.Film.Title, OriginalTitle = w.Film.OriginalTitle,
+                ReleaseDate = w.Film.ReleaseDate, PosterPath = w.Film.PosterPath, AddedFrom = w.AddedFrom,
+            }).ToList();
+
         return b;
     }
 
@@ -438,6 +459,31 @@ public static class BackupService
                 ins.Parameters.AddWithValue("@a", e.Action);
                 ins.ExecuteNonQuery();
                 eventsAppended++;
+            }
+
+            // 5.4.0: Wishlist films, added when they aren't on it already, in the backup's order
+            long addedAt;
+            using (var last = conn.CreateCommand())
+            {
+                last.Transaction = tx;
+                last.CommandText = "SELECT COALESCE(MAX(added_at), 0) + 1 FROM wishlist";
+                addedAt = Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Convert.ToInt64(last.ExecuteScalar()));
+            }
+            foreach (var w in b.Wishlist ?? new())
+            {
+                if (w.TmdbId <= 0 || string.IsNullOrWhiteSpace(w.Title)) continue;
+                using var ins = conn.CreateCommand();
+                ins.Transaction = tx;
+                ins.CommandText = @"INSERT OR IGNORE INTO wishlist(tmdb_id, title, original_title, release_date, poster_path, added_from, added_at)
+                                    VALUES(@i, @t, @o, @d, @p, @f, @a)";
+                ins.Parameters.AddWithValue("@a", addedAt++);
+                ins.Parameters.AddWithValue("@i", w.TmdbId);
+                ins.Parameters.AddWithValue("@t", w.Title);
+                ins.Parameters.AddWithValue("@o", (object?)w.OriginalTitle ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@d", (object?)w.ReleaseDate ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@p", (object?)w.PosterPath ?? DBNull.Value);
+                ins.Parameters.AddWithValue("@f", (object?)w.AddedFrom ?? DBNull.Value);
+                ins.ExecuteNonQuery();
             }
 
             tx.Commit();
