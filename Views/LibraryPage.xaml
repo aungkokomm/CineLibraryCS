@@ -545,6 +545,7 @@
                 </StackPanel>
                 </Border>
                 <Border x:Name="PersonFilmsCards" Padding="24,0,24,24">
+                  <StackPanel Spacing="16">
                     <ItemsRepeater x:Name="PersonFilmsRepeater" TabFocusNavigation="Once">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout MinItemWidth="150" MinItemHeight="269"
@@ -557,6 +558,10 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
+                    <!-- 5.4.5: an actor's every film you don't have, under their best-known -->
+                    <HyperlinkButton x:Name="PersonFilmsAllBtn" Click="OnPersonFilmsAll" Visibility="Collapsed"
+                                     HorizontalAlignment="Center" FontSize="14"/>
+                  </StackPanel>
                 </Border>
             </StackPanel>
           </StackPanel>

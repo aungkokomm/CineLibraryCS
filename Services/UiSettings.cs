@@ -33,6 +33,9 @@ public static class UiSettings
     private const string KeyPlayerFullScreen = "ui_playerFullScreen";     // v5.2.0
     private const string KeySkipTimesOnline = "ui_skipTimesOnline";       // 5.3.0
     private const string KeyFindSubtitlesOnline = "ui_findSubtitlesOnline";   // v4.10.0
+    private const string KeySkipBack = "ui_skipBackSeconds";              // 5.4.3
+    private const string KeySkipForward = "ui_skipForwardSeconds";        // 5.4.3
+    private const string KeyClearVoices = "ui_clearVoices";               // 5.4.3
 
     /// <summary>How much Windows Mica material shows behind the window.
     /// Off = flat solid (also best on weak GPUs); Subtle / Strong control how
@@ -93,6 +96,14 @@ public static class UiSettings
     public static bool SkipTimesOnline { get; private set; } = true;
     public static bool FindSubtitlesOnline { get; private set; }
 
+    /// <summary>5.4.3: what Skip back and Skip forward can be set to, in seconds.</summary>
+    public static readonly int[] SkipChoices = [5, 10, 15, 30, 60];
+    /// <summary>5.4.3: how far the player's skip buttons and the Left and Right keys jump (seconds). Default 10 back, 30 forward.</summary>
+    public static int SkipBackSeconds { get; private set; } = 10;
+    public static int SkipForwardSeconds { get; private set; } = 30;
+    /// <summary>5.4.3: the player's equalizer that brings voices up and rumble down. Default off.</summary>
+    public static bool ClearVoices { get; private set; }
+
     /// <summary>v4.6.0: a show page asks TMDb which aired episodes aren't on
     /// disk (the one thing CineLibrary goes online for by itself). Default on.</summary>
     public static bool CheckMissingEpisodes { get; private set; } = true;
@@ -123,6 +134,9 @@ public static class UiSettings
         PlayerFullScreen = AppState.Instance.GetPref(KeyPlayerFullScreen, "true") == "true";
         SkipTimesOnline = AppState.Instance.GetPref(KeySkipTimesOnline, "true") == "true";
         FindSubtitlesOnline = AppState.Instance.GetPref(KeyFindSubtitlesOnline, "false") == "true";
+        SkipBackSeconds = Skip(AppState.Instance.GetPref(KeySkipBack, "10"), 10);
+        SkipForwardSeconds = Skip(AppState.Instance.GetPref(KeySkipForward, "30"), 30);
+        ClearVoices = AppState.Instance.GetPref(KeyClearVoices, "false") == "true";
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
 
@@ -230,6 +244,30 @@ public static class UiSettings
     {
         FindSubtitlesOnline = value;
         AppState.Instance.SetPref(KeyFindSubtitlesOnline, value ? "true" : "false");
+    }
+
+    private static int Skip(string text, int fallback) =>
+        int.TryParse(text, out var seconds) && SkipChoices.Contains(seconds) ? seconds : fallback;
+
+    /// <summary>No Changed event: it applies to the next Play.</summary>
+    public static void SetSkipBackSeconds(int value)
+    {
+        if (!SkipChoices.Contains(value)) return;
+        SkipBackSeconds = value;
+        AppState.Instance.SetPref(KeySkipBack, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static void SetSkipForwardSeconds(int value)
+    {
+        if (!SkipChoices.Contains(value)) return;
+        SkipForwardSeconds = value;
+        AppState.Instance.SetPref(KeySkipForward, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static void SetClearVoices(bool value)
+    {
+        ClearVoices = value;
+        AppState.Instance.SetPref(KeyClearVoices, value ? "true" : "false");
     }
 
     public static void SetPauseScreen(bool value)

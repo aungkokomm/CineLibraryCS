@@ -1342,8 +1342,12 @@ public sealed partial class LibraryPage : Page
         PersonMoreBtn.Visibility = Visibility.Collapsed;   // shown when the text is cut (OnPersonBioTrimmed)
         PersonImdbBtn.Visibility = string.IsNullOrEmpty(info.ImdbId) ? Visibility.Collapsed : Visibility.Visible;
         PersonBio.Visibility = PersonLinks.Visibility = Visibility.Visible;
-        PersonBio.UpdateLayout();
-        if (PersonBio.IsTextTrimmed) PersonMoreBtn.Visibility = Visibility.Visible;
+        // More, once the text is laid out (5.4.2: not by forcing a layout pass here, which
+        // could end in "a cycle occurred while laying out the GUI")
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (_personKey == key && PersonBio.IsTextTrimmed) PersonMoreBtn.Visibility = Visibility.Visible;
+        });
 
         // Their films you had: Watched & Gone records that are films of theirs on TMDb too
         var db = AppState.Instance.Db;
@@ -1361,19 +1365,43 @@ public sealed partial class LibraryPage : Page
             var green = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentGreenBrush"];
             PersonFacts.Children.Add(Fact(green, "Seen", SeenBar(seen, released.Count, green)));
         }
-        _personFilms = director ? total > 0 : missing.Count > 0;
+        // 5.4.5: an actor's best-known 20 first, and Show all for every film of theirs you don't have
+        var all = director ? missing : People.AllMissing(info, owned, gone);
+        _personFilms = director ? total > 0 : all.Count > 0;
         string Films(int n) => n == 1 ? "film" : "films";
-        PersonFilmsCount.Text = missing.Count.ToString("N0");
-        PersonFilmsCountPill.Visibility = missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        PersonFilmsNote.Text = !director ? "Their best-known films"
-            : missing.Count == 0 ? $"You have or have seen all {total} {Films(total)} they directed"
-            : $"of the {total} {Films(total)} they directed";
-        var wished = db.GetWishlistIds();
-        PersonFilmsRepeater.ItemsSource = missing.Select(f => new TmdbFilmItem(f, People.YearText(f, today),
-            Wishlist.Poster(f), info.Name.Length > 0 ? info.Name : name, wished.Contains(f.TmdbId))).ToList();
-        PersonFilmsCards.Visibility = missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PersonFilmsCount.Text = all.Count.ToString("N0");
+        PersonFilmsCountPill.Visibility = all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var from = info.Name.Length > 0 ? info.Name : name;
+        _personFilmLists = (missing, all, from, today);
+        ShowPersonFilms(allShown: !director && missing.Count == 0, director, total);
+        PersonFilmsCards.Visibility = all.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdatePersonSections();
     }
+
+    // 5.4.5: the person's films not in the library: the best-known (a director's: all) and every one, and
+    // whose page they're on, for Show all
+    private (List<PersonFilm> Best, List<PersonFilm> All, string From, DateTime Today) _personFilmLists = ([], [], "", DateTime.Today);
+    private bool _personAllShown;
+
+    /// <summary>5.4.5: an actor's best-known films not in the library, or all of them, the newest first.</summary>
+    private void ShowPersonFilms(bool allShown, bool director, int directed)
+    {
+        var (best, all, from, today) = _personFilmLists;
+        _personAllShown = allShown;
+        string Films(int n) => n == 1 ? "film" : "films";
+        var more = !director && all.Count > best.Count && best.Count > 0;
+        PersonFilmsNote.Text = director
+            ? best.Count == 0 ? $"You have or have seen all {directed} {Films(directed)} they directed" : $"of the {directed} {Films(directed)} they directed"
+            : !more ? "Their best-known films"
+            : allShown ? "All of them, the newest first" : $"Their {best.Count} best-known";
+        PersonFilmsAllBtn.Content = allShown ? $"Show the {best.Count} best-known" : $"Show all {all.Count:N0}";
+        PersonFilmsAllBtn.Visibility = more ? Visibility.Visible : Visibility.Collapsed;
+        var wished = AppState.Instance.Db.GetWishlistIds();
+        PersonFilmsRepeater.ItemsSource = (allShown ? all : best).Select(f => new TmdbFilmItem(f, People.YearText(f, today),
+            Wishlist.Poster(f), from, wished.Contains(f.TmdbId))).ToList();
+    }
+
+    private void OnPersonFilmsAll(object sender, RoutedEventArgs e) => ShowPersonFilms(!_personAllShown, director: false, 0);
 
     /// <summary>5.4.1: a label in its colour over a value with the bar beside it, as DetailField.Field, in any colour.</summary>
     private static StackPanel Fact(Microsoft.UI.Xaml.Media.Brush brush, string label, UIElement value)
@@ -1527,7 +1555,9 @@ public sealed partial class LibraryPage : Page
 
     private void OnPersonBioTrimmed(TextBlock sender, IsTextTrimmedChangedEventArgs e)
     {
-        PersonMoreBtn.Visibility = sender.IsTextTrimmed || _personBioOpen ? Visibility.Visible : Visibility.Collapsed;
+        // 5.4.2: only ever shown here: hiding it again as the text fits could change the width the
+        // text gets, and go back and forth (a layout cycle). A new person starts with it hidden.
+        if (sender.IsTextTrimmed) PersonMoreBtn.Visibility = Visibility.Visible;
     }
 
     private void OnPersonMore(object sender, RoutedEventArgs e)
@@ -1933,17 +1963,32 @@ public sealed partial class LibraryPage : Page
     public string? BackLabelShown => BackToggleBtn.Visibility == Visibility.Visible ? BackLabel.Text : null;
     public double ScrollOffset => MainScroller.VerticalOffset;
 
-    /// <summary>Scrolls to where the view was, loading more of it first when that was further down.</summary>
+    /// <summary>
+    /// Scrolls to where the view was, loading more of it first when that was further down.
+    /// 5.4.2: no forced layout passes (UpdateLayout), which could end in "a cycle occurred while
+    /// laying out the GUI", above all with the main window hidden behind a movie's window: the
+    /// cards that cover the place are loaded, and it scrolls once a layout has made room for them.
+    /// </summary>
     public async Task ScrollToAsync(double offset)
     {
-        for (var i = 0; i < 30 && _vm.HasMore; i++)
-        {
-            MainScroller.UpdateLayout();
-            if (MainScroller.ScrollableHeight >= offset) break;
+        if (offset <= 0) return;
+        var list = _vm.ViewMode == ViewMode.List;
+        var perRow = list ? 1 : Math.Max(1, (int)((GridRepeater.ActualWidth + GridLayout.MinColumnSpacing)
+                                                 / (GridLayout.MinItemWidth + GridLayout.MinColumnSpacing)));
+        var rowHeight = list ? 48 : GridLayout.MinItemHeight + GridLayout.MinRowSpacing;
+        var needed = (int)Math.Ceiling(offset / rowHeight + 2) * perRow;
+        for (var i = 0; i < 40 && _vm.HasMore && _vm.Movies.Count < needed; i++)
             await _vm.LoadMoreAsync();
+
+        var passes = 0;
+        void OnLayout(object? sender, object e)
+        {
+            if (MainScroller.ScrollableHeight < offset && ++passes < 30) return;
+            MainScroller.LayoutUpdated -= OnLayout;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => MainScroller.ChangeView(null, offset, null, true));
         }
-        MainScroller.UpdateLayout();
-        MainScroller.ChangeView(null, offset, null, true);
+        MainScroller.LayoutUpdated += OnLayout;
     }
 }
 

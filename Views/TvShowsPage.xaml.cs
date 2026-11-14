@@ -267,7 +267,36 @@ public sealed partial class TvShowsPage : Page
     public void Load()
     {
         _level = Level.Shows;
+        _leftAt = null;
         ShowLevel();
+    }
+
+    // 5.4.4: where the page was scrolled when another page of the sidebar opened
+    private double? _leftAt;
+
+    public void NoteLeaving() => _leftAt = PageScroller.VerticalOffset;
+
+    /// <summary>5.4.4: back through the sidebar: the show that was open, or the grid, where it was left.</summary>
+    public void Return()
+    {
+        if (_leftAt is not double offset)
+        {
+            Load();
+            return;
+        }
+        _leftAt = null;
+        ShowLevel();
+        if (offset <= 0) return;
+        // Once the shows or episodes are laid out far enough to scroll there (no forced layout pass)
+        var passes = 0;
+        void OnLayout(object? sender, object e)
+        {
+            if (PageScroller.ScrollableHeight < offset && ++passes < 30) return;
+            PageScroller.LayoutUpdated -= OnLayout;
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => PageScroller.ChangeView(null, offset, null, true));
+        }
+        PageScroller.LayoutUpdated += OnLayout;
     }
 
     /// <summary>Open straight onto a specific show's page (deep-link from a list).</summary>
@@ -1284,11 +1313,8 @@ public sealed partial class TvShowsPage : Page
                 if (_showEpisodes.FirstOrDefault(x => x.Id == played.Id) is { } done)
                 {
                     done.ResumeMs = AppState.Instance.Db.GetResumeMs(true, done.Id);
-                    if (watched)
-                    {
-                        done.IsWatched = true;
-                        RefreshHeaderProgress();
-                    }
+                    if (watched) done.IsWatched = true;
+                    RefreshHeaderProgress();   // 5.4.4: Play says where it goes on from
                 }
                 SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
             });
@@ -1316,16 +1342,16 @@ public sealed partial class TvShowsPage : Page
         catch { }
     }
 
-    /// <summary>"▶ Play next unwatched" — first unwatched by season then episode.</summary>
+    /// <summary>"▶ Play next": 5.4.4, the one part-way first, else the first unwatched, Specials last, as a show card's Play.</summary>
     private void OnPlayNext(object sender, RoutedEventArgs e)
     {
-        var next = _showEpisodes
-            .Where(ep => !ep.IsWatched)
-            .OrderBy(ep => ep.Season).ThenBy(ep => ep.Episode)
-            .FirstOrDefault();
-        if (next != null) OnEpisodePlay(next);
+        if (NextEpisode() is { } next) OnEpisodePlay(next);
         else if (App.MainWindow is MainWindow mw) mw.ShowToast("All episodes watched 🎉");
     }
+
+    private TvEpisodeItem? NextEpisode() =>
+        _currentShow != null && AppState.Instance.Db.GetShowHoverInfo(_currentShow.Id).NextId is int id
+            ? _showEpisodes.FirstOrDefault(ep => ep.Id == id) : null;
 
     private void RefreshHeaderProgress()
     {
@@ -1335,11 +1361,14 @@ public sealed partial class TvShowsPage : Page
         UpdatePlayNextLabel(watched, total);
     }
 
+    /// <summary>5.4.4: which episode Play starts, and where: "▶ Resume S02E05 · 32:10", "▶ Play S02E06".</summary>
     private void UpdatePlayNextLabel(int watched, int total)
     {
-        bool any = watched < total;
-        PlayNextBtn.Content = watched == 0 ? "▶ Play S01E01" : (any ? "▶ Play next" : "✓ All watched");
-        PlayNextBtn.IsEnabled = any;
+        var next = watched < total ? NextEpisode() : null;
+        PlayNextBtn.Content = next == null ? (watched < total ? "▶ Play next" : "✓ All watched")
+            : next.ResumeMs > 0 ? $"▶ Resume {next.Code} · {Services.Playback.PlayerControls.Format(next.ResumeMs)}"
+            : $"▶ Play {next.Code}";
+        PlayNextBtn.IsEnabled = watched < total;
     }
 
     // ── v2.9 Show tags ───────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ namespace CineLibraryCS.Services.Playback;
 internal sealed class PlayerControls : Window
 {
     private const double FadeHeight = 20, SeekHeight = 36, ButtonsHeight = 54, RowHeight = 48, ThumbWidth = 14, PlaySize = 44;   // DIPs
-    // DIPs: under these the end time and file go, then the volume slider, then the 10 and 30 second skips,
+    // DIPs: under these the end time and file go, then the volume slider, then the skip back and forward buttons,
     // and last the capsule moves to the left, so it never covers Close
     private const double InfoFrom = 760, VolumeFrom = 600, SkipsFrom = 500, CentredFrom = 440;
     private const string VolumeGlyph = "\uE767", MuteGlyph = "\uE74F", FullScreenGlyph = "\uE740", BackToWindowGlyph = "\uE73F";
@@ -99,7 +99,8 @@ internal sealed class PlayerControls : Window
     /// scale), or the row above the bar opened or closed.</summary>
     public event Action? Moved;
 
-    public PlayerControls(IntPtr owner)
+    /// <param name="backSeconds">5.4.3: how far Back jumps, as set in Settings (and <paramref name="forwardSeconds"/> Forward).</param>
+    public PlayerControls(IntPtr owner, int backSeconds, int forwardSeconds)
     {
         var root = _root;
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -202,9 +203,9 @@ internal sealed class PlayerControls : Window
         _previous = CapsuleButton(Icon("\uF8AC", 14), "Previous (P)", () => Previous?.Invoke());
         _next = CapsuleButton(Icon("\uF8AD", 14), "Next (N)", () => Next?.Invoke());
         SetSkip(null, null);
-        _back = CapsuleButton(Icon("\uED3C", 19), "Back 10 seconds (Left)", () => Back?.Invoke());
-        _forward = CapsuleButton(Icon("\uED3D", 19), "Forward 30 seconds", () => Forward?.Invoke());
-        _subtitles = CapsuleButton(Icon("\uED1E", 15), "Subtitles", () => Subtitles?.Invoke());
+        _back = CapsuleButton(SkipIcon(forward: false, backSeconds), $"Back {backSeconds} seconds (Left)", () => Back?.Invoke());
+        _forward = CapsuleButton(SkipIcon(forward: true, forwardSeconds), $"Forward {forwardSeconds} seconds (Right)", () => Forward?.Invoke());
+        _subtitles = CapsuleButton(Icon("\uED1E", 15), "Subtitles (S)", () => Subtitles?.Invoke());
         _mute.FontSize = _fullScreen.FontSize = 15;
         _volume.Width = 80;
         _volume.Margin = new Thickness(2, 0, 10, 0);
@@ -220,7 +221,7 @@ internal sealed class PlayerControls : Window
         foreach (var part in new FrameworkElement[]
         {
             CapsuleButton(_fullScreen, "Full screen (F, double-click)", () => FullScreen?.Invoke()),
-            CapsuleButton(Icon("\uE8D6", 15), "Audio", () => Audio?.Invoke()),
+            CapsuleButton(Icon("\uE8D6", 15), "Audio (A)", () => Audio?.Invoke()),
             _subtitles,
             Separator(),
             _back,
@@ -469,6 +470,25 @@ internal sealed class PlayerControls : Window
 
     private static FontIcon Icon(string glyph, double size = 16) => new() { Glyph = glyph, FontSize = size };
 
+    /// <summary>5.4.3: a circle arrow with the seconds inside it. The icon font's own skip icons have
+    /// 10 and 30 drawn in, which would be wrong for any other length chosen in Settings.</summary>
+    private static Grid SkipIcon(bool forward, int seconds)
+    {
+        var icon = new Grid { IsHitTestVisible = false };
+        icon.Children.Add(new FontIcon { Glyph = forward ? "\uE72C" : "\uE777", FontSize = 20, Foreground = new SolidColorBrush(CapsuleIconColor) });
+        icon.Children.Add(new TextBlock
+        {
+            Text = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            FontSize = 7.5,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new SolidColorBrush(CapsuleIconColor),
+            TextLineBounds = TextLineBounds.Tight,   // centred on the digits, not on the line's height
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return icon;
+    }
+
     private static TextBlock Label() => new()
     {
         Text = "0:00",
@@ -514,9 +534,11 @@ internal sealed class PlayerControls : Window
 
     // A button on the capsule: smaller, its icon in the theme's light purple; under the mouse a purple glow
     // rises from its bottom edge (5.3.0), as on Windows Media Player's buttons
-    private static Button CapsuleButton(FontIcon icon, string tip, Action click)
+    private static readonly Windows.UI.Color CapsuleIconColor = ColorHelper.FromArgb(255, 214, 202, 255);
+
+    private static Button CapsuleButton(FrameworkElement icon, string tip, Action click)
     {
-        icon.Foreground = new SolidColorBrush(ColorHelper.FromArgb(255, 214, 202, 255));
+        if (icon is FontIcon font) font.Foreground = new SolidColorBrush(CapsuleIconColor);
         var b = IconButton(icon, tip, click);
         b.Width = b.Height = 36;
         b.CornerRadius = new CornerRadius(18);
@@ -727,7 +749,7 @@ internal sealed class PlayerControls : Window
         face.Children.Add(_halo);
         face.Children.Add(ball);
 
-        var b = IconButton(face, "Play or pause (Space)", () => PlayPause?.Invoke());
+        var b = IconButton(face, "Play or pause (Space, K)", () => PlayPause?.Invoke());
         b.Width = b.Height = PlaySize + 8;
         b.CornerRadius = new CornerRadius((PlaySize + 8) / 2);
         b.Resources["ButtonBackgroundPointerOver"] = Radial(new Windows.Foundation.Point(0.5, 0.5), 0.5, (170, 167, 139, 250, 0.7), (0, 167, 139, 250, 1));

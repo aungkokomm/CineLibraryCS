@@ -229,12 +229,16 @@ public sealed partial class TvShowCard : UserControl
     /// </summary>
     public static event Action<TvShowListItem>? ShowChanged;
 
-    private (int Id, string Code, string? File)? _next;
+    private (int Id, string Code, string? File, long ResumeMs)? _next;
 
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush DoneBrush =
         new(Windows.UI.Color.FromArgb(0xFF, 0x4A, 0xDE, 0x80));
     private readonly Microsoft.UI.Xaml.Media.SolidColorBrush NoteBrush =
         new(Windows.UI.Color.FromArgb(0xFF, 0xF0, 0x99, 0x7B));
+
+    /// <summary>5.4.4: "▶ Play S02E06", or "▶ Resume S02E05" for one part-way.</summary>
+    private static string PlayText((int Id, string Code, string? File, long ResumeMs) next) =>
+        next.ResumeMs > 0 ? $"▶ Resume {next.Code}" : $"▶ Play {next.Code}";
 
     private void LoadHoverInfo(TvShowListItem s)
     {
@@ -245,7 +249,7 @@ public sealed partial class TvShowCard : UserControl
         HoverSeasons.Text = info.Seasons > 0
             ? $"{info.Seasons} season{(info.Seasons == 1 ? "" : "s")} · {watched}"
             : watched;
-        _next = info.NextId is int id ? (id, info.NextCode!, info.NextFile) : null;
+        _next = info.NextId is int id ? (id, info.NextCode!, info.NextFile, info.NextResumeMs) : null;
     }
 
     private void UpdateHoverActions(TvShowListItem s)
@@ -254,7 +258,7 @@ public sealed partial class TvShowCard : UserControl
         // 5.3.0: its drive away too: Play then waits for the drive and the episode starts when it's connected
         var canPlay = _next is { File: not null };
         HoverPlayBtn.Visibility = canPlay ? Visibility.Visible : Visibility.Collapsed;
-        if (canPlay) HoverPlayBtn.Content = $"▶ Play {_next!.Value.Code}";
+        if (canPlay) HoverPlayBtn.Content = PlayText(_next!.Value);
 
         // Can't play now: say where the next episode is, or that the show is done.
         string? note = _next is { } n
@@ -422,7 +426,7 @@ public sealed partial class TvShowCard : UserControl
         var online = AppState.Instance.Connected.ContainsKey(s.VolumeSerial);
         var play = new MenuFlyoutItem
         {
-            Text = _next is { } n ? $"▶ Play {n.Code}" : "▶ Play",
+            Text = _next is { } n ? PlayText(n) : "▶ Play",
             IsEnabled = online && _next is { File: not null },
         };
         play.Click += (_, _) => OnHoverPlay(this, new RoutedEventArgs());

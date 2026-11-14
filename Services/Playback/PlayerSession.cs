@@ -3,6 +3,7 @@ using LibVLCSharp.Shared;
 using LibVLCSharp.Shared.Structures;
 using Microsoft.UI.Dispatching;
 using Windows.Graphics;
+using MediaButton = Windows.Media.SystemMediaTransportControlsButton;
 
 namespace CineLibraryCS.Services.Playback;
 
@@ -16,11 +17,20 @@ internal sealed record NextUp(string Path, string Title, string Label, object? T
 /// </summary>
 internal sealed class PlayerSession
 {
-    private const int SeekStep = 10_000, ForwardStep = 30_000, BigSeekStep = 60_000, VolumeStep = 5, UpNextSeconds = 10;
+    private const int WheelStep = 10_000, BigSeekStep = 60_000, VolumeStep = 5, UpNextSeconds = 10;
     private const int SubtitleStepMs = 100;
     private const int NormalSpeed = 2, FitZoom = 0, FillZoom = 1;
     private static readonly float[] Speeds = [0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f];
     private static readonly string[] Zooms = ["Fit", "Fill", "16:9", "4:3"];
+    // 5.4.3: Clear voices, on VLC's ten bands (31 Hz to 16 kHz): the rumble of explosions and music down, the
+    // range of speech (1 to 4 kHz) up. An equalizer, not a compressor: loud and quiet scenes stay as they are
+    private static readonly float[] ClearVoicesBands = [-10, -8, -5, -2, 0, 2, 4, 3, 1, -1];
+    private const float ClearVoicesPreamp = 2;
+    // 5.4.3: after a pause this long, playing on starts from a clean picture
+    private static readonly TimeSpan LongPause = TimeSpan.FromSeconds(10);
+    // 5.4.3: the waits before opening again a file that stopped answering (s): about 40 s in all, what a
+    // drive or a network share takes to wake up
+    private static readonly int[] RecoverDelays = [1, 3, 6, 12, 20];
 
     private readonly LibVLC _vlc;
     private readonly PlayerWindow _window;
@@ -42,6 +52,20 @@ internal sealed class PlayerSession
     private DateTime _jumpAt;
     private Media _media;
     private long _time, _length;
+    // 5.4.3: how far the skip buttons and the arrows jump (ms), as set in Settings when the player opened
+    private readonly int _backMs, _forwardMs;
+    // 5.4.3: where the video really is, without a jump VLC makes when a read fails
+    private readonly PlaybackClock _clock = new();
+    // 5.4.3: opening the file again after it stopped answering
+    private bool _recovering;
+    private int _recoveries, _sameEnds;
+    private long _recoveredAt;
+    private Task? _stopping;
+    private readonly System.Diagnostics.Stopwatch _pausedFor = new();
+    // 5.4.3: Windows' media keys and media panel; when a key last came to the player window itself
+    private MediaKeys? _keys;
+    private long _mediaKeyAt;
+    private bool _mediaInfoPending = true;
     private bool _barWanted, _closing, _released, _itemEnded;
     private NextUp? _offered, _previousItem, _nextItem;
     private Func<object?, NextUp?>? _findPrevious, _findNext;
@@ -73,8 +97,8 @@ internal sealed class PlayerSession
     /// <summary>The caller's tag of the item playing now.</summary>
     public object? Tag { get; private set; }
 
-    /// <summary>The last position VLC reported (ms); safe to read after closing.</summary>
-    public long Position => Interlocked.Read(ref _time);
+    /// <summary>Where it is (ms), as VLC last said, leaving out a jump it makes when a read fails (5.4.3); safe to read after closing.</summary>
+    public long Position => _clock.Position;
     public long Length => Interlocked.Read(ref _length);
     public int Volume { get; private set; }
     public bool IsPlaying => !_released && Player.IsPlaying;
@@ -113,6 +137,8 @@ internal sealed class PlayerSession
     public Func<object?, PauseInfo?>? FindPauseInfo { get; set; }
     /// <summary>What to look for subtitles online by; null goes by the title alone.</summary>
     public Func<object?, SubtitleFilm?>? FindSubtitleFilm { get; set; }
+    /// <summary>5.4.3: what Windows' media panel shows under an item's title, and its poster file.</summary>
+    public Func<object?, (string? Line, string? Poster)>? FindMediaInfo { get; set; }
 
     private PlayerSession(LibVLC vlc, PlayerWindow window, string path, string title, object? tag, long startMs, int volume, TrackChoice? choice)
     {
@@ -124,10 +150,16 @@ internal sealed class PlayerSession
         _choice = choice;
         Tag = tag;
         Volume = volume;
+        _backMs = UiSettings.SkipBackSeconds * 1000;
+        _forwardMs = UiSettings.SkipForwardSeconds * 1000;
+        SetGood(startMs);
         Player = new MediaPlayer(vlc) { EnableMouseInput = false, EnableKeyInput = false, Hwnd = window.Hwnd };
+        if (UiSettings.ClearVoices) ApplyClearVoices();
         _media = NewMedia(path, startMs, choice);
-        _controls = new PlayerControls(window.Hwnd);
+        _controls = new PlayerControls(window.Hwnd, UiSettings.SkipBackSeconds, UiSettings.SkipForwardSeconds);
         _controls.SetFile(path);
+        _keys = MediaKeys.TryCreate(window.Hwnd);
+        if (_keys != null) _keys.Pressed += button => _ui.Post(() => OnMediaKey(button));
 
         _hide = Timer(3000, HideBar);
         _tick = Timer(250, Refresh, repeating: true);
@@ -154,8 +186,8 @@ internal sealed class PlayerSession
         };
 
         _controls.PlayPause += TogglePause;
-        _controls.Back += () => SeekBy(-SeekStep);
-        _controls.Forward += () => SeekBy(ForwardStep);
+        _controls.Back += () => SeekBy(-_backMs);
+        _controls.Forward += () => SeekBy(_forwardMs);
         _controls.Mute += ToggleMute;
         _controls.FullScreen += ToggleFullScreen;
         _controls.CloseClicked += () => _ = CloseAsync();
@@ -166,18 +198,22 @@ internal sealed class PlayerSession
         _controls.Seek += seconds =>
         {
             var (from, to) = (Player.Time, (long)(seconds * 1000));
-            Player.Time = to;
+            JumpTo(to);
             NoteJump(from, to);   // 5.3.0: where it was asked to go (VLC's time catches up a moment later)
         };
         _controls.Volume += SetVolume;
-        _controls.SeekWheel += notches => SeekBy(notches * SeekStep);
+        _controls.SeekWheel += notches => SeekBy(notches * WheelStep);
         _controls.VolumeWheel += notches => ChangeVolume(notches * VolumeStep);
         _controls.SeekHover += OnSeekHover;
         _controls.Released += window.TakeFocus;
         _controls.Moved += PlaceBar;
 
         // VLC raises its events on its own threads, and must not be called back from them
-        Player.TimeChanged += (_, e) => Interlocked.Exchange(ref _time, e.Time);
+        Player.TimeChanged += (_, e) =>
+        {
+            Interlocked.Exchange(ref _time, e.Time);
+            _clock.Track(e.Time, Environment.TickCount64);
+        };
         Player.LengthChanged += (_, e) => Interlocked.Exchange(ref _length, e.Length);
         Player.Playing += (_, _) => _ui.Post(() =>
         {
@@ -186,7 +222,11 @@ internal sealed class PlayerSession
             if (_speed != NormalSpeed) Player.SetRate(Speeds[_speed]);
             if (_zoom != FitZoom) ApplyZoom();
             if (_choicePending) ApplyChoice();
+            _keys?.SetPlaying(true);
+            if (_mediaInfoPending) ShowMediaInfo();
         });
+        Player.Paused += (_, _) => _ui.Post(() => { if (!_released) _keys?.SetPlaying(false); });
+        Player.Stopped += (_, _) => _ui.Post(() => { if (!_released) _keys?.SetPlaying(false); });
         Player.EndReached += (_, _) => _ui.Post(OnEnded);
         Player.EncounteredError += (_, _) => _ui.Post(OnEnded);
     }
@@ -280,7 +320,7 @@ internal sealed class PlayerSession
 
     private void StartOver()
     {
-        Player.Time = 0;
+        JumpTo(0);
         _controls.HideRow();
         Feedback("From the start");
     }
@@ -312,6 +352,7 @@ internal sealed class PlayerSession
             _controls.SetSkip("Previous chapter (P)", "Next chapter (N)");
         else
             _controls.SetSkip(null, null);
+        _keys?.SetNextPrevious(_nextItem != null || _chapters, _previousItem != null || _chapters);
     }
 
     private void GoPrevious()
@@ -320,6 +361,7 @@ internal sealed class PlayerSession
         else if (_chapters)
         {
             var chapter = Player.Chapter - 1;
+            Asked();
             Player.PreviousChapter();
             NoteChapter(chapter);
         }
@@ -331,6 +373,7 @@ internal sealed class PlayerSession
         else if (_chapters)
         {
             var chapter = Player.Chapter + 1;
+            Asked();
             Player.NextChapter();
             NoteChapter(chapter);
         }
@@ -346,11 +389,21 @@ internal sealed class PlayerSession
     /// <summary>The end of an item, or an error. Nothing ever shown: VLC couldn't play it.</summary>
     private void OnEnded()
     {
-        if (_closing || _released) return;
-        PlayerLog.Write($"ended at {PlayerControls.Format(Position)} of {PlayerControls.Format(Length)}");
-        FailedToStart = _media.Statistics.DisplayedPictures == 0 && Position <= 0;
+        if (_closing || _released || _recovering) return;
+        var (position, length) = (Position, Length);
+        PlayerLog.Write($"ended at {PlayerControls.Format(position)} of {PlayerControls.Format(length)} (VLC's clock {PlayerControls.Format(Interlocked.Read(ref _time))})");
+        FailedToStart = _media.Statistics.DisplayedPictures == 0 && Interlocked.Read(ref _time) <= 0;
         // The next one only after a real end: a drive unplugged mid-film also ends it, early
-        var reachedEnd = Length > 0 && Position >= Length * 0.9;
+        var reachedEnd = length > 0 && position >= length * 0.9;
+        // 5.4.3: well before its end, after it played: the file stopped answering (its drive unplugged or asleep,
+        // the computer back from sleep), so it's opened again where it was. Stopping at the same place again
+        // after that says the file is shorter than it claims
+        if (!reachedEnd && length > 0 && !FailedToStart)
+        {
+            if (_recoveries > 0 && Math.Abs(position - _recoveredAt) <= 3000 && ++_sameEnds >= 2) ShowStopped(endsHere: true);
+            else _ = RecoverAsync();
+            return;
+        }
         if (reachedEnd && _nextItem is { } next)
         {
             EndItem();
@@ -365,6 +418,98 @@ internal sealed class PlayerSession
     }
 
     private string UpNextText() => $"Up next in {_secondsLeft} s: {_offered?.Label}";
+
+    /// <summary>
+    /// 5.4.3: the file stopped answering before its end. It's stopped, then opened again where it was as soon
+    /// as the file is there, waiting longer each time, about 40 s in all. Nothing is marked watched for it.
+    /// </summary>
+    private async Task RecoverAsync()
+    {
+        if (_recovering || _closing) return;
+        _recovering = true;
+        var (tag, path, at) = (Tag, _path, Position);
+        _countdown.Stop();
+        PlayerLog.Write($"the file stopped answering at {PlayerControls.Format(at)}: opening it again");
+        ShowStoppedRow("The file stopped answering. Opening it again...", [("Close player", false, () => _ = CloseAsync())]);
+        _stopping = Task.Run(() => Player.Stop());   // it waits while a read is stuck
+        await _stopping;
+        for (; _recoveries < RecoverDelays.Length; _recoveries++)
+        {
+            if (Gone()) return;
+            await Task.Delay(TimeSpan.FromSeconds(RecoverDelays[_recoveries]));
+            if (Gone()) return;
+            if (!await AnswersAsync(path)) continue;
+            if (Gone()) return;
+            _recoveries++;
+            _recoveredAt = at;
+            _recovering = false;
+            Reopen(at);
+            return;
+        }
+        if (!Gone()) ShowStopped(endsHere: false);
+
+        // closed, or another episode asked for meanwhile
+        bool Gone() => _closing || _released || !_recovering || tag != Tag;
+    }
+
+    private static async Task<bool> AnswersAsync(string path)
+    {
+        try { return await Task.Run(() => File.Exists(path)).WaitAsync(TimeSpan.FromSeconds(10)); }
+        catch (TimeoutException) { return false; }
+    }
+
+    /// <summary>5.4.3: the same file again from where it was, with the tracks chosen. VLC's clock from before is
+    /// kept, so a file that still won't play isn't taken for one that never could (and handed to another player).</summary>
+    private void Reopen(long at)
+    {
+        PlayerLog.Write($"opening it again at {PlayerControls.Format(at)}");
+        _controls.HideRow();
+        var old = _media;
+        _media = NewMedia(_path, at, _choice);
+        _choicePending = true;
+        _shownPictures = _lostPictures = 0;
+        SetGood(at);
+        Player.Play(_media);
+        old.Dispose();
+    }
+
+    /// <summary>5.4.3: the file still doesn't answer, or stops at the same place again: the user says what next.
+    /// Where it was is kept.</summary>
+    private void ShowStopped(bool endsHere)
+    {
+        _recovering = false;
+        PlayerLog.Write(endsHere ? "stopped at the same place again" : "the file still doesn't answer");
+        var buttons = new List<(string, bool, Action)> { ("Try again", true, TryAgain) };
+        if (_nextItem is { } next) buttons.Add(("Play next episode", false, () => SkipTo(next)));
+        buttons.Add(("Close player", false, () => _ = CloseAsync()));
+        ShowStoppedRow(endsHere ? "The video stops here, before its end" : "The file doesn't answer. Is its drive asleep or unplugged?", buttons);
+    }
+
+    private void TryAgain()
+    {
+        _recoveries = _sameEnds = 0;
+        _ = RecoverAsync();
+    }
+
+    private void ShowStoppedRow(string text, List<(string, bool, Action)> buttons)
+    {
+        _noteTimer.Stop();
+        _controls.ShowRow("stopped", text, buttons);
+        ShowBar();
+    }
+
+    /// <summary>5.4.3: a jump to a place VLC works out (a chapter).</summary>
+    private void Asked() => _clock.Asked(Environment.TickCount64);
+
+    /// <summary>5.4.3: a jump asked for (a seek, a skip).</summary>
+    private void JumpTo(long ms)
+    {
+        _clock.Jump(ms, Environment.TickCount64);
+        Player.Time = ms;
+    }
+
+    /// <summary>5.4.3: where a video starts.</summary>
+    private void SetGood(long ms) => _clock.Start(ms, Environment.TickCount64);
 
     private void CountDown()
     {
@@ -434,7 +579,7 @@ internal sealed class PlayerSession
         if (_menu != null || _controls.Row.Length > 0 && _controls.Row != "message") return;   // never over something open
         var buttons = new List<(string, bool, Action)>();
         if (_nextItem is { } next) buttons.Add(("Play next episode", true, () => SkipTo(next)));
-        if (_afterCredits is long scene) buttons.Add(("Skip to the scene after", buttons.Count == 0, () => { Player.Time = scene; _controls.HideRow(); }));
+        if (_afterCredits is long scene) buttons.Add(("Skip to the scene after", buttons.Count == 0, () => { JumpTo(scene); _controls.HideRow(); }));
         if (_nextItem is null) buttons.Add(("Close player", buttons.Count == 0, () => _ = CloseAsync()));
         _controls.ShowRow("message", _nextItem is { } n ? $"Next: {n.Label}" : _afterCredits is null ? "Credits" : "Credits · a scene comes after them", buttons);
         _noteTimer.Stop();
@@ -472,7 +617,7 @@ internal sealed class PlayerSession
         _skipOffered = inside.Start;
         var end = inside.End;
         _controls.ShowRow("message", inside.Label == "Skip recap" ? "Recap" : "Intro",
-            [(inside.Label, true, () => { Player.Time = end; _controls.HideRow(); PlayerLog.Write($"{inside.Label} to {PlayerControls.Format(end)}"); })]);
+            [(inside.Label, true, () => { JumpTo(end); _controls.HideRow(); PlayerLog.Write($"{inside.Label} to {PlayerControls.Format(end)}"); })]);
         _noteTimer.Stop();
         _noteTimer.Start();
         if (first) ShowBar();
@@ -534,9 +679,14 @@ internal sealed class PlayerSession
     /// <summary>Another item in the same window (full screen stays): the next or previous episode.</summary>
     private void SwitchTo(NextUp next)
     {
+        if (_stopping is { IsCompleted: false }) return;   // 5.4.3: a file that stopped answering is still being stopped
         _countdown.Stop();
         _offered = null;
         if (_closing) return;
+        _recovering = false;   // 5.4.3: the next one instead of opening this one again
+        _recoveries = _sameEnds = 0;
+        _pausedFor.Reset();
+        _mediaInfoPending = true;
         _controls.HideRow();
         CloseMenu();
         EndItem();
@@ -565,6 +715,7 @@ internal sealed class PlayerSession
         FailedToStart = false;
         Interlocked.Exchange(ref _time, 0);
         Interlocked.Exchange(ref _length, 0);
+        SetGood(next.StartMs);
         _window.SetTitle(next.Title);
         Player.Play(_media);
         old.Dispose();
@@ -601,6 +752,7 @@ internal sealed class PlayerSession
         [
             new("speed", "Speed", Speeds.Select(s => s.ToString(CultureInfo.InvariantCulture)).ToList(), _speed),
             new("zoom", "Zoom", Zooms, _zoom),
+            new("sound", "Sound", ["Normal", "Clear voices"], UiSettings.ClearVoices ? 1 : 0),   // 5.4.3
         ];
         if (Player.Spu != -1) rows.Add(new("timing", "Subtitles", ["Earlier", "Later", "Reset"], -1));
         var menu = _menu = new PlayerMenu(_window.Hwnd, rows);
@@ -627,7 +779,126 @@ internal sealed class PlayerSession
             case "timing":
                 MoveSubtitles(place switch { 0 => -SubtitleStepMs, 1 => SubtitleStepMs, _ => -(_choice?.SubtitleDelayMs ?? 0) });
                 break;
+            case "sound":
+                SetClearVoices(place == 1);
+                break;
         }
+    }
+
+    /// <summary>5.4.3: V or the right-click menu: Clear voices on or off, kept for the next films.</summary>
+    private void SetClearVoices(bool on)
+    {
+        UiSettings.SetClearVoices(on);
+        ApplyClearVoices();
+        ShowNote(on ? "Clear voices on" : "Clear voices off");
+    }
+
+    /// <summary>5.4.3: the equalizer stays with the player, for the next episodes too.</summary>
+    private void ApplyClearVoices()
+    {
+        if (!UiSettings.ClearVoices)
+        {
+            Player.UnsetEqualizer();
+            return;
+        }
+        using var equalizer = new Equalizer();
+        equalizer.SetPreamp(ClearVoicesPreamp);
+        for (uint band = 0; band < Math.Min(equalizer.BandCount, (uint)ClearVoicesBands.Length); band++)
+            equalizer.SetAmp(ClearVoicesBands[band], band);
+        Player.SetEqualizer(equalizer);
+    }
+
+    /// <summary>5.4.3: the next speed up or down, from the keys.</summary>
+    private void ChangeSpeed(int step) => ChooseMore("speed", Math.Clamp(_speed + step, 0, Speeds.Length - 1));
+
+    /// <summary>5.4.3: A and S: the next audio track, or the next subtitles (Off among them), kept as if chosen in the menu.</summary>
+    private void CycleTrack(bool audio)
+    {
+        var tracks = Tracks(audio).Where(t => !audio || t.Id != -1).ToList();
+        if (tracks.Count < 2)
+        {
+            ShowNote(audio ? "No other audio track" : "No subtitles in this file");
+            return;
+        }
+        var current = tracks.FindIndex(t => t.Id == (audio ? Player.AudioTrack : Player.Spu));
+        ChooseTrack(audio ? "audio" : "subtitles", tracks[(current + 1) % tracks.Count].Id);
+    }
+
+    /// <summary>5.4.3: C: the chapters in a menu, the one playing ticked; the same key again closes it.</summary>
+    private void ShowChapters()
+    {
+        var same = _menu?.Kind == "chapters";
+        CloseMenu();
+        if (same) return;
+        if (Player.ChapterCount < 2)
+        {
+            ShowNote("No chapters in this file");
+            return;
+        }
+        var chapters = _chapterList ?? Player.FullChapterDescriptions();
+        // As "time - [name]": the menu shows what's in the brackets first and the rest dimmed after it, as for a track
+        var rows = chapters.Select((c, i) => (i, $"{PlayerControls.Format(c.TimeOffset)} - [{(string.IsNullOrWhiteSpace(c.Name) ? $"Chapter {i + 1}" : c.Name.Trim())}]")).ToList();
+        OpenMenu("chapters", new MenuSection("chapters", "Chapters", rows, Player.Chapter));
+        ShowBar();
+    }
+
+    private void GoToChapter(int chapter)
+    {
+        CloseMenu();
+        _window.TakeFocus();
+        Asked();
+        Player.Chapter = chapter;
+        NoteChapter(chapter);
+    }
+
+    /// <summary>5.4.3: I: past the intro or the recap playing now, as its button does.</summary>
+    private void SkipNow()
+    {
+        var position = Position;
+        var inside = _skips.FirstOrDefault(s => position >= s.Start && position < s.End - 2000);
+        if (inside.Label is null)
+        {
+            ShowNote("Nothing to skip here");
+            return;
+        }
+        JumpTo(inside.End);
+        if (_controls.Row == "message") _controls.HideRow();
+        PlayerLog.Write($"{inside.Label} to {PlayerControls.Format(inside.End)} (key)");
+        Feedback(inside.Label == "Skip recap" ? "Recap skipped" : "Intro skipped");
+    }
+
+    /// <summary>5.4.3: a media key, a remote's or headphones' button, through Windows (also when another window is in front).</summary>
+    private void OnMediaKey(MediaButton button)
+    {
+        if (_closing || _released) return;
+        if (Environment.TickCount64 - _mediaKeyAt < 500) return;   // the same press, already taken by the player window
+        PlayerLog.Write($"media key {button}");
+        switch (button)
+        {
+            case MediaButton.Play when !Player.IsPlaying:
+            case MediaButton.Pause when Player.IsPlaying:
+                TogglePause();
+                break;
+            case MediaButton.Stop: _ = CloseAsync(); break;
+            case MediaButton.FastForward: SeekBy(_forwardMs); break;
+            case MediaButton.Rewind: SeekBy(-_backMs); break;
+            case MediaButton.Next: GoNext(); break;
+            case MediaButton.Previous: GoPrevious(); break;
+        }
+    }
+
+    /// <summary>A media key came to the player window: Windows may pass on the same press.</summary>
+    private void MediaKeyHere() => _mediaKeyAt = Environment.TickCount64;
+
+    /// <summary>5.4.3: what Windows' media panel shows for the item playing now.</summary>
+    private void ShowMediaInfo()
+    {
+        _mediaInfoPending = false;
+        if (_keys is null) return;
+        (string? Line, string? Poster) info = (null, null);
+        try { info = FindMediaInfo?.Invoke(Tag) ?? (null, null); }
+        catch (Exception e) { PlayerLog.Write("media panel: " + e.Message); }
+        _keys.SetInfo(_title, info.Line, info.Poster);
     }
 
     /// <summary>Fit shows the whole picture, Fill crops it to the shape of the window, the others set the picture's shape.</summary>
@@ -729,6 +1000,7 @@ internal sealed class PlayerSession
     /// <summary>A track chosen in a menu: used now, and kept for the next time.</summary>
     private void ChooseTrack(string kind, int id)
     {
+        if (kind == "chapters") { GoToChapter(id); return; }   // 5.4.3
         if (kind == "online") { AddSubtitles(_foundSubtitles[id]); return; }
         if (id == PlayerMenu.FindOnline) { FindSubtitles(); return; }
         if (id == PlayerMenu.AddFile) { PickSubtitleFile(); return; }
@@ -864,8 +1136,23 @@ internal sealed class PlayerSession
             case 0x4E: GoNext(); break;                                               // N
             case 0x50: GoPrevious(); break;                                           // P
             case 0x46 or PlayerWindow.VkF11: ToggleFullScreen(); break;               // F, F11, Alt+Enter
-            case 0x25: SeekBy(ctrl ? -BigSeekStep : -SeekStep); break;                // Left
-            case 0x27: SeekBy(ctrl ? BigSeekStep : SeekStep); break;                  // Right
+            case 0x25: SeekBy(ctrl ? -BigSeekStep : -_backMs); break;                 // Left
+            case 0x27: SeekBy(ctrl ? BigSeekStep : _forwardMs); break;                // Right
+            case 0x4A: SeekBy(-_backMs); break;                                       // J (5.4.3)
+            case 0x4C: SeekBy(_forwardMs); break;                                     // L
+            case 0x4B: TogglePause(); break;                                          // K
+            case 0x41: CycleTrack(audio: true); break;                                // A
+            case 0x53: CycleTrack(audio: false); break;                               // S
+            case 0x43: ShowChapters(); break;                                         // C
+            case 0xBD or 0x6D: ChangeSpeed(-1); break;                                // -
+            case 0xBB or 0x6B: ChangeSpeed(1); break;                                 // + (the = key too)
+            case 0x49: SkipNow(); break;                                              // I
+            case 0x56: SetClearVoices(!UiSettings.ClearVoices); break;                // V
+            case PlayerWindow.VkBrowserBack: _ = CloseAsync(); break;                 // Alt+Left, the mouse's back button
+            case 0xB3: MediaKeyHere(); TogglePause(); break;                          // media keys: play/pause
+            case 0xB2: MediaKeyHere(); _ = CloseAsync(); break;                       // stop
+            case 0xB0: MediaKeyHere(); GoNext(); break;                               // next
+            case 0xB1: MediaKeyHere(); GoPrevious(); break;                           // previous
             case 0x24: StartOver(); break;                                            // Home
             case 0x26: ChangeVolume(VolumeStep); break;                               // Up
             case 0x28: ChangeVolume(-VolumeStep); break;                              // Down
@@ -893,8 +1180,14 @@ internal sealed class PlayerSession
 
     private void TogglePause()
     {
+        if (_controls.Row == "stopped" && !_recovering) { TryAgain(); return; }   // 5.4.3: the file didn't answer
         var pausing = Player.IsPlaying;
         PlayerLog.Write(pausing ? "pause" : "play");
+        // 5.4.3: after a long pause the picture can come back broken until the next key frame (the graphics
+        // card's decoder, or a drive that went idle): a jump to the same place starts from a clean one
+        if (!pausing && _pausedFor.Elapsed > LongPause && Player.IsSeekable) JumpTo(Position);
+        if (pausing) _pausedFor.Restart();
+        else _pausedFor.Reset();
         Player.SetPause(pausing);
         _pauseWait.Stop();
         if (pausing) _pauseWait.Start();
@@ -927,7 +1220,7 @@ internal sealed class PlayerSession
         if (!Player.IsSeekable) return;
         var from = Player.Time;
         var to = Math.Clamp(from + ms, 0, Math.Max(0, Player.Length - 1000));
-        Player.Time = to;
+        JumpTo(to);
         NoteJump(from, to);   // 5.3.0
         Feedback($"{(ms > 0 ? "+" : "-")}{Math.Abs(ms) / 1000} s  ({PlayerControls.Format(to)})");
     }
@@ -1058,7 +1351,8 @@ internal sealed class PlayerSession
             _chapters = true;
             ApplySkip();
         }
-        _controls.Update(Player.Time, Player.Length, Player.IsPlaying, Player.Mute, Volume, _window.IsFullScreen);
+        var stopped = _controls.Row == "stopped";   // 5.4.3: VLC is stopped then; where it was stays shown
+        _controls.Update(stopped ? Position : Player.Time, stopped ? Length : Player.Length, Player.IsPlaying, Player.Mute, Volume, _window.IsFullScreen);
         if (_chapterList == null && Player.ChapterCount > 1 && Player.Length > 0)
         {
             _chapterList = Player.FullChapterDescriptions();
@@ -1103,6 +1397,8 @@ internal sealed class PlayerSession
         _titleStrip?.Close();
         _pause?.Close();
         _controls.Close();
+        _keys?.Close();   // 5.4.3
+        _keys = null;
         // Gone for the user at once: on a stalled drive VLC's stop waits for the read to return
         _window.Hide();
         await Task.Run(() => Player.Stop());

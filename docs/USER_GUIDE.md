@@ -201,7 +201,8 @@ with a coloured heading and how many:
   Watched & Gone page.
 - **Not in your library** (purple): for a director every film they
   made, the newest and the ones still to come first; for an actor their
-  best-known films. The ones you have or have seen aren't in it. Click
+  20 best-known films, with **Show all** under them for every one, the
+  newest first. The ones you have or have seen aren't in it. Click
   a poster to open it on TMDB.
 
 The first look needs the internet; after that it shows at once, offline
@@ -1365,6 +1366,19 @@ open a show.
 | `PgDn` / `PgUp`  | Scroll the movie grid one viewport up/down   |
 | `Home` / `End`   | Jump to the top / bottom of the movie list   |
 | `↑` / `↓`        | Scroll by one row of cards                   |
+| `Alt+←` / mouse back | ‹ Back to where you were |
+
+In a movie's window:
+
+| Shortcut         | Action                                       |
+|------------------|----------------------------------------------|
+| `Enter` / `Space` | Play, or go on from where you stopped |
+| `←` / `→` | The previous / next movie of the list |
+| `W` / `F` | Toggle To Watch / favorite |
+| `Esc` | Close it |
+
+The player's keys (Space, the arrows, A and S for audio and subtitles, C for
+chapters, V for Clear voices and more) are in the list `Ctrl+Shift+/` shows.
 
 Card shortcuts (`F`, `W`, `Delete`) operate on the **current
 multi-selection**. Select one or more cards first with click,

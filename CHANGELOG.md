@@ -6,6 +6,31 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.5.0] - 2026-11-14
+
+### Added
+- Media keys: the keyboard's play/pause, stop, next and previous keys, a remote's buttons and Bluetooth headphones' work the player even when another window is in front or CineLibrary is minimized, and Windows' media panel by the volume shows what's playing, with its poster.
+- Skip back and Skip forward in Settings > Playback: 5, 10, 15, 30 seconds or a minute (10 and 30 as before). The player's skip buttons show the number, and the Left and Right keys jump as far as the buttons. Ctrl with Left or Right still jumps a minute.
+- Clear voices (V, or the right-click menu's Sound): an equalizer that takes the rumble of explosions and music down and brings voices up, for the evening. It stays on for the next films until you turn it off.
+- More keys in the player: A and S for the next audio track and subtitles, C for the chapters, - and + for the speed, I to skip the intro or recap, K to pause, J and L to skip back and forward. The mouse's back button and Alt+Left close the player, as Back does in the library.
+- Keys in a movie's window: Enter or Space plays, W and F toggle To Watch and Favorite, as on the cards.
+
+### Changed
+- When a film stops before its end because the file stopped answering (its drive unplugged or asleep, or the computer back from sleep), the player opens it again where it was, waiting up to about 40 seconds for the drive, instead of closing. If it still doesn't answer, Try again, Play next episode or Close player; where you were is kept, and nothing is marked watched for it.
+- After a pause of more than 10 seconds, playing on starts from a clean picture, without the broken blocks a long pause could leave until the next key frame.
+- Play says what it will do: a movie's window reads "▶ Resume from 32:10" for a film you stopped part-way, as does its right-click menu, and a show's page reads "▶ Resume S02E05 · 32:10" or "▶ Play S02E06" instead of "▶ Play next".
+- A show's Play (on its page, its card and in Continue Watching) starts the episode you're part-way through, the one played last, before an earlier one you skipped, and Specials come after the regular seasons instead of before S01E01.
+- Coming back to a page through the sidebar finds it as you left it: All Movies, Favorites, To Watch, Continue Watching, Recently added and watched, Notes, Missing cast, your lists and tags keep their search, filters and place, and TV Shows the show or the grid where you were. A click on the page you're on starts it afresh.
+- Settings lists its sections on the left (Appearance, Playback, Drives, TV shows, Sidebar): a click goes to one, and the one you're in is lit.
+- CineLibrary opens where you left it: its size, place and screen, maximized or not. The first time, and when that screen is gone, it opens maximized as before.
+- One right-click menu for a movie, on a poster card and a list row alike, in the order of a TV show card's: Play (or Resume), Open details, Watched, Favorite, To Watch, Add to list, Open folder, Send to Watched & Gone. A list row had only Add to list and Watched & Gone, and a card had no Play or Open folder.
+- The keyboard shortcuts list (Ctrl+Shift+/) has the player's keys, the movie window's and Back.
+
+### Fixed
+- Esc in the search box at the top could stop with "COMException: Catastrophic failure" instead of leaving the box.
+- An actor's Not in your library left out their lesser-known films: only their 60 best-known were kept, and 20 shown. It still shows their 20 best-known, with Show all under them for every film of theirs you don't have, the newest and the ones still to come first. People looked up before are looked up again the next time their page opens online.
+- Going ‹ Back from an actor's or director's page to a movie, then closing the movie's window with the mouse's back button, could stop with "A cycle occurred while laying out the GUI". The list underneath now finds its place again without that.
+
 ## [5.4.1] - 2026-11-13
 
 ### Added

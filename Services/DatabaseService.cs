@@ -5389,10 +5389,10 @@ LIMIT @most";
         var limit = page == TvShowPage.RecentlyAdded ? " LIMIT 50" : "";
         cmd.CommandText = $@"
             SELECT {ShowListItemColumns}{(page == TvShowPage.ContinueWatching
-                ? @", (SELECT printf('S%02dE%02d', e.season, e.episode) FROM tv_episodes e
-                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY e.season, e.episode LIMIT 1)
+                ? $@", (SELECT printf('S%02dE%02d', e.season, e.episode) FROM tv_episodes e
+                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY {NextEpisodeOrder} LIMIT 1)
                     , (SELECT e.resume_ms || ':' || COALESCE(NULLIF(e.runtime, 0) * 60000, e.duration_seconds * 1000, 0) FROM tv_episodes e
-                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY e.season, e.episode LIMIT 1)
+                      WHERE e.show_id=s.id AND e.is_watched=0 ORDER BY {NextEpisodeOrder} LIMIT 1)
                     , (SELECT MAX(e.last_played_at) FROM tv_episodes e WHERE e.show_id=s.id)"
                 : "")}
               FROM tv_shows s
@@ -5445,12 +5445,20 @@ LIMIT @most";
     }
 
     /// <summary>
+    /// 5.4.4: which episode of a show plays next: one part-way first (the one played last), then the first
+    /// not watched by season and number, Specials (season 0) after the regular seasons. For the show page's
+    /// Play, a show card's and Continue Watching.
+    /// </summary>
+    private const string NextEpisodeOrder = @"(COALESCE(e.resume_ms, 0) > 0) DESC,
+        CASE WHEN COALESCE(e.resume_ms, 0) > 0 THEN COALESCE(e.last_played_at, 0) END DESC, (e.season = 0), e.season, e.episode";
+
+    /// <summary>
     /// v4.1.0 — what a show card's hover panel shows: up to three genres, the
-    /// number of seasons (Specials not counted) and the next episode, the first
-    /// unwatched by season then episode, as ▶ Play next on the show page picks it.
+    /// number of seasons (Specials not counted) and the next episode (NextEpisodeOrder),
+    /// with where it was left (5.4.4), as ▶ Play on the show page picks it.
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public (string Genres, int Seasons, int? NextId, string? NextCode, string? NextFile) GetShowHoverInfo(int showId)
+    public (string Genres, int Seasons, int? NextId, string? NextCode, string? NextFile, long NextResumeMs) GetShowHoverInfo(int showId)
     {
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
@@ -5458,11 +5466,11 @@ LIMIT @most";
                         SELECT g.name FROM tv_show_genres sg JOIN genres g ON g.id=sg.genre_id
                          WHERE sg.show_id=@id ORDER BY g.name LIMIT 3)),
                    (SELECT COUNT(DISTINCT season) FROM tv_episodes WHERE show_id=@id AND season > 0),
-                   n.id, printf('S%02dE%02d', n.season, n.episode), n.video_file_rel_path
+                   n.id, printf('S%02dE%02d', n.season, n.episode), n.video_file_rel_path, COALESCE(n.resume_ms, 0)
               FROM (SELECT 1)
-              LEFT JOIN (SELECT id, season, episode, video_file_rel_path FROM tv_episodes
-                          WHERE show_id=@id AND is_watched=0
-                          ORDER BY season, episode LIMIT 1) n";
+              LEFT JOIN (SELECT e.id, e.season, e.episode, e.video_file_rel_path, e.resume_ms FROM tv_episodes e
+                          WHERE e.show_id=@id AND e.is_watched=0
+                          ORDER BY " + NextEpisodeOrder + " LIMIT 1) n";
         cmd.Parameters.AddWithValue("@id", showId);
         using var r = cmd.ExecuteReader();
         r.Read();
@@ -5470,7 +5478,8 @@ LIMIT @most";
         return (r.IsDBNull(0) ? "" : r.GetString(0), r.GetInt32(1),
                 hasNext ? r.GetInt32(2) : null,
                 hasNext ? r.GetString(3) : null,
-                hasNext && !r.IsDBNull(4) ? r.GetString(4) : null);
+                hasNext && !r.IsDBNull(4) ? r.GetString(4) : null,
+                hasNext ? r.GetInt64(5) : 0);
     }
 
     public enum TvShowPage { Favorites, Watchlist, ContinueWatching, Notes, RecentlyAdded }

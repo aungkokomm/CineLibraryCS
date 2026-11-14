@@ -362,8 +362,7 @@ public sealed partial class MovieDetailDialog : Window
         // 5.3.0: its drive away, Play waits for it and the film starts when it's connected
         var waits = !m.IsOnline && !m.IsMissing && m.VideoFileRelPath != null;
         PlayBtn.IsEnabled = m.Playable || waits;
-        PlayLabel.Text = waits ? "▶ Play when connected" : "▶ Play";
-        ToolTipService.SetToolTip(PlayBtn, waits ? $"Starts the moment {(string.IsNullOrEmpty(m.DriveLabel) ? "its drive" : m.DriveLabel)} is connected" : null);
+        UpdatePlayLabel(m);
         TrailerBtn.Visibility = TrailerUri(m.Trailer) != null ? Visibility.Visible : Visibility.Collapsed;
         FolderBtn.IsEnabled = m.IsOnline;
         FavBtn.Content = ActionLabel.Favorite(m.IsFavorite);
@@ -843,11 +842,24 @@ public sealed partial class MovieDetailDialog : Window
 
     private void OnRootKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key is not (VirtualKey.Left or VirtualKey.Right)) return;
-        if (Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot)
-            is TextBox or RichEditBox or AutoSuggestBox or ComboBox) return;
+        if (e.Key is not (VirtualKey.Left or VirtualKey.Right or VirtualKey.Enter or VirtualKey.Space or VirtualKey.W or VirtualKey.F)) return;
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(RootGrid.XamlRoot);
+        if (focused is TextBox or RichEditBox or AutoSuggestBox or ComboBox) return;
+        // 5.4.4: Enter or Space plays, W and F toggle To Watch and Favorite, as the library's keys do. A
+        // focused button keeps Enter and Space for itself, and a key it already took isn't taken again.
+        if (e.Key is VirtualKey.Enter or VirtualKey.Space && (e.Handled || focused is Microsoft.UI.Xaml.Controls.Primitives.ButtonBase)) return;
+        if (e.Key is VirtualKey.W or VirtualKey.F && (e.Handled || Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))) return;
         e.Handled = true;
-        StepMovie(e.Key == VirtualKey.Left ? -1 : +1);
+        switch (e.Key)
+        {
+            case VirtualKey.Enter or VirtualKey.Space:
+                if (PlayBtn.IsEnabled) OnPlay(PlayBtn, new RoutedEventArgs());
+                break;
+            case VirtualKey.W: OnToggleWatchlist(WatchlistBtn, new RoutedEventArgs()); break;
+            case VirtualKey.F: OnToggleFav(FavBtn, new RoutedEventArgs()); break;
+            default: StepMovie(e.Key == VirtualKey.Left ? -1 : +1); break;
+        }
     }
 
     private void StepMovie(int step)
@@ -1410,6 +1422,19 @@ public sealed partial class MovieDetailDialog : Window
         }
     }
 
+    /// <summary>What Play does: 5.4.4, where it goes on from when the film was stopped part-way.</summary>
+    private void UpdatePlayLabel(MovieDetail m)
+    {
+        var waits = !m.IsOnline && !m.IsMissing && m.VideoFileRelPath != null;
+        var resume = m.IsWatched ? 0 : AppState.Instance.Db.GetResumeMs(false, m.Id);
+        var at = Services.Playback.PlayerControls.Format(resume);
+        PlayLabel.Text = waits ? "▶ Play when connected" : resume > 0 ? $"▶ Resume from {at}" : "▶ Play";
+        ToolTipService.SetToolTip(PlayBtn,
+            waits ? $"Starts the moment {(string.IsNullOrEmpty(m.DriveLabel) ? "its drive" : m.DriveLabel)} is connected"
+            : resume > 0 ? $"Goes on from {at}, where you stopped. In the player, Start over goes back to the beginning. (Enter)"
+            : "Play (Enter)");
+    }
+
     private async void OnPlay(object sender, RoutedEventArgs e)
     {
         if (_movie is { IsOnline: false, IsMissing: false, VideoFileRelPath: not null } away)
@@ -1439,9 +1464,10 @@ public sealed partial class MovieDetailDialog : Window
                 var shown = ReferenceEquals(_movie, movie);
                 movie.PlayCount = AppState.Instance.Db.GetPlayCount(movie.Id);
                 if (shown) PopulateFacts(movie);
+                if (shown && !watched) UpdatePlayLabel(movie);   // 5.4.4: where it goes on from now
                 if (!watched) return;
                 movie.IsWatched = true;
-                if (shown) WatchedBtn.Content = ActionLabel.Watched(true);
+                if (shown) { WatchedBtn.Content = ActionLabel.Watched(true); UpdatePlayLabel(movie); }
                 WatchlistChanged?.Invoke(this, EventArgs.Empty);
             });
         }

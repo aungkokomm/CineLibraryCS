@@ -59,63 +59,18 @@ public sealed partial class MovieRowControl : UserControl
         args.Data.Properties.Title = ids.Count == 1 ? Movie.Title : $"{ids.Count} movies";
     }
 
+    // 5.4.4: the same menu as a poster card's
     private void RebuildContextFlyout(MenuFlyout flyout)
     {
         flyout.Items.Clear();
-        if (Movie == null) return;
-
-        var listsSub = new MenuFlyoutSubItem { Text = "📑 Add to list" };
-        var allLists = AppState.Instance.Db.GetUserLists();
-        var membership = AppState.Instance.Db.GetUserListsForMovie(Movie.Id);
-        if (allLists.Count == 0)
-        {
-            listsSub.Items.Add(new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false });
-        }
-        else
-        {
-            foreach (var ul in allLists)
-            {
-                var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = membership.Contains(ul.Id) };
-                var capturedUl = ul;
-                item.Click += (_, _) =>
-                {
-                    if (item.IsChecked)
-                        AppState.Instance.Db.AddMovieToUserList(capturedUl.Id, Movie.Id);
-                    else
-                        AppState.Instance.Db.RemoveMovieFromUserList(capturedUl.Id, Movie.Id);
-                    SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-                };
-                listsSub.Items.Add(item);
-            }
-        }
-        flyout.Items.Add(listsSub);
-
-        // v3.3 — Watched & Gone (same action as the grid-card context menu).
-        flyout.Items.Add(new MenuFlyoutSeparator());
-        var archiveItem = new MenuFlyoutItem { Text = "Send to Watched & Gone" };
-        archiveItem.Click += async (_, _) =>
-        {
-            if (Movie == null) return;
-            var m = Movie;
-            var dlg = new ContentDialog
-            {
-                Title = "Send to Watched & Gone?",
-                Content = $"“{m.Title}” moves out of your library into Watched & Gone — " +
-                          "its poster, details, your notes and watch history are all kept as a record. " +
-                          "The files on your drive are not touched.",
-                PrimaryButtonText = "Send",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-                RequestedTheme = MainWindow.CurrentTheme,
-            };
-            if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
-            AppState.Instance.Db.ArchiveMovies(new[] { m.Id });
-            if (App.MainWindow is MainWindow mw)
-                mw.ShowToast($"“{m.Title}” sent to Watched & Gone");
-            MovieCardControl.RaiseMovieArchived();
-        };
-        flyout.Items.Add(archiveItem);
+        if (Movie is not { } m) return;
+        MovieCardControl.BuildMovieMenu(flyout, m, XamlRoot, new MovieCardControl.MovieMenuActions(
+            Play: () => _ = PlayMovieOrPromptOfflineAsync(),
+            Open: OpenDetail,
+            ToggleWatched: () => WatchedToggleRequested?.Invoke(this, m),
+            ToggleFavorite: () => OnToggleFav(this, new RoutedEventArgs()),
+            ToggleWatchlist: () => WatchlistToggleRequested?.Invoke(this, m),
+            ListsChanged: () => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty)));
     }
 
     private static void OnMovieChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

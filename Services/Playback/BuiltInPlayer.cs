@@ -56,6 +56,7 @@ internal static class BuiltInPlayer
         session.SkippedToNext += LearnCredits;
         session.SkippedIntro += LearnIntro;
         session.FindSubtitleFilm = SubtitleFilmFor;
+        session.FindMediaInfo = MediaInfoFor;      // 5.4.3
         session.ChoiceChanged += (tag, choice) => { if (tag is PlaybackItem chosen) db.SetTrackChoice(chosen.Kind == PlaybackKind.Episode, chosen.Id, choice); };
         session.ItemStarted += tag => { if (tag is PlaybackItem { Kind: PlaybackKind.Episode } episode) db.MarkEpisodePlayed(episode.Id); };
         // 5.3.0: a film's languages, as its page reads them, for films played without opening it
@@ -158,6 +159,17 @@ internal static class BuiltInPlayer
         return db.GetEpisodeDetail(item.Id) is { } episode
             ? new SubtitleFilm(episode.ShowTitle, null, db.GetTvShowDetail(episode.ShowId)?.ImdbId, episode.Season, episode.Episode)
             : null;
+    }
+
+    /// <summary>5.4.3: for Windows' media panel: a film's year or an episode's show, and the poster.</summary>
+    private static (string? Line, string? Poster) MediaInfoFor(object? tag)
+    {
+        if (tag is not PlaybackItem item) return (null, null);
+        var db = AppState.Instance.Db;
+        if (item.Kind == PlaybackKind.Movie)
+            return db.GetMovieDetail(item.Id, AppState.Instance.Connected) is { } movie ? (movie.Year?.ToString(), PosterPath(movie.LocalPoster)) : (null, null);
+        if (db.GetEpisodeDetail(item.Id) is not { } episode) return (null, null);
+        return (episode.ShowTitle, PosterPath(db.GetTvShowDetail(episode.ShowId)?.LocalPoster));
     }
 
     private static string Facts(string? year, int? minutes, double? rating, IEnumerable<string> genres)

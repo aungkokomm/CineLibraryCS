@@ -210,6 +210,14 @@ internal sealed class PlayerWindow
             case WmSysKeyDown when (int)wParam == VkReturn:   // Alt+Enter
                 w?.KeyDown?.Invoke(VkF11, false);
                 return IntPtr.Zero;
+            case WmSysKeyDown when (int)wParam == VkLeft:     // 5.4.3: Alt+Left, back as in the library
+                w?.KeyDown?.Invoke(VkBrowserBack, false);
+                return IntPtr.Zero;
+            case WmXButtonDown:
+                return (IntPtr)1;
+            case WmXButtonUp:                                  // 5.4.3: the mouse's back button
+                if ((((long)wParam >> 16) & 0xFFFF) == XButton1) w?.KeyDown?.Invoke(VkBrowserBack, false);
+                return (IntPtr)1;
             case WmMouseMove:
                 var x = (short)((long)lParam & 0xFFFF);
                 var y = (short)(((long)lParam >> 16) & 0xFFFF);
@@ -314,6 +322,10 @@ internal sealed class PlayerWindow
     private const int VkReturn = 0x0D;
     private const int VkControl = 0x11;
     internal const int VkF11 = 0x7A;
+    private const int VkLeft = 0x25;
+    /// <summary>5.4.3: the Back key of some keyboards; Alt+Left and the mouse's back button come as it.</summary>
+    internal const int VkBrowserBack = 0xA6;
+    private const int XButton1 = 1;
     private const uint WmClose = 0x0010;
     private const uint WmSetCursor = 0x0020;
     private const uint WmWindowPosChanged = 0x0047;
@@ -324,6 +336,8 @@ internal sealed class PlayerWindow
     private const uint WmLButtonDblClk = 0x0203;
     private const uint WmRButtonUp = 0x0205;
     private const uint WmMouseWheel = 0x020A;
+    private const uint WmXButtonDown = 0x020B;
+    private const uint WmXButtonUp = 0x020C;
     private const uint WmDpiChanged = 0x02E0;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;

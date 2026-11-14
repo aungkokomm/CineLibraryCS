@@ -74,7 +74,8 @@ public sealed partial class MainWindow : Window
 
         // v2.9 — start maximized. The 1400×900 above becomes the size the
         // window restores to when the user clicks the restore button.
-        if (appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+        // 5.4.4: or as it was left last time: its size, place and screen, maximized or not
+        if (WindowPlace.Restore(appWindow) is not false && appWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
             presenter.Maximize();
 
         // Set custom titlebar icon
@@ -157,6 +158,7 @@ public sealed partial class MainWindow : Window
         this.Closed += (_, _) =>
         {
             StartLog.Mark("main window closed");
+            try { WindowPlace.Save(hwnd); } catch { }   // 5.4.4
             try { _deviceWatcher?.Dispose(); } catch { }
             _deviceWatcher = null;
             try { _scanRequests?.Dispose(); } catch { }
@@ -230,6 +232,16 @@ public sealed partial class MainWindow : Window
         return box;
     }
 
+    /// <summary>5.4.3: Skip back or Skip forward in Settings: 5, 10, 15, 30 seconds or a minute.</summary>
+    private static ComboBox SkipBox(string header, int current, Action<int> set)
+    {
+        var box = new ComboBox { Header = header, MinWidth = 140, Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var seconds in UiSettings.SkipChoices) box.Items.Add(seconds == 60 ? "1 minute" : $"{seconds} seconds");
+        box.SelectedIndex = Math.Max(0, Array.IndexOf(UiSettings.SkipChoices, current));
+        box.SelectionChanged += (_, _) => { if (box.SelectedIndex >= 0) set(UiSettings.SkipChoices[box.SelectedIndex]); };
+        return box;
+    }
+
     private async void OnSettingsClick(object sender, RoutedEventArgs e)
     {
         // v4.8.0 (#25): the notes in the text colour, a little dimmed, and a size up:
@@ -244,9 +256,17 @@ public sealed partial class MainWindow : Window
         };
 
         var panel = new StackPanel { Spacing = 6, MinWidth = 360 };
+        // 5.4.4: the sections, listed on the left of the dialog
+        var sections = new List<(string Name, TextBlock Header)>();
+        TextBlock Section(string name)
+        {
+            var header = Header(name.ToUpperInvariant());
+            sections.Add((name, header));
+            return header;
+        }
 
         // ── Appearance ──
-        panel.Children.Add(Header("APPEARANCE"));
+        panel.Children.Add(Section("Appearance"));
 
         // Theme — three-way segmented choice that mirrors the quick toggle.
         var themeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 };
@@ -387,7 +407,7 @@ public sealed partial class MainWindow : Window
         });
 
         // ── Playback (v3.6.0) ──
-        panel.Children.Add(Header("PLAYBACK"));
+        panel.Children.Add(Section("Playback"));
         // v4.10.0: CineLibrary's own player
         var builtInToggle = new ToggleSwitch
         {
@@ -415,6 +435,17 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(new TextBlock
         {
             Text = "Off, the player opens over the CineLibrary window. Either way, F or a double-click switches between full screen and a window.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        // 5.4.3: how far the skip buttons jump
+        var skipRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        skipRow.Children.Add(SkipBox("Skip back", UiSettings.SkipBackSeconds, UiSettings.SetSkipBackSeconds));
+        skipRow.Children.Add(SkipBox("Skip forward", UiSettings.SkipForwardSeconds, UiSettings.SetSkipForwardSeconds));
+        panel.Children.Add(skipRow);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "For the player's skip buttons, the Left and Right keys and a remote's rewind and fast-forward buttons. Ctrl with Left or Right jumps a minute.",
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         });
@@ -526,7 +557,7 @@ public sealed partial class MainWindow : Window
         });
 
         // ── Drives (v4.6.0) ──
-        panel.Children.Add(Header("DRIVES"));
+        panel.Children.Add(Section("Drives"));
         var saveToggle = new ToggleSwitch
         {
             Header = "Save fetched info to your drives",
@@ -542,7 +573,7 @@ public sealed partial class MainWindow : Window
         });
 
         // ── TV shows (v4.6.0) ──
-        panel.Children.Add(Header("TV SHOWS"));
+        panel.Children.Add(Section("TV shows"));
         var missingToggle = new ToggleSwitch
         {
             Header = "Show missing episodes",
@@ -558,7 +589,7 @@ public sealed partial class MainWindow : Window
         });
 
         // ── Sidebar (v4.7.0) ──
-        panel.Children.Add(Header("SIDEBAR"));
+        panel.Children.Add(Section("Sidebar"));
         var hiddenText = new TextBlock { FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap };
         var showAgain = new Button { Content = "Show hidden items again" };
         void ShowHidden()
@@ -575,23 +606,88 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(hiddenText);
         panel.Children.Add(showAgain);
 
+        var scroller = new ScrollViewer
+        {
+            Content = panel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 520,
+            // Keep text and buttons clear of the scrollbar (v3.7.2).
+            Padding = new Thickness(0, 0, 16, 0),
+        };
+        var layout = new Grid { ColumnSpacing = 20 };
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        layout.Children.Add(SectionList(sections, panel, scroller));
+        Grid.SetColumn(scroller, 1);
+        layout.Children.Add(scroller);
+
         var dialog = new ContentDialog
         {
             Title = "Settings",
-            Content = new ScrollViewer
-            {
-                Content = panel,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                MaxHeight = 520,
-                // Keep text and buttons clear of the scrollbar (v3.7.2).
-                Padding = new Thickness(0, 0, 16, 0),
-            },
+            Content = layout,
             CloseButtonText = "Done",
             XamlRoot = Content.XamlRoot,
             RequestedTheme = CurrentTheme,
         };
+        dialog.Resources["ContentDialogMaxWidth"] = 760.0;   // 5.4.4: room for the sections on the left
         UseAppDarkLook(dialog);
         try { await dialog.ShowAsync(); } catch { }
+    }
+
+    /// <summary>
+    /// 5.4.4: Settings' sections on the left: a click scrolls to one, and the one in view is lit as you
+    /// scroll (the last one at the bottom, short as it may be).
+    /// </summary>
+    private static StackPanel SectionList(List<(string Name, TextBlock Header)> sections, StackPanel panel, ScrollViewer scroller)
+    {
+        var list = new StackPanel { Spacing = 2, MinWidth = 130, Margin = new Thickness(0, 10, 0, 0) };
+        var lit = new SolidColorBrush(Windows.UI.Color.FromArgb(0x22, 0x80, 0x80, 0x80));   // reads in both themes, as the key chips
+        var none = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        var rows = new List<(Button Button, Border Bar, TextBlock Text)>();
+        foreach (var (name, header) in sections)
+        {
+            var bar = new Border { Width = 3, Height = 16, CornerRadius = new CornerRadius(1.5), Background = ThemeBrushes.Get("BrandPurpleBrush"), Opacity = 0, VerticalAlignment = VerticalAlignment.Center };
+            var text = new TextBlock { Text = name, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+            content.Children.Add(bar);
+            content.Children.Add(text);
+            var button = new Button
+            {
+                Content = content,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(6, 7, 14, 7),
+                Background = none,
+                BorderThickness = new Thickness(0),
+            };
+            button.Click += (_, _) => header.StartBringIntoView(new BringIntoViewOptions
+            {
+                VerticalAlignmentRatio = 0,
+                AnimationDesired = !UiSettings.ReduceMotion,
+            });
+            rows.Add((button, bar, text));
+            list.Children.Add(button);
+        }
+
+        void Light()
+        {
+            var current = 0;
+            if (scroller.ScrollableHeight > 0 && scroller.VerticalOffset >= scroller.ScrollableHeight - 2) current = sections.Count - 1;
+            else
+                for (var i = 0; i < sections.Count; i++)
+                    if (sections[i].Header.TransformToVisual(panel).TransformPoint(new Windows.Foundation.Point(0, 0)).Y <= scroller.VerticalOffset + 24)
+                        current = i;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var on = i == current;
+                rows[i].Button.Background = on ? lit : none;
+                rows[i].Bar.Opacity = on ? 1 : 0;
+                rows[i].Text.FontWeight = on ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+            }
+        }
+        scroller.ViewChanged += (_, _) => Light();
+        panel.Loaded += (_, _) => Light();
+        return list;
     }
 
     // ── 5.4.0: Scan in CineLibrary (from CineLibrary Essentials) ────────────
@@ -956,11 +1052,13 @@ public sealed partial class MainWindow : Window
     private void OnNavTagItem(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: DatabaseService.TagSummary t } btn) return;
+        if (ReturnTo($"tag:{t.Id}")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.FilterByTag(t.Id, t.Name);
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(btn, t.Id);
+        Opened($"tag:{t.Id}");
     }
 
     // v4.6.3: the repeater reuses tag buttons as the sidebar scrolls, so the
@@ -984,14 +1082,16 @@ public sealed partial class MainWindow : Window
             Style = (Style)Application.Current.Resources["NavItemStyle"],
             Tag = ul.Id,
         };
-        btn.Click += (_, _) => _libraryPage?.UpdatePageTitle(ul.Name);
         btn.Click += (_, _) =>
         {
+            if (ReturnTo($"list:{ul.Id}")) return;   // 5.4.4
+            _libraryPage?.UpdatePageTitle(ul.Name);
             if (_libraryPage == null) NavigateTo("library");
             _libraryPage?.ViewModel.ShowUserList(ul.Id, ul.Name);
             if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
             ClearLibraryBack();
             SetActiveNav(btn);
+            Opened($"list:{ul.Id}");
         };
 
         var grid = new Grid();
@@ -1531,9 +1631,12 @@ public sealed partial class MainWindow : Window
             TitleSearchBox.Text = "";
             GlobalSearch("");   // clear the search results too
         }
-        // Leave the search box.
-        Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(
-            Microsoft.UI.Xaml.Input.FocusNavigationDirection.Next);
+        // Leave the search box. 5.4.6: a desktop app has to say where to look for the next one (the
+        // window's content), or Windows stops it with "Catastrophic failure", as CardCell does
+        if (Content is UIElement root && root.XamlRoot != null)
+            Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(
+                Microsoft.UI.Xaml.Input.FocusNavigationDirection.Next,
+                new Microsoft.UI.Xaml.Input.FindNextElementOptions { SearchRoot = root });
         e.Handled = true;
     }
 
@@ -1651,7 +1754,8 @@ public sealed partial class MainWindow : Window
                 _tvShowsPage = new TvShowsPage();
                 _tvShowsPage.SidebarRefreshRequested += (_, _) => { _ = RefreshSidebarAsync(); };
             }
-            _tvShowsPage.Load();
+            if (param is "return") _tvShowsPage.Return();
+            else _tvShowsPage.Load();
             ContentFrame.Content = _tvShowsPage;
         }
         else if (page == "onthisday")
@@ -1753,6 +1857,47 @@ public sealed partial class MainWindow : Window
     /// <summary>The sidebar's counts again (a movie's window changed a list).</summary>
     public void RefreshSidebarCounts() => _ = RefreshSidebarAsync();
 
+    // ── 5.4.4: each library page of the sidebar as it was left ──────────────
+    // Its search, filters, sort and where it was scrolled, to find it so when you come back to it
+    // through the sidebar (until CineLibrary closes). Not when it was left on a page reached by a link
+    // (an actor, a collection), which has its own ‹ Back. A click on the page you're on starts it afresh.
+    private readonly Dictionary<string, Action> _leftPages = new();
+    private string? _libraryNav, _libraryNavTitle;   // the library page the sidebar opened, and its title then
+
+    private bool LibraryShowing => _libraryPage is { } library && ReferenceEquals(ContentFrame.Content, library);
+
+    /// <summary>First on every click in the sidebar: keeps how the library page showing now was left (and
+    /// the TV page notes where it was).</summary>
+    private void Leaving()
+    {
+        if (_tvShowsPage != null && ReferenceEquals(ContentFrame.Content, _tvShowsPage)) _tvShowsPage.NoteLeaving();
+        if (_libraryNav is { } key && LibraryShowing)
+        {
+            if (_libraryPage!.BackLabelShown == null && _libraryPage.PageTitle == _libraryNavTitle) _leftPages[key] = CaptureView();
+            else _leftPages.Remove(key);
+        }
+        _libraryNav = null;
+    }
+
+    /// <summary>A library page of the sidebar as it was left. False when it opens afresh: the first time,
+    /// or a click on it while it shows.</summary>
+    private bool ReturnTo(string key)
+    {
+        if (_libraryNav == key && LibraryShowing)
+        {
+            _leftPages.Remove(key);
+            return false;
+        }
+        Leaving();
+        if (!_leftPages.Remove(key, out var restore)) return false;
+        restore();
+        Opened(key);
+        return true;
+    }
+
+    /// <summary>A library page of the sidebar opened afresh.</summary>
+    private void Opened(string key) => (_libraryNav, _libraryNavTitle) = (key, _libraryPage?.PageTitle);
+
     // ── Nav handlers ──────────────────────────────────────────────────────
 
     // ── Active sidebar nav state (v1.9.3) ─────────────────────────────────
@@ -1786,20 +1931,26 @@ public sealed partial class MainWindow : Window
 
     private void OnNavAllMovies(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("all")) return;
         NavigateTo("library", new LibraryNavParam());
         SetActiveNav(sender as Button ?? BtnAllMovies);
+        Opened("all");
     }
 
     private void OnNavFavorites(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("favorites")) return;
         NavigateTo("library", new LibraryNavParam(FavoritesOnly: true, Label: "Favorites"));
         _libraryPage?.UpdatePageTitle("Favorites");   // v4.0.0: the page holds shows too, so not "All movies › …"
         SetActiveNav(sender as Button ?? BtnFavorites);
+        Opened("favorites");
     }
 
     private void OnNavTvShows(object sender, RoutedEventArgs e)
     {
-        NavigateTo("tvshows");
+        var onIt = _tvShowsPage != null && ReferenceEquals(ContentFrame.Content, _tvShowsPage);
+        Leaving();
+        NavigateTo("tvshows", onIt ? null : "return");   // 5.4.4: the show or the grid as it was left
         SetActiveNav(sender as Button ?? BtnTvShows);
     }
 
@@ -1871,6 +2022,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavDrives(object sender, RoutedEventArgs e)
     {
+        Leaving();   // 5.4.4
         NavigateTo("drives");
         SetActiveNav(null);   // the bottom-bar icon isn't a sidebar row to highlight
     }
@@ -1972,21 +2124,25 @@ public sealed partial class MainWindow : Window
 
     private void OnNavBrowseGenre(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("browse", DatabaseService.BrowseFacet.Genre);
         SetActiveNav(sender as Button ?? BtnBrowseGenre);
     }
     private void OnNavBrowseDecade(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("browse", DatabaseService.BrowseFacet.Decade);
         SetActiveNav(sender as Button ?? BtnBrowseDecade);
     }
     private void OnNavBrowseRating(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("browse", DatabaseService.BrowseFacet.Rating);
         SetActiveNav(sender as Button ?? BtnBrowseRating);
     }
     private void OnNavCollections(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("collections");
         SetActiveNav(sender as Button ?? BtnCollections);
     }
@@ -1994,6 +2150,7 @@ public sealed partial class MainWindow : Window
     // v4.7.0: the Tags page (also the "Pin tags" hint under PINNED TAGS)
     private void OnNavBrowseTags(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("tags");
         SetActiveNav(BtnBrowseTags);
     }
@@ -2010,32 +2167,38 @@ public sealed partial class MainWindow : Window
 
     private void OnNavContinueWatching(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("continue")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowContinueWatching();
         _libraryPage?.UpdatePageTitle("Continue watching");   // v4.0.0: it said "All movies"
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnContinueWatching);
+        Opened("continue");
     }
 
     private void OnNavRecentlyAdded(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("added")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowRecentlyAdded();
         _libraryPage?.UpdatePageTitle("Recently added");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnRecentlyAdded);
+        Opened("added");
     }
 
     private void OnNavRecentlyWatched(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("watched")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowRecentlyWatched();
         _libraryPage?.UpdatePageTitle("Recently watched");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnRecentlyWatched);
+        Opened("watched");
     }
 
     /// <summary>
@@ -2192,6 +2355,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnNavOnThisDay(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("onthisday");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnOnThisDay);
@@ -2199,6 +2363,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavDriveItem(object sender, RoutedEventArgs e)
     {
+        Leaving();
         if (sender is Button btn && btn.Tag is string serial)
         {
             var drive = _vm.Drives.FirstOrDefault(d => d.VolumeSerial == serial);
@@ -2208,6 +2373,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavCollection(object sender, RoutedEventArgs e)
     {
+        Leaving();
         if (sender is not Button btn) return;
         // WinRT can box an int as Int64 when it goes through {Binding} — accept both.
         int id;
@@ -2221,6 +2387,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavGenre(object sender, RoutedEventArgs e)
     {
+        Leaving();
         if (sender is Button btn && btn.Tag is string genre)
             NavigateTo("library", new LibraryNavParam(Genre: genre, Label: genre));
     }
@@ -2229,6 +2396,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavWatchlist(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("towatch")) return;
         if (_libraryPage?.ViewModel is LibraryViewModel vm)
         {
             vm.ShowWatchlist();
@@ -2236,26 +2404,31 @@ public sealed partial class MainWindow : Window
             _libraryPage?.UpdatePageTitle("To watch");
         }
         SetActiveNav(sender as Button ?? BtnWatchlist);
+        Opened("towatch");
     }
 
     private void OnNavWishlist(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("wishlist");
         SetActiveNav(sender as Button ?? BtnWishlist);
     }
 
     private void OnNavNotes(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("notes")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowNotes();
         _libraryPage?.UpdatePageTitle("Notes");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnNotes);
+        Opened("notes");
     }
 
     private void OnNavWatchedGone(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("watchedgone");
         SetActiveNav(sender as Button ?? BtnWatchedGone);
     }
@@ -2264,6 +2437,7 @@ public sealed partial class MainWindow : Window
 
     private void OnNavStatistics(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("statistics");
         SetActiveNav(sender as Button ?? BtnStatistics);
     }
@@ -2271,16 +2445,19 @@ public sealed partial class MainWindow : Window
     // v4.8.0: movies with one actor or none, to select and Fetch missing info for
     private void OnNavFewCast(object sender, RoutedEventArgs e)
     {
+        if (ReturnTo("fewcast")) return;
         if (_libraryPage == null) NavigateTo("library");
         _libraryPage?.ViewModel.ShowFewCast();
         _libraryPage?.UpdatePageTitle("Missing cast");
         if (!ReferenceEquals(ContentFrame.Content, _libraryPage)) NavigateTo("library");
         ClearLibraryBack();
         SetActiveNav(sender as Button ?? BtnFewCast);
+        Opened("fewcast");
     }
 
     private void OnNavDupes(object sender, RoutedEventArgs e)
     {
+        Leaving();
         NavigateTo("dupes");
         SetActiveNav(sender as Button ?? BtnDupes);
     }
@@ -2297,7 +2474,7 @@ public sealed partial class MainWindow : Window
         void AddRow(string keys, string what)
         {
             var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             // Theme-neutral key chip. (Resolving CardBrush/BorderBrush via
@@ -2365,6 +2542,31 @@ public sealed partial class MainWindow : Window
         AddRow("PgDn / PgUp",  "Scroll one viewport");
         AddRow("Home / End",   "Jump to top / bottom");
         AddRow("↑ / ↓", "Scroll by one row of cards");
+        AddRow("Alt + ←  ·  mouse back", "‹ Back to where you were");   // 5.4.4: the keys of 5.4.1 and on
+
+        AddHeader("MOVIE WINDOW");
+        AddRow("Enter  ·  Space", "Play, or go on from where you stopped");
+        AddRow("← / →",           "The previous / next movie of the list");
+        AddRow("W  ·  F",         "Toggle To Watch / favorite");
+        AddRow("Esc  ·  mouse back", "Close it");
+
+        AddHeader("PLAYER");
+        AddRow("Space  ·  K",      "Play or pause");
+        AddRow("← / →  ·  J / L",  $"Back {UiSettings.SkipBackSeconds} s / forward {UiSettings.SkipForwardSeconds} s (Settings › Playback)");
+        AddRow("Ctrl + ← / →",     "Back / forward a minute");
+        AddRow("↑ / ↓  ·  M",      "Volume up / down, mute");
+        AddRow("A  ·  S",          "The next audio track / subtitles");
+        AddRow("G / H",            "Subtitles earlier / later");
+        AddRow("C",                "Chapters");
+        AddRow("N / P",            "Next / previous episode, or chapter");
+        AddRow("I",                "Skip the intro or recap");
+        AddRow("−  /  +",          "Slower / faster");
+        AddRow("V",                "Clear voices on / off");
+        AddRow("Home",             "Start over");
+        AddRow("F  ·  double-click", "Full screen");
+        AddRow("Esc",              "Leave full screen, then close the player");
+        AddRow("Alt + ←  ·  mouse back", "Close the player");
+        AddRow("Media keys",       "Play / pause, stop, next and previous, also from another window");
 
         var note = new TextBlock
         {

@@ -30,7 +30,9 @@ public static class People
         try
         {
             var cached = db.GetPersonCache(name);
-            if (cached != null && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - cached.FetchedAt < RefreshAfter)
+            // 5.4.5: one kept from before every film of an actor was kept is asked again (kept if TMDb can't be reached)
+            if (cached != null && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - cached.FetchedAt < RefreshAfter
+                && (cached.Info == null || cached.Info.Version >= PersonInfo.CurrentVersion))
                 return (cached.Info, false);
             try
             {
@@ -116,10 +118,12 @@ public static class People
             PlaceOfBirth = Str(r, "place_of_birth")?.Trim(),
             ProfilePath = Str(r, "profile_path"),
             ImdbId = Str(r, "imdb_id") ?? (r.TryGetProperty("external_ids", out var ext) ? Str(ext, "imdb_id") : null),
+            Version = PersonInfo.CurrentVersion,
         };
         if (r.TryGetProperty("combined_credits", out var cc))
         {
-            p.Acted = Films(cc, "cast", e => !AsThemselves(e)).OrderByDescending(f => f.Votes).Take(60).ToList();
+            // 5.4.5: all of them, not the 60 best-known: a long career's lesser-known films were never shown
+            p.Acted = Films(cc, "cast", e => !AsThemselves(e)).OrderByDescending(f => f.Votes).ToList();
             p.Directed = Films(cc, "crew", e => Str(e, "job") == "Director").ToList();
         }
         return p.TmdbId > 0 ? p : null;
@@ -176,6 +180,11 @@ public static class People
             : missing.Where(f => Date(f.ReleaseDate) is { } d && d <= today).OrderByDescending(f => f.Votes).Take(20);
         return (missing.ToList(), films.Count, have, had);
     }
+
+    /// <summary>5.4.5: every film they acted in that you don't have and haven't let go, the newest and the
+    /// ones still to come first, as a director's: what Show all lists under an actor's best-known 20.</summary>
+    public static List<PersonFilm> AllMissing(PersonInfo p, OwnedMovies owned, OwnedMovies gone) =>
+        p.Acted.Where(f => !owned.Has(f) && !gone.Has(f)).OrderByDescending(f => f.ReleaseDate ?? "9999").ToList();
 
     /// <summary>"2014", "Coming 2027", or "Coming" when TMDb has no date yet.</summary>
     public static string YearText(PersonFilm f, DateTime today)

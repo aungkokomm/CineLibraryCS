@@ -75,10 +75,13 @@ Films and TV episodes play in CineLibrary's own highly customized, lightweight p
 - **Opens in full screen** - or over the CineLibrary window, if you turn off **Open the player in full screen** in Settings.
 - **Picks up where you stopped**, with the audio and subtitle tracks you chose last time.
 - **Subtitles from your folders** - files next to the video, or in a `Sub`, `Subs` or `Subtitles` folder, appear in the Subtitles menu with their language. **Add subtitle file...** picks any other.
-- **Skip back 10 seconds or forward 30**, jump between a film's chapters, and go straight on to the next episode.
+- **Skip back 10 seconds or forward 30** (or as far as you like, set in Settings), jump between a film's chapters, and go straight on to the next episode.
+- **Media keys** - the keyboard's play/pause, next and previous keys, a remote's buttons and Bluetooth headphones' work the player even when another window is in front, and Windows' media panel shows the film and its poster.
+- **Clear voices** - press V for an equalizer that brings voices up and the rumble of explosions down, for the evening.
+- **A drive that drops out** - if the file stops answering (a drive asleep or unplugged, the computer back from sleep), the player opens it again where it was instead of closing.
 - **Pause and see what you're watching** - the title, plot, director and cast fade in over the picture.
 - **Play counts** - a film you watch to the end counts as played, and its page shows how many times. Counts in your `.nfo` files are read too.
-- **Mouse and keyboard** - the wheel changes the volume, Space pauses, the arrows seek and change the volume, F goes full screen, and G and H move the subtitles earlier or later.
+- **Mouse and keyboard** - the wheel changes the volume, Space or K pauses, the arrows (or J and L) seek and change the volume, F goes full screen, A and S switch the audio and subtitles, C shows the chapters, - and + change the speed, I skips the intro, G and H move the subtitles earlier or later, and the mouse's back button closes the player.
 - **Your own player instead** - turn off **Play with CineLibrary Player** in Settings and VLC, MPC-HC, PotPlayer or mpv opens your films.
 
 <img width="960" alt="The player paused on Sintel: the title, year, length, genres, plot, director and cast over the picture" src="docs/images/cinelibrary-pause.png" />

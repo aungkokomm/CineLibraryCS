@@ -16,10 +16,15 @@ public sealed class PersonInfo
     public string? PlaceOfBirth { get; set; }
     public string? ProfilePath { get; set; }
     public string? ImdbId { get; set; }
-    /// <summary>Their films as an actor, the most voted first (up to 60).</summary>
+    /// <summary>Their films as an actor, the most voted first (5.4.5: all of them; up to 60 before).</summary>
     public List<PersonFilm> Acted { get; set; } = new();
     /// <summary>Every film they directed.</summary>
     public List<PersonFilm> Directed { get; set; } = new();
+    /// <summary>5.4.5: how it was read; one kept from an older way is asked again when TMDb can be reached.</summary>
+    public int Version { get; set; }
+
+    /// <summary>5.4.5: every film they acted in is kept (it was the 60 best-known before).</summary>
+    public const int CurrentVersion = 2;
 }
 
 /// <summary>5.4.0: one of a person's films on TMDb.</summary>

@@ -767,13 +767,12 @@ public sealed partial class MovieCardControl : UserControl
 
     /// <summary>
     /// Right-click flyout — built fresh on every open so list membership
-    /// reflects current state. Mirrors what's in MovieDetailDialog so users
-    /// don't have to open the detail window for common actions.
+    /// reflects current state. 5.4.4: the same menu as a list row's (BuildMovieMenu).
     /// </summary>
     private void RebuildContextFlyout(MenuFlyout flyout)
     {
         flyout.Items.Clear();
-        if (Movie == null) return;
+        if (Movie is not { } m) return;
 
         // v3.3 — Watched & Gone page: a record's menu is Restore / Delete.
         if (ArchiveMode)
@@ -781,71 +780,80 @@ public sealed partial class MovieCardControl : UserControl
             BuildArchiveContextFlyout(flyout);
             return;
         }
+        BuildMovieMenu(flyout, m, XamlRoot, new MovieMenuActions(
+            Play: () => _ = PlayMovieOrPromptOfflineAsync(),
+            Open: OpenDetail,
+            ToggleWatched: () => WatchedToggleRequested?.Invoke(this, m),
+            ToggleFavorite: ToggleFavorite,
+            ToggleWatchlist: () => WatchlistToggleRequested?.Invoke(this, m),
+            ListsChanged: () => SidebarRefreshRequested?.Invoke(this, EventArgs.Empty)));
+    }
+
+    /// <summary>5.4.4: what a movie's right-click menu does, on a card or a list row.</summary>
+    internal sealed record MovieMenuActions(Action Play, Action Open, Action ToggleWatched, Action ToggleFavorite,
+                                            Action ToggleWatchlist, Action ListsChanged);
+
+    /// <summary>
+    /// 5.4.4: a movie's right-click menu, the same on a card and a list row and in the order of a TV show
+    /// card's: Play and Open details; Watched, Favorite and To Watch; Add to list; Open folder; Send to
+    /// Watched &amp; Gone. Built on every open, so the ticks and lists are as they are now.
+    /// </summary>
+    internal static void BuildMovieMenu(MenuFlyout flyout, MovieListItem m, XamlRoot xamlRoot, MovieMenuActions a)
+    {
+        var resume = m.IsWatched ? 0 : m.ResumeMs;
+        var play = new MenuFlyoutItem
+        {
+            Text = resume > 0 ? $"▶ Resume from {Services.Playback.PlayerControls.Format(resume)}" : "▶ Play",
+            IsEnabled = !m.IsMissing,   // its drive away, Play offers to start it when it's connected
+        };
+        play.Click += (_, _) => a.Play();
+        flyout.Items.Add(play);
+        var openItem = new MenuFlyoutItem { Text = "Open details" };
+        openItem.Click += (_, _) => a.Open();
+        flyout.Items.Add(openItem);
+        flyout.Items.Add(new MenuFlyoutSeparator());
 
         // Watched / Favorite / Watchlist toggles
-        var watchedItem = new ToggleMenuFlyoutItem
-        {
-            Text = "Watched",
-            IsChecked = Movie.IsWatched,
-        };
-        watchedItem.Click += (_, _) => WatchedToggleRequested?.Invoke(this, Movie);
+        var watchedItem = new ToggleMenuFlyoutItem { Text = "Watched", IsChecked = m.IsWatched };
+        watchedItem.Click += (_, _) => a.ToggleWatched();
         flyout.Items.Add(watchedItem);
-
-        var favItem = new ToggleMenuFlyoutItem
-        {
-            Text = "Favorite",
-            IsChecked = Movie.IsFavorite,
-        };
-        favItem.Click += (_, _) => ToggleFavorite();
+        var favItem = new ToggleMenuFlyoutItem { Text = "Favorite", IsChecked = m.IsFavorite };
+        favItem.Click += (_, _) => a.ToggleFavorite();
         flyout.Items.Add(favItem);
-
-        var watchlistItem = new ToggleMenuFlyoutItem
-        {
-            Text = "To Watch",
-            IsChecked = Movie.IsWatchlist,
-        };
-        watchlistItem.Click += (_, _) => WatchlistToggleRequested?.Invoke(this, Movie);
+        var watchlistItem = new ToggleMenuFlyoutItem { Text = "To Watch", IsChecked = m.IsWatchlist };
+        watchlistItem.Click += (_, _) => a.ToggleWatchlist();
         flyout.Items.Add(watchlistItem);
-
         flyout.Items.Add(new MenuFlyoutSeparator());
 
         // Add to list submenu
         var listsSub = new MenuFlyoutSubItem { Text = "📑 Add to list" };
         var allLists = AppState.Instance.Db.GetUserLists();
-        var membership = AppState.Instance.Db.GetUserListsForMovie(Movie.Id);
+        var membership = AppState.Instance.Db.GetUserListsForMovie(m.Id);
         if (allLists.Count == 0)
-        {
             listsSub.Items.Add(new MenuFlyoutItem { Text = "(no lists yet)", IsEnabled = false });
-        }
-        else
+        foreach (var ul in allLists)
         {
-            foreach (var ul in allLists)
+            var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = membership.Contains(ul.Id) };
+            var listId = ul.Id;
+            item.Click += (_, _) =>
             {
-                var inList = membership.Contains(ul.Id);
-                var item = new ToggleMenuFlyoutItem { Text = ul.Name, IsChecked = inList };
-                var capturedUl = ul;
-                item.Click += (_, _) =>
-                {
-                    if (item.IsChecked)
-                        AppState.Instance.Db.AddMovieToUserList(capturedUl.Id, Movie.Id);
-                    else
-                        AppState.Instance.Db.RemoveMovieFromUserList(capturedUl.Id, Movie.Id);
-                    SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
-                };
-                listsSub.Items.Add(item);
-            }
+                if (item.IsChecked) AppState.Instance.Db.AddMovieToUserList(listId, m.Id);
+                else AppState.Instance.Db.RemoveMovieFromUserList(listId, m.Id);
+                a.ListsChanged();
+            };
+            listsSub.Items.Add(item);
         }
         listsSub.Items.Add(new MenuFlyoutSeparator());
         var newListItem = new MenuFlyoutItem { Text = "+ New list…" };
         newListItem.Click += async (_, _) =>
         {
-            var name = await PromptNewListNameDialog(XamlRoot);
-            if (string.IsNullOrWhiteSpace(name) || Movie == null) return;
+            var name = await PromptNewListNameDialog(xamlRoot);
+            if (string.IsNullOrWhiteSpace(name)) return;
             try
             {
                 var newId = AppState.Instance.Db.CreateUserList(name.Trim());
-                AppState.Instance.Db.AddMovieToUserList(newId, Movie.Id);
-                SidebarRefreshRequested?.Invoke(this, EventArgs.Empty);
+                AppState.Instance.Db.AddMovieToUserList(newId, m.Id);
+                a.ListsChanged();
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
@@ -855,11 +863,20 @@ public sealed partial class MovieCardControl : UserControl
         };
         listsSub.Items.Add(newListItem);
         flyout.Items.Add(listsSub);
-
         flyout.Items.Add(new MenuFlyoutSeparator());
-        var openItem = new MenuFlyoutItem { Text = "Open details" };
-        openItem.Click += (_, _) => OpenDetail();
-        flyout.Items.Add(openItem);
+
+        // The movie window's Open folder
+        var connected = AppState.Instance.Connected;
+        var folder = connected.TryGetValue(m.VolumeSerial, out var letter)
+                     && AppState.Instance.Db.GetMovieDetail(m.Id, connected) is { FolderRelPath: { Length: > 0 } rel }
+            ? System.IO.Path.Combine($"{letter}:\\", rel.Replace('/', '\\')) : null;
+        var openFolder = new MenuFlyoutItem { Text = "📂 Open folder", IsEnabled = folder != null };
+        openFolder.Click += async (_, _) =>
+        {
+            if (folder != null && System.IO.Directory.Exists(folder))
+                await Windows.System.Launcher.LaunchFolderPathAsync(folder);
+        };
+        flyout.Items.Add(openFolder);
 
         // v3.3 — Watched & Gone: keep the record (poster, details, notes,
         // history) but move the movie out of the live library.
@@ -867,12 +884,10 @@ public sealed partial class MovieCardControl : UserControl
         var archiveItem = new MenuFlyoutItem
         {
             Text = "Send to Watched & Gone",
-            Icon = new FontIcon { Glyph = "", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons,Segoe MDL2 Assets") },
+            Icon = new FontIcon { Glyph = "\uE7B8", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe Fluent Icons,Segoe MDL2 Assets") },
         };
         archiveItem.Click += async (_, _) =>
         {
-            if (Movie == null) return;
-            var m = Movie;
             var dlg = new ContentDialog
             {
                 Title = "Send to Watched & Gone?",
@@ -883,7 +898,7 @@ public sealed partial class MovieCardControl : UserControl
                 PrimaryButtonText = "Send",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
+                XamlRoot = xamlRoot,
                 RequestedTheme = MainWindow.CurrentTheme,
             };
             if (await dlg.ShowAsync() != ContentDialogResult.Primary) return;
