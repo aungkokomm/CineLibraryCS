@@ -856,7 +856,12 @@ of the same title and year. The others are listed at the end, so you can
 open each one and pick the match. To give every movie with one actor or
 none its cast, open **Tools → Missing cast**, press **Ctrl+A** and then
 **Fetch missing info**. Fetch takes up to 50 cast members from TMDb, as
-CineLibrary Essentials does.
+CineLibrary Essentials does. A movie whose `.nfo` already names more than 15
+people, or a show with a cast in its `tvshow.nfo`, gets photos only for those
+people (5.5.4), so its `.actors` folder matches the `.nfo`. **Settings →
+Cast photos per title** (10, 20, 30 or 50 people, 5.5.4) sets how many
+people a fetch gets photos for, the first by billing, like CineLibrary
+Essentials' Cast limit. Photos already in a folder are never removed.
 
 **Saved onto the drive by itself.** Right after a fetch, CineLibrary copies
 the fetched poster, fanart and cast photos into the movie's or show's

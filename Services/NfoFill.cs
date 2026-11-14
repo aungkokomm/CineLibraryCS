@@ -120,6 +120,9 @@ public static class NfoFill
         return true;
     }
 
+    /// <summary>5.5.4: a cast this long or shorter gets TMDb's people added (Fetch saves their photos then, MovieFetch.CastToFetch).</summary>
+    public const int ShortCast = 15;
+
     /// <summary>The cast, when the .nfo names nobody: one &lt;actor&gt; each, in billing
     /// order. A short cast gets the people it doesn't have after it: one that was
     /// packed (a broken file, usually TMDb's first 10) or one of 15 or fewer (all
@@ -139,7 +142,7 @@ public static class NfoFill
         var named = root.Elements("actor").Where(a => !Blank(a.Element("name"))).ToList();
         if (named.Count > 0)
         {
-            if (!packed && named.Count > 15) return false;
+            if (!packed && named.Count > ShortCast) return false;
             var have = named.Select(a => NameKey(a.Element("name")!.Value)).ToHashSet();
             var more = people.Where(c => !have.Contains(NameKey(c.Name))).ToList();
             if (more.Count == 0) return false;

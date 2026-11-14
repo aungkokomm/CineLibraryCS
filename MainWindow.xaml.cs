@@ -572,6 +572,21 @@ public sealed partial class MainWindow : Window
         {
             Text = "After Fetch missing info from TMDB, CineLibrary copies the poster, fanart and cast photos into the movie's or show's folder, and a movie's details into its CineLibrary state file there and into its .nfo. Only missing files are added, and the .nfo only gets the tags it was missing: nothing that has a value is changed. A drive that isn't connected gets them the next time you plug it in.",
             FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        // 5.5.4: how many cast photos a fetch saves
+        var castBox = new ComboBox { Header = "Cast photos per title", MinWidth = 140, Margin = new Thickness(0, 0, 0, 8) };
+        foreach (var people in UiSettings.CastPhotoChoices) castBox.Items.Add($"{people} people");
+        castBox.SelectedIndex = Math.Max(0, Array.IndexOf(UiSettings.CastPhotoChoices, UiSettings.CastPhotos));
+        castBox.SelectionChanged += (_, _) =>
+        {
+            if (castBox.SelectedIndex >= 0) UiSettings.SetCastPhotos(UiSettings.CastPhotoChoices[castBox.SelectedIndex]);
+        };
+        panel.Children.Add(castBox);
+        panel.Children.Add(new TextBlock
+        {
+            Text = "How many people Fetch missing info gets photos for, the first by billing, as CineLibrary Essentials' Cast limit. A movie or show whose .nfo already has its cast gets photos only for those people. Photos already in a folder are never removed.",
+            FontSize = 13, Opacity = 0.75, Foreground = dim, TextWrapping = TextWrapping.Wrap,
         });
 
         // ── TV shows (v4.6.0) ──

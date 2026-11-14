@@ -6,6 +6,14 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.5.4] - 2026-11-15
+
+### Added
+- Settings → Cast photos per title: 10, 20, 30 or 50 people, how many Fetch missing info gets photos for (the first by billing), like CineLibrary Essentials' Cast limit. 50 by default, as before. Photos already in a folder are never removed.
+
+### Fixed
+- Fetch missing info saved photos for TMDb's whole cast (up to 50) into a title's `.actors` folder, even when its `.nfo` named only 20 people, so a folder could go from 20 photos to 70. A movie whose `.nfo` names more than 15 people, or a show with a cast in its `tvshow.nfo`, now gets photos only for those people. A shorter cast or none still gets TMDb's, which a movie's `.nfo` gets too.
+
 ## [5.5.3] - 2026-11-14
 
 ### Changed

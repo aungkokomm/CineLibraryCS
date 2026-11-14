@@ -24,6 +24,7 @@ public static class UiSettings
     private const string KeyPlayerPath = "ui_playerPath"; // v3.6.0: "" = Windows default
     private const string KeyMissingEpisodes = "tv_checkMissingEpisodes"; // v4.6.0
     private const string KeySaveFetched = "drive_saveFetched";            // v4.6.0
+    private const string KeyCastPhotos = "fetch_castPhotos";              // 5.5.4
     private const string KeyBuiltInPlayer = "ui_builtInPlayer";           // v4.10.0
     private const string KeyPlayerVolume = "ui_playerVolume";             // v4.10.0
     private const string KeyPlayerTimeMode = "ui_playerTimeMode";         // v4.10.0
@@ -112,6 +113,11 @@ public static class UiSettings
     /// now or when its drive is next connected (AppState.SyncFetched). Default on.</summary>
     public static bool SaveFetchedToDrives { get; private set; } = true;
 
+    /// <summary>5.5.4: what Cast photos per title can be set to.</summary>
+    public static readonly int[] CastPhotoChoices = [10, 20, 30, 50];
+    /// <summary>5.5.4: how many people Fetch missing info saves photos for (the first by billing). Default 50, as before.</summary>
+    public static int CastPhotos { get; private set; } = 50;
+
     /// <summary>Raised after any setting changes so live UI can re-apply it.</summary>
     public static event Action? Changed;
 
@@ -139,6 +145,8 @@ public static class UiSettings
         ClearVoices = AppState.Instance.GetPref(KeyClearVoices, "false") == "true";
         CheckMissingEpisodes = AppState.Instance.GetPref(KeyMissingEpisodes, "true") == "true";
         SaveFetchedToDrives  = AppState.Instance.GetPref(KeySaveFetched, "true") == "true";
+        CastPhotos = int.TryParse(AppState.Instance.GetPref(KeyCastPhotos, "50"), out var castPhotos)
+                     && CastPhotoChoices.Contains(castPhotos) ? castPhotos : 50;
 
         var lvl = AppState.Instance.GetPref(KeyMicaLevel, "");
         Mica = lvl switch
@@ -293,6 +301,14 @@ public static class UiSettings
     {
         CheckMissingEpisodes = value;
         AppState.Instance.SetPref(KeyMissingEpisodes, value ? "true" : "false");
+    }
+
+    /// <summary>No Changed event: it applies to the next fetch.</summary>
+    public static void SetCastPhotos(int value)
+    {
+        if (!CastPhotoChoices.Contains(value)) return;
+        CastPhotos = value;
+        AppState.Instance.SetPref(KeyCastPhotos, value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     /// <summary>No Changed event; turning it on catches up in the background.</summary>

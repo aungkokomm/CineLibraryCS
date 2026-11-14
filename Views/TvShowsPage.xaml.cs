@@ -959,11 +959,15 @@ public sealed partial class TvShowsPage : Page
 
             // Cast photos are fetched even when the show has cast: .nfo thumbs are
             // often TMDb links (blank offline) or missing; these are kept locally.
-            if (t.Cast.Count > 0)
+            // 5.5.4: with a cast in its tvshow.nfo, only that cast's photos (nothing adds
+            // TMDb's people to a tvshow.nfo); with one actor or none, TMDb's cast
+            var cast = Services.MovieFetch.CastToFetch(show.Actors.Select(a => a.Name), t.Cast, shortCast: 1,
+                                                       max: UiSettings.CastPhotos);
+            if (cast.Count > 0)
             {
                 ShowTmdbBusyState(true, "Fetching cast photos…");
                 var actors = new List<(string, string?, int, string?)>();
-                foreach (var c in t.Cast)
+                foreach (var c in cast)
                 {
                     if (string.IsNullOrWhiteSpace(c.Name)) continue;
                     string? thumbRel = null;

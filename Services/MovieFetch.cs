@@ -11,6 +11,20 @@ namespace CineLibraryCS.Services;
 public static class MovieFetch
 {
     /// <summary>
+    /// 5.5.4: the people whose photos a fetch saves. A title whose cast is longer than
+    /// <paramref name="shortCast"/> keeps to it: TMDb's photos only for the people already
+    /// there, so the folder's .actors matches the .nfo (it went from 20 to 70 photos before).
+    /// A shorter cast, or none, gets TMDb's (a movie's .nfo gets those people too, NfoFill).
+    /// At most <paramref name="max"/> of them, the first by billing (Settings → Cast photos per title).
+    /// </summary>
+    public static List<TmdbCastMember> CastToFetch(IEnumerable<string> have, List<TmdbCastMember> tmdb, int shortCast, int max)
+    {
+        var names = have.Select(n => n.Trim()).Where(n => n.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var cast = names.Count <= shortCast ? tmdb : tmdb.Where(c => names.Contains(c.Name.Trim()));
+        return cast.Take(max).ToList();
+    }
+
+    /// <summary>
     /// Fills the movie's gaps from TMDb's <paramref name="d"/>: poster and fanart
     /// when it has none, the details, genres, director, writers and cast (with
     /// photos), then onto its drive now if it's connected, else when it is.
@@ -57,12 +71,14 @@ public static class MovieFetch
         // even when the movie already has cast, because MediaElch NFOs often
         // store actor <thumb>s as TMDb http URLs (blank offline) or none at
         // all; we download portable copies and AddManualActors upgrades those
-        // weak thumbs to the local cache.
-        if (d.Cast.Count > 0)
+        // weak thumbs to the local cache. 5.5.4: only for the .nfo's own people
+        // when it has a cast of its own (CastToFetch)
+        var cast = CastToFetch(m.Actors.Select(a => a.Name), d.Cast, NfoFill.ShortCast, UiSettings.CastPhotos);
+        if (cast.Count > 0)
         {
             status?.Invoke("Fetching cast photos…");
             var actors = new List<(string, string?, int, string?)>();
-            foreach (var c in d.Cast)
+            foreach (var c in cast)
             {
                 if (string.IsNullOrWhiteSpace(c.Name)) continue;
                 string? thumbRel = null;
