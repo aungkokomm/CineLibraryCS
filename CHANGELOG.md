@@ -6,6 +6,18 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.5.3] - 2026-11-14
+
+### Changed
+- Favorites in the sidebar shows how many movies and shows are in it, as To Watch does.
+- An actor's or director's page shows their photo bigger.
+
+### Fixed
+- Going ‹ Back with the mouse's back button, or closing a movie's window with it, could go back twice and open two or three movie windows, with a black flash. One press now goes back once, and only one movie window is ever open.
+- A note that came from the .nfo (tinyMediaManager's) couldn't be deleted: it came back in its place. Deleting it now takes it out of the .nfo too, for movies and TV shows. Clearing a note of your own still shows the .nfo's note again.
+- A drive that didn't answer (asleep, or a network drive that's gone) could keep CineLibrary from starting, with an empty window. Each drive now gets a few seconds; one still waking counts as not connected and comes in when it answers, as if just plugged in.
+- The year, and a long title, were cut off under the posters of an actor's films not in your library and on the Wishlist.
+
 ## [5.5.0] - 2026-11-14
 
 ### Added

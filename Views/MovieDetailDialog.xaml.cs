@@ -83,6 +83,10 @@ public sealed partial class MovieDetailDialog : Window
         s_open++;
         HideMainSoon();
         Closed += (_, _) => GiveBackPlace();
+        // 5.5.1: one movie window at a time (the main window is hidden behind it)
+        foreach (var other in s_windows.ToList()) other.Close();
+        s_windows.Add(this);
+        Closed += (_, _) => s_windows.Remove(this);
 
         // Esc closes the dialog
         var escAcc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
@@ -102,7 +106,7 @@ public sealed partial class MovieDetailDialog : Window
             {
                 if (!e.GetCurrentPoint(RootGrid).Properties.IsXButton1Pressed) return;
                 e.Handled = true;
-                Close();
+                if (MainWindow.FirstBackPress()) Close();   // 5.5.1
             }), handledEventsToo: true);
 
         // Inherit theme from main window
@@ -126,6 +130,7 @@ public sealed partial class MovieDetailDialog : Window
 
     // Movie windows open; the main window comes back when the last one closes.
     private static int s_open;
+    private static readonly List<MovieDetailDialog> s_windows = new();
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hideMainTimer;
 
     private static IntPtr MainHwnd => App.MainWindow is { } mw ? WinRT.Interop.WindowNative.GetWindowHandle(mw) : IntPtr.Zero;
@@ -1487,6 +1492,7 @@ public sealed partial class MovieDetailDialog : Window
         AppState.Instance.Db.ToggleFavorite(_movie.Id);
         _movie.IsFavorite = !_movie.IsFavorite;
         FavBtn.Content = ActionLabel.Favorite(_movie.IsFavorite);
+        WatchlistChanged?.Invoke(this, EventArgs.Empty);   // 5.5.1: the Favorites count
     }
 
          private void OnToggleWatched(object sender, RoutedEventArgs e)
@@ -1860,6 +1866,18 @@ public sealed partial class MovieDetailDialog : Window
         {
             if (_movie == null) return;
             var newNote = (NoteEditor.Text ?? "").Trim();
+
+            // 5.5.1: deleting the note the .nfo has (tinyMediaManager's) takes it out of the .nfo,
+            // so it doesn't come back in its place, nor with a rescan. 5.5.3: only when it's the one
+            // shown: clearing a note of yours shows the .nfo's again, as before
+            if (newNote.Length == 0 && string.IsNullOrWhiteSpace(_movie.Note) && !string.IsNullOrWhiteSpace(_movie.NfoNote))
+            {
+                AppState.Instance.Db.ClearNfoNote(_movie.Id, show: false);
+                _movie.NfoNote = null;
+                if (_movie.IsOnline && _movie.CurrentLetter != null && _movie.FolderRelPath != null)
+                    NfoUserNote.Remove(ScannerService.FindNfo(
+                        Path.Combine($"{_movie.CurrentLetter}:\\", _movie.FolderRelPath.Replace('/', '\\'))));
+            }
 
             // 1) DB always succeeds (even when drive is offline)
             AppState.Instance.Db.SetNote(_movie.Id, newNote);

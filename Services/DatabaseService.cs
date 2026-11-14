@@ -1934,21 +1934,49 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         tx.Commit();
     }
 
-    [MethodImpl(MethodImplOptions.Synchronized)]
+    // 5.5.1: a drive that doesn't answer (asleep, a network drive gone) held up CineLibrary's start
+    // for as long as it took, and with this method's lock every database call too. Now the drives are
+    // asked at once and each gets DriveWait; one still waking counts as not connected, isn't waited
+    // for again while its question is open, and DriveAnsweredLate says when it answers after all.
+    private static readonly Dictionary<string, Task<string?>> s_driveProbes = new(StringComparer.OrdinalIgnoreCase);
+    internal static readonly TimeSpan DriveWait = TimeSpan.FromSeconds(4);
+
+    /// <summary>5.5.1: a drive that answered after its drive check gave up on it (on a worker thread).</summary>
+    public static event Action? DriveAnsweredLate;
+
     public Dictionary<string, string> GetConnectedDrives()
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var drive in global::System.IO.DriveInfo.GetDrives())
-        {
-            if (!drive.IsReady) continue;
-            try
+        var probes = new List<(string Name, Task<string?> Serial)>();
+        var fresh = new List<Task<string?>>();
+        lock (s_driveProbes)
+            foreach (var drive in global::System.IO.DriveInfo.GetDrives())
             {
-                var serial = GetVolumeSerial(drive.Name);
-                if (serial != null)
-                    result[serial] = drive.Name.TrimEnd('\\').TrimEnd(':');
+                var name = drive.Name;
+                if (!s_driveProbes.TryGetValue(name, out var probe))
+                {
+                    var asked = Environment.TickCount64;
+                    probe = Task.Run(() =>
+                    {
+                        try { return drive.IsReady ? GetVolumeSerial(name) : null; }
+                        catch { return null; }
+                    });
+                    s_driveProbes[name] = probe;
+                    fresh.Add(probe);
+                    probe.ContinueWith(t =>
+                    {
+                        lock (s_driveProbes) s_driveProbes.Remove(name);
+                        if (t.Result != null && Environment.TickCount64 - asked > DriveWait.TotalMilliseconds)
+                            DriveAnsweredLate?.Invoke();
+                    }, TaskScheduler.Default);
+                }
+                probes.Add((name, probe));
             }
-            catch { /* ignore */ }
-        }
+        Task.WaitAll(fresh.ToArray(), DriveWait);
+
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, probe) in probes)
+            if (probe.IsCompletedSuccessfully && probe.Result is { } serial)
+                result[serial] = name.TrimEnd('\\').TrimEnd(':');
         return result;
     }
 
@@ -4877,6 +4905,15 @@ LIMIT @most";
         return 0;
     }
 
+    /// <summary>5.5.1: for the sidebar's Favorites, counted as To Watch is.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public int GetFavoritesCount()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM movies WHERE is_favorite = 1 AND is_missing = 0 AND archived_at IS NULL";
+        return (int)(long)cmd.ExecuteScalar()!;
+    }
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public int GetWatchlistCount()
     {
@@ -5975,6 +6012,16 @@ LIMIT @most";
     /// Save user note to the row. Empty/null clears it.
     /// Sidecar file write is handled by the caller (needs the drive letter).
     /// </summary>
+    /// <summary>5.5.1: forgets the .nfo's note (tinyMediaManager's &lt;user_note&gt;) when it's deleted here.</summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void ClearNfoNote(int id, bool show)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = $"UPDATE {(show ? "tv_shows" : "movies")} SET nfo_note=NULL WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void SetNote(int movieId, string? note)
     {

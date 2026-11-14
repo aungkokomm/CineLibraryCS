@@ -148,6 +148,8 @@ public sealed partial class MainWindow : Window
             // Don't await — we're inside WndProc and must return promptly.
             _ = _vm.OnDeviceChangeAsync();
         });
+        // 5.5.1: a drive still waking at a drive check counts as plugged in when it answers
+        DatabaseService.DriveAnsweredLate += () => DispatcherQueue.TryEnqueue(() => _ = _vm.OnDeviceChangeAsync());
 
         // 5.3.0: back here after a film played in another player
         Activated += (_, e) => { if (e.WindowActivationState != WindowActivationState.Deactivated) OfferFinished(); };
@@ -962,6 +964,8 @@ public sealed partial class MainWindow : Window
             }
 
             WishlistBadge.Text = AppState.Instance.Db.GetWishlistCount().ToString();   // 5.4.0
+            FavoritesBadge.Text = (AppState.Instance.Db.GetFavoritesCount()
+                + AppState.Instance.Db.GetTvShowPageCount(DatabaseService.TvShowPage.Favorites)).ToString();   // 5.5.1
 
             // Continue Watching badge (v1.8) — only show shortcut if there's anything to continue
             var cwCount = AppState.Instance.Db.GetContinueWatchingCount()
@@ -1820,7 +1824,25 @@ public sealed partial class MainWindow : Window
         _libraryPage?.HideBrowseBack();
     }
 
-    public void OnLibraryBackRequested() => _libraryBackAction?.Invoke();
+    public void OnLibraryBackRequested()
+    {
+        if (FirstBackPress()) _libraryBackAction?.Invoke();
+    }
+
+    private static long s_lastBack;
+
+    /// <summary>
+    /// 5.5.1: the mouse's back button comes twice, as a click and as the Back key, and in a
+    /// movie's window the second one reached the main window once the movie's closed, going
+    /// ‹ Back again (and opening another movie's window). One press is one step back.
+    /// </summary>
+    internal static bool FirstBackPress()
+    {
+        var now = Environment.TickCount64;
+        if (now - s_lastBack < 500) return false;
+        s_lastBack = now;
+        return true;
+    }
 
     /// <summary>Shows ‹ <paramref name="label"/> on the library page, running <paramref name="back"/> when clicked.</summary>
     public void SetLibraryBack(string label, Action back)

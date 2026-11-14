@@ -10,7 +10,7 @@
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="44"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Button x:Name="PosterBtn" Click="OnPosterClick" Padding="0" CornerRadius="10"

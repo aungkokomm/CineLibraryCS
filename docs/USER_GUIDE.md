@@ -692,6 +692,8 @@ A note that's already in a movie's or show's `.nfo` (tinyMediaManager
 writes one as `<user_note>`, and so does CineLibrary Essentials' editor)
 shows as **Your note** when you haven't written one in CineLibrary. Write
 your own and it shows instead; clear yours and the `.nfo`'s note is back.
+Clear the `.nfo`'s note itself and it's taken out of the `.nfo` (v5.5.3), so
+it doesn't come back with the next scan.
 Titles with either kind of note are on the **Notes** page. Like the tags,
 the `.nfo`'s note follows the file after the next scan or **Reload from
 .nfo**. A show's play count in its `tvshow.nfo` shows as **Played** on

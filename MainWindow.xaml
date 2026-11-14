@@ -239,12 +239,22 @@
 
                         <!-- Favorites -->
                         <Button x:Name="BtnFavorites" Style="{StaticResource NavItemStyle}" Click="OnNavFavorites">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xEB51;" FontSize="15"
-                                          FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
-                                          VerticalAlignment="Center"/>
-                                <TextBlock Text="Favorites" VerticalAlignment="Center"/>
-                            </StackPanel>
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <FontIcon Foreground="{ThemeResource NavLibraryIconBrush}" Glyph="&#xEB51;" FontSize="15"
+                                              FontFamily="Segoe Fluent Icons,Segoe MDL2 Assets"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Text="Favorites" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border Grid.Column="1" Style="{StaticResource BadgeStyle}">
+                                    <TextBlock x:Name="FavoritesBadge" Text="0" FontSize="11"
+                                               Foreground="{ThemeResource MutedBrush}" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
                         </Button>
 
                         <!-- Notes (v2.8.2) — every movie that carries a note -->

@@ -284,9 +284,9 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Grid Width="80" Height="120" CornerRadius="10" VerticalAlignment="Top"
+                <Grid Width="140" Height="210" CornerRadius="10" VerticalAlignment="Top"
                       Background="{ThemeResource CardBrush}">
-                    <TextBlock x:Name="PersonInitials" FontSize="30" FontWeight="SemiBold"
+                    <TextBlock x:Name="PersonInitials" FontSize="44" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{ThemeResource MutedBrush}"/>
                     <Image x:Name="PersonPhoto" Stretch="UniformToFill"/>

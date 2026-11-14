@@ -1073,7 +1073,16 @@ public sealed partial class TvShowsPage : Page
 
         var fresh = box.Text?.Trim();
         if (string.IsNullOrEmpty(fresh)) fresh = null;
-        if (fresh == show.Note) return;
+        // 5.5.1: deleting the note the tvshow.nfo has (tinyMediaManager's) takes it out of the .nfo.
+        // 5.5.3: only when it's the one shown: clearing a note of yours shows the .nfo's again
+        var nfoNoteGoes = fresh == null && string.IsNullOrWhiteSpace(show.Note) && !string.IsNullOrWhiteSpace(show.NfoNote);
+        if (fresh == show.Note && !nfoNoteGoes) return;
+        if (nfoNoteGoes)
+        {
+            AppState.Instance.Db.ClearNfoNote(show.Id, show: true);
+            show.NfoNote = null;
+            if (ResolveShowFolderAbs(show) is { } folder) NfoUserNote.Remove(Path.Combine(folder, "tvshow.nfo"));
+        }
         show.Note = fresh;
         AppState.Instance.Db.SetTvShowNote(show.Id, fresh);   // also the show folder's state file
         if (ReferenceEquals(show, _detail)) UpdateShowNote();
