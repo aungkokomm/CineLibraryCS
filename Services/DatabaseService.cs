@@ -1703,7 +1703,10 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     public List<Models.DriveInfo> GetDrives()
     {
         var list = new List<Models.DriveInfo>();
-        var connected = GetConnectedDrives();
+        // 5.5.5: the drives as last asked (at start-up, a drive plugged in or out, the Drives page),
+        // not asked again: this runs on every sidebar refresh with the database locked, and asking
+        // the drives here held every database call meanwhile (a movie's window opened blank for seconds)
+        var connected = s_lastConnected ?? GetConnectedDrives();
 
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = @"
@@ -1940,6 +1943,8 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
     // for again while its question is open, and DriveAnsweredLate says when it answers after all.
     private static readonly Dictionary<string, Task<string?>> s_driveProbes = new(StringComparer.OrdinalIgnoreCase);
     internal static readonly TimeSpan DriveWait = TimeSpan.FromSeconds(4);
+    /// <summary>5.5.5: the answer of the last drive check, for GetDrives. Replaced whole, never changed.</summary>
+    private static volatile Dictionary<string, string>? s_lastConnected;
 
     /// <summary>5.5.1: a drive that answered after its drive check gave up on it (on a worker thread).</summary>
     public static event Action? DriveAnsweredLate;
@@ -1955,11 +1960,13 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
                 if (!s_driveProbes.TryGetValue(name, out var probe))
                 {
                     var asked = Environment.TickCount64;
-                    probe = Task.Run(() =>
+                    // 5.5.5: a thread of its own, so it never waits for the shared ones (busy waiting
+                    // for the database, they made a drive check take seconds)
+                    probe = Task.Factory.StartNew(() =>
                     {
                         try { return drive.IsReady ? GetVolumeSerial(name) : null; }
                         catch { return null; }
-                    });
+                    }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                     s_driveProbes[name] = probe;
                     fresh.Add(probe);
                     probe.ContinueWith(t =>
@@ -1977,6 +1984,7 @@ CREATE INDEX IF NOT EXISTS idx_tv_show_tags_tag ON tv_show_tags(tag_id);
         foreach (var (name, probe) in probes)
             if (probe.IsCompletedSuccessfully && probe.Result is { } serial)
                 result[serial] = name.TrimEnd('\\').TrimEnd(':');
+        s_lastConnected = new Dictionary<string, string>(result, StringComparer.OrdinalIgnoreCase);
         return result;
     }
 

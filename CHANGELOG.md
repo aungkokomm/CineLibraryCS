@@ -6,6 +6,11 @@ Format roughly follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 > Per-release notes for the 2.x and early-3.x versions between the two
 > entries below live on the [Releases](https://github.com/aungkokomm/CineLibraryCS/releases) page.
 
+## [5.5.5] - 2026-11-18
+
+### Fixed
+- A movie's window could open blank for a few seconds from a page with a filter on (To Watch, Favorites, a collection). Every sidebar refresh asked all the drives with the library's database locked, and since 5.5.2 those questions could wait behind the work they were holding up. The sidebar now uses the drives as last checked (at start-up, when a drive is plugged in or out, and on the Drives page), so it no longer wakes sleeping drives either, and a drive check runs on threads of its own.
+
 ## [5.5.4] - 2026-11-15
 
 ### Added
